@@ -334,18 +334,16 @@ AND jsonb_path_query_first(
     query: `WITH areas AS MATERIALIZED (
   SELECT geom
   FROM postpass_polygon
-  WHERE osm_type = 'R'
-  AND osm_id IN (9407,348981,349053)
+  WHERE osm_type='R' AND osm_id IN (9407,348981,349053)
 )
 SELECT
-  CASE e.osm_type
-    WHEN 'N' THEN 'node'
-    WHEN 'W' THEN 'way'
-    WHEN 'R' THEN 'relation'
-  END AS type,
+  e.tags,
+  ST_PointOnSurface(e.geom) AS geom,
+  e.osm_type,
+  e.osm_id,
+  CASE e.osm_type WHEN 'N' THEN 'node' WHEN 'W' THEN 'way' WHEN 'R' THEN 'relation' END AS type,
   e.osm_id AS id,
-  e.tags->>'name' AS name,
-  ST_PointOnSurface(e.geom) AS geom
+  e.tags->>'name' AS name
 FROM areas a
 CROSS JOIN LATERAL (
   SELECT osm_type,osm_id,tags,geom
