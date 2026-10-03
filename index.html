@@ -123,6 +123,11 @@
             <button id="clearBtn" type="button">Restablecer</button>
           </div>
         </div>
+        <div class="preset">
+          <label for="presetSelect">Ejemplo</label>
+          <select id="presetSelect" aria-describedby="presetDescription"></select>
+          <div id="presetDescription" class="preset-desc"></div>
+        </div>
         <div class="edit">
           <div id="query">
             <textarea
@@ -130,16 +135,12 @@
               aria-label="Consulta"
               spellcheck="false"
             >
-[out:xml][timeout:60][maxsize:16Mi];
+[out:xml][timeout:32][maxsize:16Mi];
 {{geocodeArea:spain}}->.sA;
 nwr["automatic"](area.sA);
 out center;</textarea>
           </div>
         </div>
-        <template id="postpassDefault">
-          SELECT osm_type, osm_id, tags, geom FROM postpass_pointlinepolygon
-          WHERE geom && {{bbox}} LIMIT 100
-        </template>
         <div class="tabs" role="tablist">
           <button
             id="statusTabBtn"

@@ -6,7 +6,10 @@ import { parseResponse, responseError, errorStatusHtml, OSM_TYPES } from "./resp
 import { createMapController } from "./map.js";
 import { createUI } from "./ui.js";
 import { $, esc, json, abortError } from "./utils.js";
+import { OVERPASS_PRESETS } from "./presets-overpass.js";
+import { POSTPASS_PRESETS } from "./presets-postpass.js";
 const STORE = { endpoint: "osm-overpass-map:endpoint", wrap: "osm-overpass-map:wrap", mode: "osm-overpass-map:render", heat: "osm-overpass-map:heat", areas: "osm-overpass-map:geocode-areas" };
+const PRESETS = { overpass: OVERPASS_PRESETS, postpass: POSTPASS_PRESETS };
 const initializeApp = (deps) => {
   const status = $("status");
   const dataOutput = $("dataOutput");
@@ -19,6 +22,8 @@ const initializeApp = (deps) => {
   const queryNode = $("query");
   const wrapLines = $("wrapLines");
   const renderMode = $("renderMode");
+  const presetSelect = $("presetSelect");
+  const presetDescription = $("presetDescription");
   const endpoints = [...endpoint.options].map((option) => option.value);
   const savedEndpoint = storage.getItem(STORE.endpoint);
   const wrap = storage.getItem(STORE.wrap) === "wrap" ? "wrap" : "scroll";
@@ -27,7 +32,38 @@ const initializeApp = (deps) => {
   wrapLines.value = wrap;
   renderMode.value = mode;
   const getEngine = () => endpoint.selectedOptions[0]?.dataset.engine === "postpass" ? "postpass" : "overpass";
-  const editor = createEditor({ deps, queryNode, postpassTemplate: $("postpassDefault"), wrapMode: wrap, engine: getEngine() });
+  const defaults = { overpass: PRESETS.overpass[0]?.query ?? "", postpass: PRESETS.postpass[0]?.query ?? "" };
+  let editor;
+  const syncPreset = () => {
+    if (!editor) return;
+    const presets = PRESETS[editor.getEngine()];
+    const query = editor.getQuery().trim();
+    const index = presets.findIndex((preset) => preset.query.trim() === query);
+    presetSelect.value = index < 0 ? "custom" : String(index);
+    presetDescription.textContent = index < 0 ? "Consulta editada manualmente." : presets[index].description;
+  };
+  const renderPresets = () => {
+    const presets = PRESETS[editor.getEngine()];
+    presetSelect.replaceChildren();
+    presets.forEach((preset, index) => {
+      const option = document.createElement("option");
+      option.value = String(index);
+      option.textContent = preset.title;
+      presetSelect.append(option);
+    });
+    const custom = document.createElement("option");
+    custom.value = "custom";
+    custom.textContent = "Consulta personalizada";
+    presetSelect.append(custom);
+    syncPreset();
+  };
+  editor = createEditor({ deps, queryNode, wrapMode: wrap, engine: getEngine(), defaults, onChange: syncPreset });
+  renderPresets();
+  presetSelect.onchange = () => {
+    if (presetSelect.value === "custom") return;
+    const preset = PRESETS[editor.getEngine()][Number(presetSelect.value)];
+    if (preset) editor.setQuery(preset.query);
+  };
   const mapController = createMapController({ ml: deps.maplibregl, storage, heatStoreKey: STORE.heat, renderMode, heatElements: { config: $("heatCfg"), radius: $("heatRadius"), intensity: $("heatIntensity"), opacity: $("heatOpacity"), weight: $("heatWeight"), palette: $("heatPalette"), radiusValue: $("heatRadiusVal"), intensityValue: $("heatIntensityVal"), opacityValue: $("heatOpacityVal"), weightValue: $("heatWeightVal"), reset: $("heatReset") } });
   const map = mapController.map;
   const ui = createUI({ map, status, dataOutput, dataView, overlay, overlayLog, copyButton });
@@ -158,6 +194,7 @@ const initializeApp = (deps) => {
     mapController.clear();
     ui.resetData();
     editor.reset();
+    syncPreset();
     ui.show();
     ui.setStatus("Pulsa <strong>Ejecutar</strong> o <strong>Ctrl+Intro</strong> para ejecutar la consulta.");
     ui.tab("status");
@@ -168,6 +205,7 @@ const initializeApp = (deps) => {
     const next = getEngine();
     if (next !== editor.getEngine()) {
       editor.setMode(next);
+      renderPresets();
       ui.setStatus(`Modo <strong>${next === "postpass" ? "Postpass SQL" : "Overpass QL"}</strong> listo para ejecutar.`);
       ui.tab("status");
     }

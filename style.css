@@ -211,6 +211,19 @@ input:disabled {
   accent-color: var(--a);
   cursor: pointer;
 }
+.preset {
+  flex: none;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--b);
+  background: #111a29;
+}
+.preset-desc {
+  min-height: 30px;
+  margin-top: 7px;
+  color: var(--m);
+  font-size: 12px;
+  line-height: 1.3;
+}
 .edit {
   display: flex;
   flex: 1 1 0;
@@ -694,6 +707,12 @@ a {
   .pan {
     padding: 8px 10px;
   }
+  .preset {
+    padding: 8px 10px;
+  }
+  .preset-desc {
+    min-height: 0;
+  }
   .row {
     margin-top: 7px;
   }
@@ -723,6 +742,14 @@ a {
 @media (max-height: 600px) {
   .pan {
     padding: 7px 10px;
+  }
+  .preset {
+    padding: 6px 10px;
+  }
+  .preset-desc {
+    min-height: 0;
+    margin-top: 5px;
+    font-size: 11px;
   }
   .pan details:not([open]) summary {
     padding: 6px 8px;

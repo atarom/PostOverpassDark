@@ -1,4 +1,4 @@
-export const createEditor = ({ deps, queryNode, postpassTemplate, wrapMode, engine }) => {
+export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onChange }) => {
   const { EditorView, Compartment, basicSetup, StreamLanguage, HighlightStyle, syntaxHighlighting, autocompletion, linter, tags: t, sql, PostgreSQL, keywordCompletionSource, schemaCompletionSource } = deps;
   const words = (s) => s.split(" ");
   const setOf = (s) => new Set(words(s));
@@ -100,12 +100,6 @@ export const createEditor = ({ deps, queryNode, postpassTemplate, wrapMode, engi
       "#fff2a1"
     )
   };
-  const cleanDefault = (node) =>
-      (node.querySelector("textarea")?.value ?? node.textContent)
-        .trim()
-        .replace(/^[ \t]+/gm, ""),
-    DEF = cleanDefault(queryNode),
-    PPDEF = postpassTemplate.content.textContent.trim().replace(/^[ \t]+/gm, "");
   const lang = StreamLanguage.define({
     tokenTable: { atom: t.bool, opt: t.constant(t.variableName) },
     startState: () => ({ c: false, x: "" }),
@@ -456,7 +450,6 @@ export const createEditor = ({ deps, queryNode, postpassTemplate, wrapMode, engi
   const langComp = new Compartment();
   const completeComp = new Compartment();
   const lintComp = new Compartment();
-  const defaults = { overpass: DEF, postpass: PPDEF };
   const queries = { ...defaults };
   let currentEngine = engine;
   const ed = new EditorView({
@@ -469,7 +462,10 @@ export const createEditor = ({ deps, queryNode, postpassTemplate, wrapMode, engi
       completeComp.of(completion(currentEngine)),
       lintComp.of(lint(currentEngine)),
       wrapComp.of(wrapMode === "wrap" ? EditorView.lineWrapping : []),
-      EditorView.contentAttributes.of({ "aria-label": "Consulta" })
+      EditorView.contentAttributes.of({ "aria-label": "Consulta" }),
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) onChange?.(update.state.doc.toString(), currentEngine);
+      })
     ]
   });
   queryNode.replaceChildren(ed.dom);
