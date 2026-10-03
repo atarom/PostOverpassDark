@@ -233,141 +233,84 @@ ORDER BY
     title: "Candidatos a falta de restricciones de giro en Catalunya",
     description: "Busca pares de vías highway=primary y oneway=yes en Catalunya, de hasta 500 metros, conectadas con un ángulo inferior a 70 grados, y excluye pares que ya tienen una relación restriction o que participan en determinadas restricciones de giro.",
     query: `WITH area_geom AS (
-  SELECT geom
-  FROM postpass_polygon
-  WHERE tags @> '{"boundary":"administrative","admin_level":"4","name":"Catalunya"}'::jsonb
+  SELECT geom FROM postpass_polygon WHERE tags @> '{"boundary":"administrative","admin_level":"4","name":"Catalunya"}'::jsonb
 ),
 area_bbox AS (
-  SELECT ST_Envelope(ST_Extent(geom))::geometry AS geom
-  FROM area_geom
+  SELECT ST_Envelope(ST_Extent(geom))::geometry AS geom FROM area_geom
 ),
 candidate_lines AS (
-  SELECT
-    l.osm_id,
-    l.osm_type,
-    l.geom,
-    ST_PointOnSurface(l.geom) AS rep_pt
-  FROM postpass_line l
-  CROSS JOIN area_bbox b
-  WHERE l.osm_type = 'W'
-    AND l.tags @> '{"highway":"primary","oneway":"yes"}'::jsonb
-    AND l.geom && b.geom
+  SELECT l.osm_id,l.osm_type,l.tags,l.geom,ST_PointOnSurface(l.geom) AS rep_pt
+  FROM postpass_line l CROSS JOIN area_bbox b
+  WHERE l.osm_type='W' AND l.tags @> '{"highway":"primary","oneway":"yes"}'::jsonb AND l.geom && b.geom
 ),
 spatial_lines AS (
-  SELECT
-    l.osm_id,
-    l.osm_type,
-    l.geom
+  SELECT l.osm_id,l.osm_type,l.tags,l.geom
   FROM candidate_lines l
-  WHERE ST_Length(l.geom::geography) <= 500
-    AND EXISTS (
-      SELECT 1
-      FROM area_geom a
-      WHERE l.rep_pt && a.geom
-        AND ST_Intersects(l.rep_pt, a.geom)
-    )
+  WHERE ST_Length(l.geom::geography)<=500
+    AND EXISTS (SELECT 1 FROM area_geom a WHERE l.rep_pt && a.geom AND ST_Intersects(l.rep_pt,a.geom))
 ),
 prepared AS (
-  SELECT
-    l.osm_id,
-    l.osm_type,
-    ST_LineMerge(l.geom) AS geom,
-    w.nodes[1] AS start_node,
-    w.nodes[array_length(w.nodes, 1)] AS end_node
+  SELECT l.osm_id,l.osm_type,l.tags,ST_LineMerge(l.geom) AS geom,w.nodes[1] AS start_node,w.nodes[array_length(w.nodes,1)] AS end_node
   FROM spatial_lines l
-  JOIN planet_osm_ways w
-    ON w.id = l.osm_id
-  WHERE GeometryType(ST_LineMerge(l.geom)) = 'LINESTRING'
-    AND ST_NPoints(ST_LineMerge(l.geom)) >= 2
+  JOIN planet_osm_ways w ON w.id=l.osm_id
+  WHERE GeometryType(ST_LineMerge(l.geom))='LINESTRING' AND ST_NPoints(ST_LineMerge(l.geom))>=2
 ),
 acute_pairs AS (
-  SELECT
-    a.osm_id AS osm_id_a,
-    a.osm_type AS osm_type_a,
-    a.geom AS geom_a,
-    b.osm_id AS osm_id_b,
-    b.osm_type AS osm_type_b,
-    b.geom AS geom_b,
+  SELECT a.osm_id AS osm_id_a,a.osm_type AS osm_type_a,a.tags AS tags_a,b.osm_id AS osm_id_b,b.osm_type AS osm_type_b,b.tags AS tags_b,ST_EndPoint(a.geom) AS geom,
     abs(atan2(
-      sin(
-        ST_Azimuth(ST_EndPoint(a.geom), ST_PointN(a.geom, ST_NPoints(a.geom) - 1)) -
-        ST_Azimuth(ST_StartPoint(b.geom), ST_PointN(b.geom, 2))
-      ),
-      cos(
-        ST_Azimuth(ST_EndPoint(a.geom), ST_PointN(a.geom, ST_NPoints(a.geom) - 1)) -
-        ST_Azimuth(ST_StartPoint(b.geom), ST_PointN(b.geom, 2))
-      )
+      sin(ST_Azimuth(ST_EndPoint(a.geom),ST_PointN(a.geom,ST_NPoints(a.geom)-1))-ST_Azimuth(ST_StartPoint(b.geom),ST_PointN(b.geom,2))),
+      cos(ST_Azimuth(ST_EndPoint(a.geom),ST_PointN(a.geom,ST_NPoints(a.geom)-1))-ST_Azimuth(ST_StartPoint(b.geom),ST_PointN(b.geom,2)))
     )) AS angle_rad
   FROM prepared a
-  JOIN prepared b
-    ON a.end_node = b.start_node
-   AND a.osm_id <> b.osm_id
+  JOIN prepared b ON a.end_node=b.start_node AND a.osm_id<>b.osm_id
   WHERE abs(atan2(
-    sin(
-      ST_Azimuth(ST_EndPoint(a.geom), ST_PointN(a.geom, ST_NPoints(a.geom) - 1)) -
-      ST_Azimuth(ST_StartPoint(b.geom), ST_PointN(b.geom, 2))
-    ),
-    cos(
-      ST_Azimuth(ST_EndPoint(a.geom), ST_PointN(a.geom, ST_NPoints(a.geom) - 1)) -
-      ST_Azimuth(ST_StartPoint(b.geom), ST_PointN(b.geom, 2))
-    )
-  )) < radians(70)
+    sin(ST_Azimuth(ST_EndPoint(a.geom),ST_PointN(a.geom,ST_NPoints(a.geom)-1))-ST_Azimuth(ST_StartPoint(b.geom),ST_PointN(b.geom,2))),
+    cos(ST_Azimuth(ST_EndPoint(a.geom),ST_PointN(a.geom,ST_NPoints(a.geom)-1))-ST_Azimuth(ST_StartPoint(b.geom),ST_PointN(b.geom,2)))
+  ))<radians(70)
 ),
 candidate_way_ids AS (
-  SELECT osm_id_a AS osm_id FROM acute_pairs
-  UNION
-  SELECT osm_id_b AS osm_id FROM acute_pairs
+  SELECT osm_id_a AS osm_id FROM acute_pairs UNION SELECT osm_id_b FROM acute_pairs
 ),
 restriction_members AS (
-  SELECT
-    r.id,
-    r.tags,
-    r.members,
-    (m.m->>'ref')::bigint AS way_id
+  SELECT r.id,r.tags,r.members,(m.m->>'ref')::bigint AS way_id
   FROM planet_osm_rels r
-  JOIN LATERAL jsonb_array_elements(r.members) m(m)
-    ON m.m->>'type' = 'W'
-  JOIN candidate_way_ids c
-    ON (m.m->>'ref')::bigint = c.osm_id
-  WHERE r.tags @> '{"type":"restriction"}'::jsonb
-    AND r.tags ? 'restriction'
+  JOIN LATERAL jsonb_array_elements(r.members) m(m) ON m.m->>'type'='W'
+  JOIN candidate_way_ids c ON (m.m->>'ref')::bigint=c.osm_id
+  WHERE r.tags @> '{"type":"restriction"}'::jsonb AND r.tags?'restriction'
 ),
 restricted_pairs AS (
-  SELECT
-    max(CASE WHEN m.m->>'role' = 'from' AND m.m->>'type' = 'W' THEN (m.m->>'ref')::bigint END) AS osm_id_a,
-    max(CASE WHEN m.m->>'role' = 'to' AND m.m->>'type' = 'W' THEN (m.m->>'ref')::bigint END) AS osm_id_b
-  FROM (
-    SELECT DISTINCT id, members
-    FROM restriction_members
-  ) r
+  SELECT max(CASE WHEN m.m->>'role'='from' AND m.m->>'type'='W' THEN (m.m->>'ref')::bigint END) AS osm_id_a,max(CASE WHEN m.m->>'role'='to' AND m.m->>'type'='W' THEN (m.m->>'ref')::bigint END) AS osm_id_b
+  FROM (SELECT DISTINCT id,members FROM restriction_members) r
   JOIN LATERAL jsonb_array_elements(r.members) m(m) ON TRUE
   GROUP BY r.id
-  HAVING max(CASE WHEN m.m->>'role' = 'from' AND m.m->>'type' = 'W' THEN 1 ELSE 0 END) = 1
-     AND max(CASE WHEN m.m->>'role' = 'to' AND m.m->>'type' = 'W' THEN 1 ELSE 0 END) = 1
+  HAVING max(CASE WHEN m.m->>'role'='from' AND m.m->>'type'='W' THEN 1 ELSE 0 END)=1
+     AND max(CASE WHEN m.m->>'role'='to' AND m.m->>'type'='W' THEN 1 ELSE 0 END)=1
 ),
 excluded_way_ids AS (
-  SELECT DISTINCT way_id AS osm_id
-  FROM restriction_members
-  WHERE tags->>'restriction' IN ('only_straight_on', 'only_right_turn')
+  SELECT DISTINCT way_id AS osm_id FROM restriction_members WHERE tags->>'restriction' IN ('only_straight_on','only_right_turn')
 )
 SELECT
-  ST_Collect(p.geom_a, p.geom_b) AS geom,
+  jsonb_build_object(
+    'feature','acute_turn',
+    'angle_deg',round(degrees(p.angle_rad)::numeric,2),
+    'osm_id_a',p.osm_id_a,
+    'osm_id_b',p.osm_id_b,
+    'way_a',p.tags_a,
+    'way_b',p.tags_b
+  ) AS tags,
+  p.geom,
+  p.osm_type_a AS osm_type,
+  p.osm_id_a AS osm_id,
   p.osm_type_a,
   p.osm_id_a,
   p.osm_type_b,
   p.osm_id_b,
   degrees(p.angle_rad) AS angle_deg
 FROM acute_pairs p
-LEFT JOIN restricted_pairs r
-  ON r.osm_id_a = p.osm_id_a
- AND r.osm_id_b = p.osm_id_b
-LEFT JOIN excluded_way_ids x1
-  ON x1.osm_id = p.osm_id_a
-LEFT JOIN excluded_way_ids x2
-  ON x2.osm_id = p.osm_id_b
-WHERE r.osm_id_a IS NULL
-  AND x1.osm_id IS NULL
-  AND x2.osm_id IS NULL`
+LEFT JOIN restricted_pairs r ON r.osm_id_a=p.osm_id_a AND r.osm_id_b=p.osm_id_b
+LEFT JOIN excluded_way_ids x1 ON x1.osm_id=p.osm_id_a
+LEFT JOIN excluded_way_ids x2 ON x2.osm_id=p.osm_id_b
+WHERE r.osm_id_a IS NULL AND x1.osm_id IS NULL AND x2.osm_id IS NULL`
   },
   {
     title: "Elementos cuyo ID aparece como valor de uno de sus tags",
