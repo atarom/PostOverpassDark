@@ -134,175 +134,72 @@ AND l.geom && {{bbox}}`
     title: "Municipios con Carrer de València en zonas catalanohablantes",
     description: "Busca municipios de nivel administrativo 8 dentro de varias zonas catalanohablantes donde exista una vía llamada Carrer de València. Devuelve las zonas de búsqueda y, para cada municipio encontrado, el número de coincidencias y la vía coincidente más larga.",
     query: `WITH params AS (
-  SELECT
-    'Carrer de València'::text AS street_name,
-    ARRAY[
-      'residential',
-      'footway',
-      'tertiary',
-      'secondary',
-      'living_street',
-      'pedestrian',
-      'service',
-      'primary',
-      'steps',
-      'trunk',
-      'unclassified'
-    ]::text[] AS highway_values
+  SELECT 'Carrer de València'::text AS street_name,ARRAY['residential','footway','tertiary','secondary','living_street','pedestrian','service','primary','steps','trunk','unclassified']::text[] AS highway_values
 ),
-admin_regions AS (
-  SELECT *
-  FROM (VALUES
-    ('Catalunya','4'),
-    ('Comunitat Valenciana','4'),
-    ('Illes Balears','4'),
-    ('Andorra','2'),
-    ('Pyrénées-Orientales','6'),
-    ('l''Alguer/Alghero','8')
-  ) AS v(region_name, admin_level)
+admin_regions(region_name,admin_level) AS (
+  VALUES ('Catalunya','4'),('Comunitat Valenciana','4'),('Illes Balears','4'),('Andorra','2'),('Pyrénées-Orientales','6'),('l''Alguer/Alghero','8')
 ),
-special_regions AS (
-  SELECT *
-  FROM (VALUES
-    ('Franja de Ponent','linguistic_community')
-  ) AS v(region_name, political_division)
+special_regions(region_name,political_division) AS (
+  VALUES ('Franja de Ponent','linguistic_community')
 ),
 zones AS (
-  SELECT
-    r.region_name,
-    p.tags AS zone_tags,
-    p.geom AS zone_geom,
-    p.osm_type AS zone_osm_type,
-    p.osm_id AS zone_osm_id
+  SELECT r.region_name,p.tags AS zone_tags,p.geom AS zone_geom,p.osm_type AS zone_osm_type,p.osm_id AS zone_osm_id
   FROM postpass_polygon p
-  JOIN admin_regions r
-    ON p.tags->>'boundary' = 'administrative'
-   AND p.tags->>'admin_level' = r.admin_level
-   AND p.tags->>'name' = r.region_name
+  JOIN admin_regions r ON p.tags->>'boundary'='administrative' AND p.tags->>'admin_level'=r.admin_level AND p.tags->>'name'=r.region_name
 ),
 special_zones AS (
-  SELECT
-    s.region_name,
-    p.tags AS zone_tags,
-    p.geom AS zone_geom,
-    p.osm_type AS zone_osm_type,
-    p.osm_id AS zone_osm_id
+  SELECT s.region_name,p.tags AS zone_tags,p.geom AS zone_geom,p.osm_type AS zone_osm_type,p.osm_id AS zone_osm_id
   FROM postpass_polygon p
-  JOIN special_regions s
-    ON p.tags->>'name' = s.region_name
-   AND p.tags->>'political_division' = s.political_division
-),
-admin_region_geom AS (
-  SELECT st_union(zone_geom) AS region_geom
-  FROM zones
+  JOIN special_regions s ON p.tags->>'name'=s.region_name AND p.tags->>'political_division'=s.political_division
 ),
 admin_region_union AS (
-  SELECT
-    region_geom,
-    st_envelope(region_geom) AS region_bbox
-  FROM admin_region_geom
-),
-special_region_geom AS (
-  SELECT st_union(zone_geom) AS region_geom
-  FROM special_zones
+  SELECT st_union(zone_geom) AS region_geom,st_envelope(st_union(zone_geom)) AS region_bbox FROM zones
 ),
 special_region_union AS (
-  SELECT
-    region_geom,
-    st_envelope(region_geom) AS region_bbox
-  FROM special_region_geom
+  SELECT st_union(zone_geom) AS region_geom,st_envelope(st_union(zone_geom)) AS region_bbox FROM special_zones
 ),
 muni AS (
-  SELECT
-    p.tags->>'name' AS muni_name,
-    p.osm_type AS muni_osm_type,
-    p.osm_id AS muni_osm_id,
-    p.geom AS muni_geom
+  SELECT p.tags->>'name' AS muni_name,p.osm_type AS muni_osm_type,p.osm_id AS muni_osm_id,p.geom AS muni_geom
   FROM postpass_polygon p
-  WHERE p.tags->>'boundary' = 'administrative'
-    AND p.tags->>'admin_level' = '8'
+  WHERE p.tags->>'boundary'='administrative'
+    AND p.tags->>'admin_level'='8'
     AND (
-      EXISTS (
-        SELECT 1
-        FROM admin_region_union aru
-        WHERE st_intersects(st_pointonsurface(p.geom), aru.region_geom)
-      )
-      OR EXISTS (
-        SELECT 1
-        FROM special_region_union sru
-        WHERE st_intersects(st_pointonsurface(p.geom), sru.region_geom)
-      )
+      EXISTS (SELECT 1 FROM admin_region_union r WHERE st_intersects(st_pointonsurface(p.geom),r.region_geom))
+      OR EXISTS (SELECT 1 FROM special_region_union r WHERE st_intersects(st_pointonsurface(p.geom),r.region_geom))
     )
 ),
 matches AS (
-  SELECT
-    m.muni_name,
-    m.muni_osm_type,
-    m.muni_osm_id,
-    m.muni_geom,
-    l.osm_type AS line_osm_type,
-    l.osm_id AS line_osm_id,
-    l.tags->>'highway' AS highway,
-    st_length(l.geom::geography) AS len_m
+  SELECT m.muni_name,m.muni_osm_type,m.muni_osm_id,m.muni_geom,l.osm_type AS line_osm_type,l.osm_id AS line_osm_id,l.tags AS line_tags,l.tags->>'highway' AS highway,l.geom AS line_geom,st_length(l.geom::geography) AS len_m
   FROM muni m
   CROSS JOIN params p
-  JOIN postpass_line l
-    ON l.tags->>'name' = p.street_name
-   AND l.tags->>'highway' = ANY(p.highway_values)
-   AND st_intersects(l.geom, m.muni_geom)
-  WHERE EXISTS (
-    SELECT 1
-    FROM admin_region_union aru
-    WHERE l.geom && aru.region_bbox
-  )
-  OR EXISTS (
-    SELECT 1
-    FROM special_region_union sru
-    WHERE l.geom && sru.region_bbox
-  )
+  JOIN postpass_line l ON l.tags->>'name'=p.street_name AND l.tags->>'highway'=ANY(p.highway_values) AND st_intersects(l.geom,m.muni_geom)
+  WHERE EXISTS (SELECT 1 FROM admin_region_union r WHERE l.geom && r.region_bbox)
+     OR EXISTS (SELECT 1 FROM special_region_union r WHERE l.geom && r.region_bbox)
 ),
 top_per_muni AS (
-  SELECT DISTINCT ON (muni_osm_type, muni_osm_id)
-    muni_name,
-    muni_osm_type,
-    muni_osm_id,
-    muni_geom,
-    line_osm_type AS top_line_osm_type,
-    line_osm_id AS top_line_osm_id,
-    highway,
-    len_m
+  SELECT DISTINCT ON (muni_osm_type,muni_osm_id)
+    muni_name,muni_osm_type,muni_osm_id,muni_geom,line_osm_type AS top_line_osm_type,line_osm_id AS top_line_osm_id,highway,len_m
   FROM matches
-  ORDER BY muni_osm_type, muni_osm_id, len_m DESC, line_osm_type, line_osm_id
+  ORDER BY muni_osm_type,muni_osm_id,len_m DESC,line_osm_type,line_osm_id
 ),
 counts AS (
-  SELECT
-    muni_osm_type,
-    muni_osm_id,
-    count(DISTINCT (line_osm_type, line_osm_id)) AS matches
+  SELECT muni_osm_type,muni_osm_id,count(DISTINCT (line_osm_type,line_osm_id)) AS matches
   FROM matches
-  GROUP BY muni_osm_type, muni_osm_id
+  GROUP BY muni_osm_type,muni_osm_id
 ),
 results AS (
-  SELECT
-    t.muni_name,
-    c.matches,
-    st_pointonsurface(t.muni_geom) AS geom,
-    t.muni_osm_type AS osm_type,
-    t.muni_osm_id AS osm_id,
-    t.top_line_osm_id AS top_way_id,
-    t.highway,
-    jsonb_build_object(
-      'feature','result',
-      'muni_name', t.muni_name,
-      'matches', c.matches,
-      'highway_top', t.highway,
-      'top_osm_type', t.top_line_osm_type,
-      'top_way_id', t.top_line_osm_id
-    ) AS tags
+  SELECT jsonb_build_object('feature','result','muni_name',t.muni_name,'matches',c.matches,'highway_top',t.highway,'top_osm_type',t.top_line_osm_type,'top_way_id',t.top_line_osm_id) AS tags,st_pointonsurface(t.muni_geom) AS geom,t.muni_osm_type AS osm_type,t.muni_osm_id AS osm_id,t.top_line_osm_id AS top_way_id,t.highway,t.muni_name,c.matches
   FROM top_per_muni t
-  JOIN counts c
-    ON c.muni_osm_type = t.muni_osm_type
-   AND c.muni_osm_id = t.muni_osm_id
+  JOIN counts c USING (muni_osm_type,muni_osm_id)
+),
+muni_boundaries AS (
+  SELECT jsonb_build_object('feature','municipality_boundary','muni_name',t.muni_name,'matches',c.matches) AS tags,st_boundary(t.muni_geom) AS geom,t.muni_osm_type AS osm_type,t.muni_osm_id AS osm_id,t.top_line_osm_id AS top_way_id,t.highway,t.muni_name,c.matches
+  FROM top_per_muni t
+  JOIN counts c USING (muni_osm_type,muni_osm_id)
+),
+match_results AS (
+  SELECT coalesce(line_tags,'{}'::jsonb)||jsonb_build_object('feature','match','muni_name',muni_name) AS tags,line_geom AS geom,line_osm_type AS osm_type,line_osm_id AS osm_id,line_osm_id AS top_way_id,highway,muni_name,NULL::bigint AS matches
+  FROM matches
 ),
 all_zones AS (
   SELECT * FROM zones
@@ -310,46 +207,25 @@ all_zones AS (
   SELECT * FROM special_zones
 ),
 combined AS (
-  SELECT
-    jsonb_set(
-      coalesce(z.zone_tags, '{}'::jsonb),
-      '{feature}',
-      to_jsonb('search_zone'::text),
-      true
-    ) || jsonb_build_object('search_zone', z.region_name) AS tags,
-    z.zone_geom AS geom,
-    z.zone_osm_type AS osm_type,
-    z.zone_osm_id AS osm_id,
-    NULL::bigint AS top_way_id,
-    NULL::text AS highway,
-    NULL::text AS muni_name,
-    NULL::bigint AS matches
-  FROM all_zones z
+  SELECT jsonb_set(coalesce(zone_tags,'{}'::jsonb),'{feature}',to_jsonb('search_zone'::text),true)||jsonb_build_object('search_zone',region_name) AS tags,st_boundary(zone_geom) AS geom,zone_osm_type AS osm_type,zone_osm_id AS osm_id,NULL::bigint AS top_way_id,NULL::text AS highway,NULL::text AS muni_name,NULL::bigint AS matches
+  FROM all_zones
   UNION ALL
-  SELECT
-    r.tags,
-    r.geom,
-    r.osm_type,
-    r.osm_id,
-    r.top_way_id,
-    r.highway,
-    r.muni_name,
-    r.matches
-  FROM results r
+  SELECT tags,geom,osm_type,osm_id,top_way_id,highway,muni_name,matches FROM muni_boundaries
+  UNION ALL
+  SELECT tags,geom,osm_type,osm_id,top_way_id,highway,muni_name,matches FROM match_results
+  UNION ALL
+  SELECT tags,geom,osm_type,osm_id,top_way_id,highway,muni_name,matches FROM results
 )
-SELECT
-  tags,
-  geom,
-  osm_type,
-  osm_id,
-  top_way_id,
-  highway,
-  muni_name,
-  matches
+SELECT tags,geom,osm_type,osm_id,top_way_id,highway,muni_name,matches
 FROM combined
 ORDER BY
-  CASE WHEN tags->>'feature' = 'search_zone' THEN 0 ELSE 1 END,
-  (tags->>'search_zone') NULLS LAST,
+  CASE tags->>'feature'
+    WHEN 'search_zone' THEN 0
+    WHEN 'municipality_boundary' THEN 1
+    WHEN 'match' THEN 2
+    ELSE 3
+  END,
+  tags->>'search_zone' NULLS LAST,
   matches DESC NULLS LAST,
   muni_name NULLS LAST`
   },
