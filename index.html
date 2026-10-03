@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <title>Overpass Map</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/maplibre-gl@6.9.0/dist/maplibre-gl.css"
+    />
+    <link rel="stylesheet" href="./style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/osmtogeojson@2.2.12/osmtogeojson.js"></script>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="side">
+        <div class="pan">
+          <details id="cfg">
+            <summary title="Configurar">⚙️ Config</summary>
+            <div class="cfg">
+              <label for="endpoint">Servidor</label>
+              <select id="endpoint">
+                <option
+                  data-engine="overpass"
+                  value="https://overpass-api.de/api/interpreter"
+                >
+                  overpass-api.de
+                </option>
+                <option
+                  data-engine="overpass"
+                  selected
+                  value="https://maps.mail.ru/osm/tools/overpass/api/interpreter"
+                >
+                  maps.mail.ru
+                </option>
+                <option
+                  data-engine="postpass"
+                  value="https://postpass.geofabrik.de/api/0.2/interpreter"
+                >
+                  postpass.geofabrik.de
+                </option>
+              </select>
+              <label for="wrapLines">Líneas largas</label>
+              <select id="wrapLines">
+                <option value="scroll" selected>Scroll horizontal</option>
+                <option value="wrap">Ajustar</option>
+              </select>
+              <label for="renderMode">Representación</label>
+              <select id="renderMode">
+                <option value="normal" selected>Normal</option>
+                <option value="heat">Mapa de calor</option>
+              </select>
+              <div id="heatCfg" class="heatcfg" hidden>
+                <div class="hc-head">
+                  <span>Mapa de calor</span>
+                  <button id="heatReset" type="button">Restablecer</button>
+                </div>
+                <label for="heatIntensity">
+                  Intensidad
+                  <output id="heatIntensityVal">1</output>
+                </label>
+                <input
+                  id="heatIntensity"
+                  type="range"
+                  min=".25"
+                  max="3"
+                  step=".05"
+                  value="1"
+                />
+                <label for="heatRadius">
+                  Radio
+                  <output id="heatRadiusVal">1</output>
+                </label>
+                <input
+                  id="heatRadius"
+                  type="range"
+                  min=".25"
+                  max="3"
+                  step=".05"
+                  value="1"
+                />
+                <label for="heatOpacity">
+                  Opacidad
+                  <output id="heatOpacityVal">0.88</output>
+                </label>
+                <input
+                  id="heatOpacity"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step=".01"
+                  value=".88"
+                />
+                <label for="heatWeight">
+                  Peso
+                  <output id="heatWeightVal">1</output>
+                </label>
+                <input
+                  id="heatWeight"
+                  type="range"
+                  min=".1"
+                  max="5"
+                  step=".1"
+                  value="1"
+                />
+                <label for="heatPalette">Paleta</label>
+                <select id="heatPalette">
+                  <option value="default" selected>Azul → rojo</option>
+                  <option value="warm">Cálida</option>
+                  <option value="cool">Fría</option>
+                  <option value="fire">Fuego</option>
+                </select>
+              </div>
+            </div>
+          </details>
+          <div class="row">
+            <button id="runBtn" class="pri" type="button" disabled>
+              Ejecutar
+            </button>
+            <button id="clearBtn" type="button">Restablecer</button>
+          </div>
+        </div>
+        <div class="edit">
+          <div id="query">
+            <textarea
+              id="queryFallback"
+              aria-label="Consulta"
+              spellcheck="false"
+            >
+[out:xml][timeout:60][maxsize:16Mi];
+{{geocodeArea:spain}}->.sA;
+nwr["automatic"](area.sA);
+out center;</textarea>
+          </div>
+        </div>
+        <template id="postpassDefault">
+          SELECT osm_type, osm_id, tags, geom FROM postpass_pointlinepolygon
+          WHERE geom && {{bbox}} LIMIT 100
+        </template>
+        <div class="tabs" role="tablist">
+          <button
+            id="statusTabBtn"
+            class="tab on"
+            type="button"
+            role="tab"
+            aria-selected="true"
+            aria-controls="statusPanel"
+            tabindex="0"
+          >
+            Estado
+          </button>
+          <button
+            id="dataTabBtn"
+            class="tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="dataPanel"
+            tabindex="-1"
+          >
+            Datos
+          </button>
+        </div>
+        <section
+          id="statusPanel"
+          class="tp on"
+          role="tabpanel"
+          aria-labelledby="statusTabBtn"
+        >
+          <div id="status" class="status">
+            Pulsa
+            <strong>Ejecutar</strong>
+            o
+            <strong>Ctrl+Intro</strong>
+            para ejecutar la consulta.
+          </div>
+        </section>
+        <section
+          id="dataPanel"
+          class="tp"
+          role="tabpanel"
+          aria-labelledby="dataTabBtn"
+        >
+          <div class="tools">
+            <select id="dataView" aria-label="Datos mostrados">
+              <option value="query">Consulta enviada</option>
+              <option value="raw">Respuesta original</option>
+              <option value="geojson">GeoJSON</option>
+            </select>
+            <button id="copyDataBtn" type="button">Copiar</button>
+          </div>
+          <pre id="dataOutput">Sin datos.</pre>
+        </section>
+      </aside>
+      <main class="mapbox">
+        <div id="map" aria-label="Mapa"></div>
+      </main>
+    </div>
+    <div id="ov" class="ov" hidden>
+      <div
+        class="ot"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Proceso en curso"
+      >
+        <button id="ovX" type="button" title="Cerrar" aria-label="Cerrar">
+          ✕
+        </button>
+        <pre id="ovLog" aria-live="polite"></pre>
+      </div>
+    </div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
