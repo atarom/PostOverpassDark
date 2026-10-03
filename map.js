@@ -140,10 +140,14 @@ export const createMapController = ({ ml, storage, heatStoreKey, renderMode, hea
     [...layers, heatLayer].forEach((id) => map.getLayer(id) && map.removeLayer(id));
     [source, heatSource].forEach((id) => map.getSource(id) && map.removeSource(id));
   };
-  const renderNormal = () => {
-    map.addSource(source, { type: "geojson", data: display(geo) });
-    [["fill", { "fill-color": "#8db6e8", "fill-opacity": 0.18 }], ["line", { "line-color": "#8db6e8", "line-width": 3, "line-opacity": 0.95 }], ["circle", { "circle-radius": 7, "circle-color": "#8db6e8", "circle-opacity": 0.95, "circle-stroke-color": "#e5edf8", "circle-stroke-width": 1.4 }]].forEach(([type, paint], index) => map.addLayer({ id: layers[index], type, source, paint }));
-  };
+const renderNormal = () => {
+  map.addSource(source, { type: "geojson", data: display(geo) });
+  [
+    ["fill", { "fill-color": "#8db6e8", "fill-opacity": 0.18 }, ["==", "$type", "Polygon"]],
+    ["line", { "line-color": "#8db6e8", "line-width": 3, "line-opacity": 0.95 }, ["any", ["==", "$type", "LineString"], ["==", "$type", "Polygon"]]],
+    ["circle", { "circle-radius": 7, "circle-color": "#8db6e8", "circle-opacity": 0.95, "circle-stroke-color": "#e5edf8", "circle-stroke-width": 1.4 }, ["==", "$type", "Point"]]
+  ].forEach(([type, paint, filter], index) => map.addLayer({ id: layers[index], type, source, paint, filter }));
+};
   const renderHeat = () => {
     map.addSource(heatSource, { type: "geojson", data: heatData(geo) });
     map.addLayer({ id: heatLayer, type: "heatmap", source: heatSource, paint: heatStyle() });
