@@ -357,9 +357,9 @@ CROSS JOIN LATERAL (
 ) e
 WHERE ST_Intersects(a.geom,ST_PointOnSurface(e.geom))`
   },
-    {
+  {
     title: "Buscar elementos por ID OSM",
-    description: "Busca nodos, vías y relaciones concretos a partir de sus IDs OSM, mostrando su tipo, ID y nombre.",
+    description: "Busca nodos, vías y relaciones concretos a partir de sus IDs OSM, mostrando sus tags en un punto representativo sobre cada geometría.",
     query: `SELECT DISTINCT ON (e.osm_type,e.osm_id)
   CASE e.osm_type WHEN 'N' THEN 'node' WHEN 'W' THEN 'way' WHEN 'R' THEN 'relation' END AS type,
   e.osm_id AS id,
@@ -371,5 +371,6 @@ WHERE
   OR
   (e.osm_type='W' AND e.osm_id=ANY(ARRAY[394292915]::bigint[]))
   OR
-  (e.osm_type='R' AND e.osm_id=ANY(ARRAY[342919]::bigint[]))
+  (e.osm_type='R' AND e.osm_id=ANY(ARRAY[342919]::bigint[]))`
+  }
 ];
