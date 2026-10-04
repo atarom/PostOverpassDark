@@ -363,14 +363,13 @@ WHERE ST_Intersects(a.geom,ST_PointOnSurface(e.geom))`
     query: `SELECT DISTINCT ON (e.osm_type,e.osm_id)
   CASE e.osm_type WHEN 'N' THEN 'node' WHEN 'W' THEN 'way' WHEN 'R' THEN 'relation' END AS type,
   e.osm_id AS id,
-  e.tags->>'name' AS name,
-  e.geom
+  e.tags,
+  ST_PointOnSurface(e.geom) AS geom
 FROM postpass_pointlinepolygon e
 WHERE
   (e.osm_type='N' AND e.osm_id=ANY(ARRAY[9590318241]::bigint[]))
   OR
   (e.osm_type='W' AND e.osm_id=ANY(ARRAY[394292915]::bigint[]))
   OR
-  (e.osm_type='R' AND e.osm_id=ANY(ARRAY[342919]::bigint[]))`
-  }
+  (e.osm_type='R' AND e.osm_id=ANY(ARRAY[342919]::bigint[]))
 ];
