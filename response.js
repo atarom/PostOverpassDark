@@ -2,7 +2,7 @@ import { esc, json } from "./utils.js";
 export const OSM_TYPES = ["node", "way", "relation"];
 const PP_TYPES = { N: "node", W: "way", R: "relation", node: "node", way: "way", relation: "relation" };
 const postpassType = (properties) => {
-  const raw = String(properties.osm_type || "").trim();
+  const raw = String(properties.osm_type || properties.type || "").trim();
   return PP_TYPES[raw] || PP_TYPES[raw.toUpperCase()];
 };
 const countElements = (elements) => {
@@ -21,7 +21,7 @@ const countElements = (elements) => {
 const count = (value) => countElements(value?.nodeType ? [...value.querySelectorAll("node,way,relation")].map((element) => [element.localName, element.getAttribute("id")]) : (Array.isArray(value?.elements) ? value.elements : Array.isArray(value) ? value : []).map(({ type, id }) => [type, id]));
 const countPostpass = (geo) => countElements((geo.features || []).map((feature) => {
   const properties = feature.properties || {};
-  return [postpassType(properties), properties.osm_id];
+  return [postpassType(properties), properties.osm_id ?? properties.id];
 }));
 const cleanText = (value) => String(value ?? "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
 const ERROR_RX = /\berror\b|parse error|static error|runtime error|timeout|time-out|timed out|out of memory|rate limit|too many requests|bad request|failed|gateway|service unavailable/i;
