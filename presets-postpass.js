@@ -356,5 +356,21 @@ CROSS JOIN LATERAL (
   AND tags->>'name' ~* '^(iglesias?|cru(?:z|ces?)|gasolineras?|estaci(?:[óo]n|ones)|pasajes?|calles?|avenidas?|plazas?|callej(?:[óo]n|ones)|callejuelas?|torrentes?|arroyos?|fuentes?|r[ií]os?|acequias?|caminos?|senderos?|escaleras?|centros?|cerros?|picos?|cimas?|barranc[oa]s?|altos?|montes?|lomas?|colegios?|paseos?|ayuntamientos?|collados?|sierras?|playas?|cabezos?|puertos?|barrios?|campos?|cementerios?|cuestas?|urbanizaci(?:[óo]n|ones)|a[qc]ueductos?|parques?)([^a-z]|$)'
 ) e
 WHERE ST_Intersects(a.geom,ST_PointOnSurface(e.geom))`
+  },
+    {
+    title: "Buscar elementos por ID OSM",
+    description: "Busca nodos, vías y relaciones concretos a partir de sus IDs OSM, mostrando su tipo, ID y nombre.",
+    query: `SELECT DISTINCT ON (e.osm_type,e.osm_id)
+  CASE e.osm_type WHEN 'N' THEN 'node' WHEN 'W' THEN 'way' WHEN 'R' THEN 'relation' END AS type,
+  e.osm_id AS id,
+  e.tags->>'name' AS name,
+  e.geom
+FROM postpass_pointlinepolygon e
+WHERE
+  (e.osm_type='N' AND e.osm_id=ANY(ARRAY[9590318241]::bigint[]))
+  OR
+  (e.osm_type='W' AND e.osm_id=ANY(ARRAY[394292915]::bigint[]))
+  OR
+  (e.osm_type='R' AND e.osm_id=ANY(ARRAY[342919]::bigint[]))`
   }
 ];
