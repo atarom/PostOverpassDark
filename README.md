@@ -1,8 +1,6 @@
 <div align="center">
   <img src="PODlogo.png" alt="Logo de PostOverpassDark" width="200">
-
   <h1>PostOverpassDark</h1>
-
   <p>
     <a href="https://atarom.github.io/PostOverpassDark/">
       <strong>Abrir la aplicación ↗</strong>
@@ -18,8 +16,19 @@
 - Editor con resaltado, autocompletado y presets de ejemplo.
 - Variables compatibles con consultas como `{{bbox}}`, `{{center}}`, `{{geocodeArea:...}}`...
 - Visualización normal o como mapa de calor.
+- Conteo de keys y valores de los tags devueltos.
+- Filtro por regex sobre la key seleccionada, con colores configurables.
+- Filtro numérico por key con rango mínimo/máximo y visualización opcional de valores fuera de rango.
 - Inspección de la consulta enviada, respuesta original y GeoJSON generado.
 - Acceso directo desde los resultados a OpenStreetMap y distintos editores OSM.
+
+## Ejecución local
+
+```sh
+python3 -m http.server 8000
+```
+
+Después abre `http://localhost:8000/`.
 
 ## Tecnologías y datos
 

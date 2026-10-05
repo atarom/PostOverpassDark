@@ -65,10 +65,10 @@ export const createMapController = ({ ml, storage, heatStoreKey, renderMode, hea
     const osmId = oid(feature);
     const nested = properties.tags && typeof properties.tags === "object" && !Array.isArray(properties.tags) ? properties.tags : null;
     const flat = Object.keys(properties).some((key) => key.startsWith("@"));
-    const tagObject = nested || (flat ? Object.fromEntries(Object.entries(properties).filter(([key, value]) => value != null && !key.startsWith("@") && !["relations", "meta", "id", "type"].includes(key))) : {});
+    const tagObject = nested || (flat ? Object.fromEntries(Object.entries(properties).filter(([key, value]) => value != null && !key.startsWith("@") && !["relations", "meta", "id", "type", "_podColor"].includes(key))) : {});
     const relationData = properties["@relations"] ?? properties.relations;
     const relations = Array.isArray(relationData) ? relationData.map((value, index) => [String(index + 1), value]) : entries(relationData);
-    const meta = [...entries(properties.meta), ...Object.entries(properties).filter(([key, value]) => value != null && (nested ? !["tags", "relations", "meta", "@id", "id", "type"].includes(key) : key.startsWith("@") && !["@id", "@relations"].includes(key)))];
+    const meta = [...entries(properties.meta), ...Object.entries(properties).filter(([key, value]) => value != null && key !== "_podColor" && (nested ? !["tags", "relations", "meta", "@id", "id", "type"].includes(key) : key.startsWith("@") && !["@id", "@relations"].includes(key)))];
     const name = tagObject.name || tagObject["name:es"] || tagObject.ref || "";
     const valid = osmId.t && osmId.i;
     const osm = valid ? `https://www.openstreetmap.org/${osmId.t}/${osmId.i}` : "";
@@ -85,7 +85,8 @@ export const createMapController = ({ ml, storage, heatStoreKey, renderMode, hea
       if (!feature?.geometry) continue;
       const id = String(features.length);
       lookup.set(id, feature);
-      features.push({ type: "Feature", id: features.length, properties: { _fid: id }, geometry: feature.geometry });
+      const color = feature.properties?._podColor;
+      features.push({ type: "Feature", id: features.length, properties: color ? { _fid: id, _podColor: color } : { _fid: id }, geometry: feature.geometry });
     }
     return { type: "FeatureCollection", features };
   };
@@ -140,14 +141,15 @@ export const createMapController = ({ ml, storage, heatStoreKey, renderMode, hea
     [...layers, heatLayer].forEach((id) => map.getLayer(id) && map.removeLayer(id));
     [source, heatSource].forEach((id) => map.getSource(id) && map.removeSource(id));
   };
-const renderNormal = () => {
-  map.addSource(source, { type: "geojson", data: display(geo) });
-  [
-    ["fill", { "fill-color": "#8db6e8", "fill-opacity": 0.18 }, ["==", "$type", "Polygon"]],
-    ["line", { "line-color": "#8db6e8", "line-width": 3, "line-opacity": 0.95 }, ["any", ["==", "$type", "LineString"], ["==", "$type", "Polygon"]]],
-    ["circle", { "circle-radius": 7, "circle-color": "#8db6e8", "circle-opacity": 0.95, "circle-stroke-color": "#e5edf8", "circle-stroke-width": 1.4 }, ["==", "$type", "Point"]]
-  ].forEach(([type, paint, filter], index) => map.addLayer({ id: layers[index], type, source, paint, filter }));
-};
+  const featureColor = ["coalesce", ["get", "_podColor"], "#8db6e8"];
+  const renderNormal = () => {
+    map.addSource(source, { type: "geojson", data: display(geo) });
+    [
+      ["fill", { "fill-color": featureColor, "fill-opacity": 0.18 }, ["==", "$type", "Polygon"]],
+      ["line", { "line-color": featureColor, "line-width": 3, "line-opacity": 0.95 }, ["any", ["==", "$type", "LineString"], ["==", "$type", "Polygon"]]],
+      ["circle", { "circle-radius": 7, "circle-color": featureColor, "circle-opacity": 0.95, "circle-stroke-color": "#e5edf8", "circle-stroke-width": 1.4 }, ["==", "$type", "Point"]]
+    ].forEach(([type, paint, filter], index) => map.addLayer({ id: layers[index], type, source, paint, filter }));
+  };
   const renderHeat = () => {
     map.addSource(heatSource, { type: "geojson", data: heatData(geo) });
     map.addLayer({ id: heatLayer, type: "heatmap", source: heatSource, paint: heatStyle() });
@@ -157,10 +159,14 @@ const renderNormal = () => {
     remove();
     renderMode.value === "heat" ? renderHeat() : renderNormal();
   };
-  const draw = (collection) => {
+  const draw = (collection, { fitBounds = true } = {}) => {
     geo = collection;
-    render();
-    fit(collection);
+    if (map.isStyleLoaded()) {
+      if (renderMode.value === "heat" && map.getSource(heatSource)) map.getSource(heatSource).setData(heatData(geo));
+      else if (renderMode.value !== "heat" && map.getSource(source)) map.getSource(source).setData(display(geo));
+      else render();
+    }
+    if (fitBounds) fit(collection);
   };
   const clear = () => {
     geo = null;

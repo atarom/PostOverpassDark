@@ -164,6 +164,17 @@ out center;</textarea>
           >
             Datos
           </button>
+          <button
+            id="analysisTabBtn"
+            class="tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="analysisPanel"
+            tabindex="-1"
+          >
+            Análisis
+          </button>
         </div>
         <section
           id="statusPanel"
@@ -194,6 +205,55 @@ out center;</textarea>
             <button id="copyDataBtn" type="button">Copiar</button>
           </div>
           <pre id="dataOutput">Sin datos.</pre>
+        </section>
+        <section
+          id="analysisPanel"
+          class="tp analysis"
+          role="tabpanel"
+          aria-labelledby="analysisTabBtn"
+        >
+          <div class="analysis-scroll">
+            <div class="analysis-head">
+              <div id="analysisSummary" class="analysis-summary">Ejecuta una consulta para analizar sus tags.</div>
+              <button id="analysisReset" type="button">Restablecer filtros</button>
+            </div>
+            <label for="analysisKey">Key</label>
+            <select id="analysisKey" aria-label="Key analizada"></select>
+            <div class="analysis-checks">
+              <label><input id="analysisOnlyKey" type="checkbox" /> Solo key seleccionada</label>
+              <label><input id="analysisMultivalue" type="checkbox" /> Separar valores por ;</label>
+            </div>
+            <label for="analysisValues">Valores únicos</label>
+            <pre id="analysisValues" class="analysis-values">Sin datos.</pre>
+            <details class="analysis-box">
+              <summary>Regex y colores</summary>
+              <div class="analysis-body">
+                <div class="analysis-checks">
+                  <label><input id="regexEnable" type="checkbox" /> Activar</label>
+                  <label><input id="regexInsensitive" type="checkbox" /> Ignorar mayúsculas</label>
+                  <label><input id="regexOnly" type="checkbox" /> Solo coincidentes</label>
+                </div>
+                <label for="regexText">Regex separadas por coma</label>
+                <input id="regexText" type="text" placeholder="^Pantà, ^Embassament" />
+                <div id="regexColors" class="regex-colors"></div>
+              </div>
+            </details>
+            <details class="analysis-box">
+              <summary>Filtro numérico</summary>
+              <div class="analysis-body">
+                <div class="analysis-checks">
+                  <label><input id="numericEnable" type="checkbox" /> Activar</label>
+                  <label><input id="numericErrors" type="checkbox" /> Mostrar fuera de rango</label>
+                </div>
+                <label for="numericKey">Key numérica</label>
+                <select id="numericKey"></select>
+                <label for="numericMin">Mínimo <output id="numericMinValue">0</output></label>
+                <input id="numericMin" type="range" min="0" max="1000" step=".01" value="0" disabled />
+                <label for="numericMax">Máximo <output id="numericMaxValue">1000</output></label>
+                <input id="numericMax" type="range" min="0" max="1000" step=".01" value="1000" disabled />
+              </div>
+            </details>
+          </div>
         </section>
       </aside>
       <main class="mapbox">

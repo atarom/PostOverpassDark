@@ -34,7 +34,7 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
     Object.keys(data).forEach((key) => data[key] = "");
   };
   const tab = (name) => {
-    for (const item of ["status", "data"]) {
+    for (const item of ["status", "data", "analysis"]) {
       const on = item === name;
       const button = $(`${item}TabBtn`);
       button.classList.toggle("on", on);

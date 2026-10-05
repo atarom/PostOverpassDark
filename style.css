@@ -107,7 +107,8 @@ details[open] summary::after {
   padding: 0 10px 10px;
 }
 select,
-button {
+button,
+input[type="text"] {
   width: 100%;
   border: 1px solid var(--b);
   border-radius: var(--r);
@@ -115,7 +116,8 @@ button {
   color: var(--t);
   font: inherit;
 }
-select {
+select,
+input[type="text"] {
   padding: 9px 10px;
   outline: 0;
 }
@@ -125,12 +127,13 @@ button {
   font-weight: 800;
 }
 select:hover,
-button:not(.pri):hover {
+button:not(.pri):hover,
+input[type="text"]:hover {
   border-color: var(--b2);
 }
 select:focus-visible,
 button:focus-visible,
-input[type="range"]:focus-visible {
+input:focus-visible {
   border-color: var(--a);
   outline: 2px solid var(--a);
   outline-offset: 1px;
@@ -156,14 +159,15 @@ input:disabled {
 .pri:hover {
   background: var(--ah);
 }
-.row,
-.tabs {
+.row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-}
-.row {
   gap: 8px;
   margin-top: 10px;
+}
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
 }
 .heatcfg[hidden],
 .ov[hidden] {
@@ -204,7 +208,8 @@ input:disabled {
   font-weight: 800;
   text-transform: none;
 }
-.heatcfg input[type="range"] {
+.heatcfg input[type="range"],
+.analysis-body input[type="range"] {
   width: 100%;
   height: 24px;
   margin: 0;
@@ -382,7 +387,7 @@ input:disabled {
 .tab {
   border: 0;
   border-radius: 0;
-  padding: 10px;
+  padding: 10px 6px;
   background: #111a29;
 }
 .tab.on {
@@ -405,6 +410,9 @@ input:disabled {
 }
 #dataPanel.on {
   flex: 0 0 min(250px, 35dvh);
+}
+#analysisPanel.on {
+  flex: 0 0 min(390px, 48dvh);
 }
 .status {
   flex: 1;
@@ -445,6 +453,115 @@ input:disabled {
   font: 12px/1.45 var(--mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+.analysis {
+  background: #111a29;
+}
+.analysis-scroll {
+  min-height: 0;
+  padding: 10px;
+  overflow: auto;
+}
+.analysis-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.analysis-head button {
+  width: auto;
+  padding: 6px 8px;
+  font-size: 11px;
+}
+.analysis-summary {
+  color: var(--m);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.analysis-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: 8px 0;
+}
+.analysis-checks label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--t);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.analysis-checks input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--a);
+}
+.analysis-values {
+  max-height: 115px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  overflow: auto;
+  border: 1px solid var(--b);
+  border-radius: var(--r);
+  background: var(--p3);
+  color: #c9d6e7;
+  font: 12px/1.4 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.analysis-box {
+  margin-top: 8px;
+}
+.analysis-box summary {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.analysis-body {
+  padding: 8px 10px 10px;
+}
+.analysis-body label:not(.rxchip) {
+  margin-top: 8px;
+}
+.analysis-body output {
+  float: right;
+  color: var(--a);
+  font-family: var(--mono);
+  text-transform: none;
+}
+.regex-colors {
+  display: grid;
+  gap: 5px;
+  margin-top: 8px;
+}
+.rxchip {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  padding: 5px 7px;
+  border: 1px solid var(--b);
+  border-radius: 7px;
+  background: #101827;
+  color: var(--t);
+  font: 11px/1.3 var(--mono);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.rxchip input[type="color"] {
+  width: 34px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--b);
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
 }
 .mapbox,
 #map {
@@ -704,6 +821,9 @@ a {
     border: 0;
     border-bottom: 1px solid var(--b);
   }
+  .app:has(#analysisPanel.on) {
+    grid-template-rows: minmax(0, 62%) minmax(0, 38%);
+  }
   .pan {
     padding: 8px 10px;
   }
@@ -722,8 +842,12 @@ a {
   #statusPanel.on {
     max-height: 120px;
   }
-  #dataPanel.on {
-    flex-basis: min(140px, 35dvh);
+  #dataPanel.on,
+  #analysisPanel.on {
+    flex-basis: min(160px, 35dvh);
+  }
+  .analysis-values {
+    max-height: 80px;
   }
   .maplibregl-popup-content {
     min-width: min(280px, 88vw);
@@ -759,7 +883,7 @@ a {
   }
   .row button,
   .tab {
-    padding: 7px;
+    padding: 7px 4px;
   }
   .edit {
     min-height: 60px;
@@ -767,8 +891,27 @@ a {
   #statusPanel.on {
     max-height: 90px;
   }
-  #dataPanel.on {
-    flex-basis: min(115px, 32dvh);
+  #dataPanel.on,
+  #analysisPanel.on {
+    flex-basis: min(125px, 32dvh);
+  }
+  .analysis-head {
+    margin-bottom: 6px;
+  }
+}
+@media (max-width: 850px) and (max-height: 600px) and (orientation: landscape) {
+  .app,
+  .app:has(#analysisPanel.on) {
+    grid-template-columns: minmax(320px, 46%) minmax(0, 1fr);
+    grid-template-rows: 1fr;
+  }
+  .side {
+    height: 100%;
+    border-right: 1px solid var(--b);
+    border-bottom: 0;
+  }
+  #analysisPanel.on {
+    flex-basis: min(125px, 32dvh);
   }
 }
 @media (prefers-reduced-motion: reduce) {

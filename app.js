@@ -5,6 +5,7 @@ import { createQueryPreparer } from "./query.js";
 import { parseResponse, responseError, errorStatusHtml, OSM_TYPES } from "./response.js";
 import { createMapController } from "./map.js";
 import { createUI } from "./ui.js";
+import { createAnalysis } from "./analysis.js";
 import { $, esc, json, abortError } from "./utils.js";
 import { OVERPASS_PRESETS } from "./presets-overpass.js";
 import { POSTPASS_PRESETS } from "./presets-postpass.js";
@@ -67,6 +68,7 @@ const initializeApp = (deps) => {
   const mapController = createMapController({ ml: deps.maplibregl, storage, heatStoreKey: STORE.heat, renderMode, heatElements: { config: $("heatCfg"), radius: $("heatRadius"), intensity: $("heatIntensity"), opacity: $("heatOpacity"), weight: $("heatWeight"), palette: $("heatPalette"), radiusValue: $("heatRadiusVal"), intensityValue: $("heatIntensityVal"), opacityValue: $("heatOpacityVal"), weightValue: $("heatWeightVal"), reset: $("heatReset") } });
   const map = mapController.map;
   const ui = createUI({ map, status, dataOutput, dataView, overlay, overlayLog, copyButton });
+  const analysis = createAnalysis({ elements: { key: $("analysisKey"), onlyKey: $("analysisOnlyKey"), multivalue: $("analysisMultivalue"), values: $("analysisValues"), summary: $("analysisSummary"), numericEnable: $("numericEnable"), numericKey: $("numericKey"), numericErrors: $("numericErrors"), numericMin: $("numericMin"), numericMax: $("numericMax"), numericMinValue: $("numericMinValue"), numericMaxValue: $("numericMaxValue"), regexEnable: $("regexEnable"), regexText: $("regexText"), regexInsensitive: $("regexInsensitive"), regexOnly: $("regexOnly"), regexColors: $("regexColors"), reset: $("analysisReset") }, onChange: (collection) => mapController.draw(collection, { fitBounds: false }) });
   const preparer = createQueryPreparer({ map, storage, areaStoreKey: STORE.areas, log: ui.log });
   let controller;
   let timer;
@@ -88,6 +90,7 @@ const initializeApp = (deps) => {
   };
   const textResult = (result, start) => {
     const time = elapsed(start);
+    analysis.clear();
     ui.data.geojson = "";
     dataView.value = "raw";
     ui.setStatus(`<strong>Respuesta textual recibida</strong><br>Formato: ${esc(result.format.toUpperCase())} · Tiempo: ${time}`, "ok");
@@ -98,6 +101,7 @@ const initializeApp = (deps) => {
   };
   const geoResult = (result, start, postpass) => {
     ui.data.geojson = json(result.geo);
+    analysis.setData(result.geo, true);
     ui.log(postpass ? `GeoJSON recibido\nDibujando ${result.geo.features.length} entidades GeoJSON…` : `Conversión GeoJSON completada\nDibujando ${result.geo.features.length} entidades GeoJSON…`);
     mapController.draw(result.geo);
     const formatter = new Intl.NumberFormat("es-ES");
@@ -129,6 +133,7 @@ const initializeApp = (deps) => {
     timer = null;
     map.stop();
     mapController.clear();
+    analysis.clear();
     ui.resetData();
     ui.show();
     ui.overlayOpen("Preparando consulta…");
@@ -192,6 +197,7 @@ const initializeApp = (deps) => {
     stop("Consulta cancelada al restablecer");
     ui.clearOverlayTimer();
     mapController.clear();
+    analysis.clear();
     ui.resetData();
     editor.reset();
     syncPreset();
@@ -226,15 +232,18 @@ const initializeApp = (deps) => {
     if (busy && message && !/abort|cancel/i.test(message)) ui.log("ERROR MAPA: " + message);
   });
   $("ovX").onclick = ui.overlayClose;
-  $("statusTabBtn").onclick = () => ui.tab("status");
-  $("dataTabBtn").onclick = () => ui.tab("data");
-  for (const name of ["status", "data"]) $(`${name}TabBtn`).onkeydown = (event) => {
-    if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
-    event.preventDefault();
-    const next = name === "status" ? "data" : "status";
-    ui.tab(next);
-    $(`${next}TabBtn`).focus();
-  };
+  const tabNames = ["status", "data", "analysis"];
+  tabNames.forEach((name) => {
+    $(`${name}TabBtn`).onclick = () => ui.tab(name);
+    $(`${name}TabBtn`).onkeydown = (event) => {
+      if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+      event.preventDefault();
+      const offset = event.key === "ArrowRight" ? 1 : -1;
+      const next = tabNames[(tabNames.indexOf(name) + offset + tabNames.length) % tabNames.length];
+      ui.tab(next);
+      $(`${next}TabBtn`).focus();
+    };
+  });
   $("clearBtn").onclick = clear;
   dataView.onchange = ui.show;
   copyButton.onclick = ui.copy;
