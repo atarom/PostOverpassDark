@@ -65,10 +65,10 @@ const initializeApp = (deps) => {
     const preset = PRESETS[editor.getEngine()][Number(presetSelect.value)];
     if (preset) editor.setQuery(preset.query);
   };
-  const mapController = createMapController({ ml: deps.maplibregl, storage, heatStoreKey: STORE.heat, renderMode, heatElements: { config: $("heatCfg"), radius: $("heatRadius"), intensity: $("heatIntensity"), opacity: $("heatOpacity"), weight: $("heatWeight"), palette: $("heatPalette"), radiusValue: $("heatRadiusVal"), intensityValue: $("heatIntensityVal"), opacityValue: $("heatOpacityVal"), weightValue: $("heatWeightVal"), reset: $("heatReset") } });
+  const mapController = createMapController({ ol: deps.ol, storage, heatStoreKey: STORE.heat, renderMode, heatElements: { config: $("heatCfg"), radius: $("heatRadius"), intensity: $("heatIntensity"), opacity: $("heatOpacity"), weight: $("heatWeight"), palette: $("heatPalette"), radiusValue: $("heatRadiusVal"), intensityValue: $("heatIntensityVal"), opacityValue: $("heatOpacityVal"), weightValue: $("heatWeightVal"), reset: $("heatReset") } });
   const map = mapController.map;
   const ui = createUI({ map, status, dataOutput, dataView, overlay, overlayLog, copyButton });
-  const analysis = createAnalysis({ elements: { key: $("analysisKey"), onlyKey: $("analysisOnlyKey"), multivalue: $("analysisMultivalue"), values: $("analysisValues"), summary: $("analysisSummary"), numericEnable: $("numericEnable"), numericKey: $("numericKey"), numericErrors: $("numericErrors"), numericMin: $("numericMin"), numericMax: $("numericMax"), numericMinValue: $("numericMinValue"), numericMaxValue: $("numericMaxValue"), regexEnable: $("regexEnable"), regexText: $("regexText"), regexInsensitive: $("regexInsensitive"), regexOnly: $("regexOnly"), regexColors: $("regexColors"), reset: $("analysisReset") }, onChange: (collection) => mapController.draw(collection, { fitBounds: false }) });
+  const analysis = createAnalysis({ elements: { key: $("analysisKey"), onlyKey: $("analysisOnlyKey"), multivalue: $("analysisMultivalue"), values: $("analysisValues"), summary: $("analysisSummary"), numericEnable: $("numericEnable"), numericKey: $("numericKey"), numericErrors: $("numericErrors"), numericMin: $("numericMin"), numericMax: $("numericMax"), numericMinValue: $("numericMinValue"), numericMaxValue: $("numericMaxValue"), regexEnable: $("regexEnable"), regexText: $("regexText"), regexInsensitive: $("regexInsensitive"), regexOnly: $("regexOnly"), regexColors: $("regexColors"), reset: $("analysisReset") }, onChange: (options) => mapController.applyFilters(options) });
   const preparer = createQueryPreparer({ map, storage, areaStoreKey: STORE.areas, log: ui.log });
   let controller;
   let timer;
@@ -103,7 +103,8 @@ const initializeApp = (deps) => {
     ui.data.geojson = json(result.geo);
     analysis.setData(result.geo, true);
     ui.log(postpass ? `GeoJSON recibido\nDibujando ${result.geo.features.length} entidades GeoJSON…` : `Conversión GeoJSON completada\nDibujando ${result.geo.features.length} entidades GeoJSON…`);
-    mapController.draw(result.geo);
+    mapController.draw(result.geo, { filters: analysis.options() });
+    mapController.applyFilters(analysis.options());
     const formatter = new Intl.NumberFormat("es-ES");
     const time = elapsed(start);
     const featureCount = result.geo.features.length;
@@ -131,7 +132,7 @@ const initializeApp = (deps) => {
     runButton.disabled = true;
     controller = active;
     timer = null;
-    map.stop();
+    map.getView().cancelAnimations();
     mapController.clear();
     analysis.clear();
     ui.resetData();
@@ -227,10 +228,6 @@ const initializeApp = (deps) => {
     mapController.heatUI();
     if (mapController.hasGeo()) mapController.render();
   };
-  map.on("error", (event) => {
-    const message = event?.error?.message;
-    if (busy && message && !/abort|cancel/i.test(message)) ui.log("ERROR MAPA: " + message);
-  });
   $("ovX").onclick = ui.overlayClose;
   const tabNames = ["status", "data", "analysis"];
   tabNames.forEach((name) => {
@@ -261,7 +258,7 @@ const initializeApp = (deps) => {
       run();
     }
   }, true);
-  addEventListener("resize", () => map.resize());
+  addEventListener("resize", () => map.updateSize());
   ui.show();
 };
 const boot = async () => {

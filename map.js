@@ -1,209 +1,243 @@
 import { esc, val } from "./utils.js";
-const OSM_TYPES = ["node", "way", "relation"];
-const SHORT = { node: "n", way: "w", relation: "r" };
-const PP_TYPES = { N: "node", W: "way", R: "relation", node: "node", way: "way", relation: "relation" };
-const postpassType = (properties) => {
-  const raw = String(properties.osm_type || "").trim();
-  return PP_TYPES[raw] || PP_TYPES[raw.toUpperCase()];
-};
-const stops = (...colors) => [0, "rgba(16,24,39,0)", 0.15, colors[0], 0.35, colors[1], 0.55, colors[2], 0.72, colors[3], 0.88, colors[4], 1, colors[5]];
-const PALETTES = {
-  default: stops("#355f8d", "#3f8f9c", "#79b88d", "#d6b56d", "#e58b68", "#ef5d72"),
-  warm: stops("#72543b", "#a26c43", "#d1924f", "#e6b95f", "#ef8262", "#ef4e5d"),
-  cool: stops("#324a7a", "#326b98", "#3f98a7", "#63b7a8", "#88d0b4", "#d3f0c0"),
-  fire: stops("#3a173d", "#7d2450", "#bd3a45", "#e96d3e", "#f5b747", "#fff2a1")
-};
+import { featureTags } from "./analysis.js";
+const TYPES = { N: "node", W: "way", R: "relation", node: "node", way: "way", relation: "relation" };
+const COLORS = { default: ["#355f8d", "#3f8f9c", "#79b88d", "#d6b56d", "#e58b68", "#ef5d72"], warm: ["#72543b", "#a26c43", "#d1924f", "#e6b95f", "#ef8262", "#ef4e5d"], cool: ["#324a7a", "#326b98", "#3f98a7", "#63b7a8", "#88d0b4", "#d3f0c0"], fire: ["#3a173d", "#7d2450", "#bd3a45", "#e96d3e", "#f5b747", "#fff2a1"] };
 const HEAT_DEFAULT = { intensity: 1, radius: 1, opacity: 0.88, weight: 1, palette: "default" };
-export const createMapController = ({ ml, storage, heatStoreKey, renderMode, heatElements }) => {
+const numeric = (value) => {
+  const str = String(value ?? "").trim().replace(",", ".");
+  const num = str ? Number(str) : NaN;
+  return Number.isFinite(num) ? num : NaN;
+};
+const hexRgb = (value) => {
+  const match = /^#([\da-f]{6})$/i.exec(value || "");
+  return match ? [0, 2, 4].map((i) => parseInt(match[1].slice(i, i + 2), 16)) : [141, 182, 232];
+};
+const compilePatterns = (raw, insensitive) => raw.split(",").map((v) => v.trim()).filter(Boolean).flatMap((value) => {
+  try { return [{ value, regex: new RegExp(value, insensitive ? "i" : "") }]; } catch { return []; }
+});
+const entries = (obj) => obj && typeof obj === "object" && !Array.isArray(obj) ? Object.entries(obj).filter(([, value]) => value != null) : [];
+const rows = (items) => items.sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `<div class="tr"><div class="tk">${esc(key)}</div><div class="tv">${esc(val(value))}</div></div>`).join("");
+const section = (title, cls, items) => items.length ? `<section class="ps ${cls}"><div class="psh">${title}</div>${rows(items)}</section>` : "";
+const oid = (feature) => {
+  const p = feature.properties || {};
+  let type = TYPES[p.osm_type] || TYPES[p.type] || "";
+  let id = type && (p.osm_id ?? p.id) != null ? String(p.osm_id ?? p.id) : "";
+  if (!type || !id) {
+    for (const value of [p.osm_url, feature.id, p["@id"], p.id]) {
+      const match = String(value || "").match(/(?:https?:\/\/(?:www\.)?openstreetmap\.org\/)?(node|way|relation)[/:](\d+)$/i) || String(value || "").match(/^([nwr])(\d+)$/i);
+      if (match) { type = TYPES[{ n: "N", w: "W", r: "R" }[match[1]] || match[1]]; id = match[2]; break; }
+    }
+  }
+  return { type, id, short: { node: "n", way: "w", relation: "r" }[type] || "" };
+};
+const popupHtml = (feature) => {
+  const p = feature.properties || {};
+  const tags = featureTags(feature);
+  const { type, id, short } = oid(feature);
+  const relationData = p["@relations"] ?? p.relations;
+  const relations = Array.isArray(relationData) ? relationData.map((entry, index) => [String(index + 1), entry]) : entries(relationData);
+  const meta = [...entries(p.meta), ...Object.entries(p).filter(([key, value]) => value != null && key !== "_podColor" && (p.tags ? !["tags", "relations", "meta", "@id", "id", "type"].includes(key) : key.startsWith("@") && !["@id", "@relations"].includes(key)))];
+  const name = tags.name || tags["name:es"] || tags.ref || `${type || "OSM"}/${id || "?"}`;
+  const osm = type && id ? `https://www.openstreetmap.org/${type}/${id}` : "";
+  const shortId = short + id;
+  const body = section("Tags OSM", "tag", entries(tags)) + section("Relaciones", "rel", relations) + section("Metadatos", "meta", meta);
+  const links = osm ? [["🔍", "Ver en OSM", osm], ["✏️", "Editar con iD", `https://www.openstreetmap.org/edit?editor=id&${type}=${id}`], ["⚡", "Editar con Rapid", `https://rapideditor.org/edit#id=${shortId}`], ["🧩", "Editar con Level0", `https://level0.osmz.ru/?url=${encodeURIComponent(osm)}`], ["🖥️", "Editar con JOSM", `http://127.0.0.1:8111/load_object?objects=${shortId}`]] : [];
+  const actions = links.map(([icon, title, url]) => `<button type="button" class="pop-action" data-url="${esc(url)}" title="${esc(title)}" aria-label="${esc(title)}">${icon}</button>`).join("");
+  return `<div class="pp"><div class="ph"><div class="pt">${esc(name)}</div></div><div class="tags">${body || '<div class="tr"><div class="tk">info</div><div class="tv">Sin información visible</div></div>'}</div>${actions ? `<div class="acts">${actions}</div>` : ""}</div>`;
+};
+const PASS = ["all", ["==", ["get", "podValid"], 1], ["between", ["get", "podValue"], ["var", "minEle"], ["var", "maxEle"]]];
+const BAD = ["any", ["==", ["get", "podValid"], 0], ["<", ["get", "podValue"], ["var", "minEle"]], [">", ["get", "podValue"], ["var", "maxEle"]]];
+const FILTER = ["all", ["==", ["get", "podKeep"], 1], ["any", ["==", ["var", "numericEnabled"], 0], ["==", ["var", "showErrors"], 1], PASS]];
+const RED = ["case", ["all", ["==", ["var", "numericEnabled"], 1], BAD], 239, ["get", "podR"]];
+const GREEN = ["case", ["all", ["==", ["var", "numericEnabled"], 1], BAD], 132, ["get", "podG"]];
+const BLUE = ["case", ["all", ["==", ["var", "numericEnabled"], 1], BAD], 145, ["get", "podB"]];
+const styleColor = (alpha) => ["color", RED, GREEN, BLUE, alpha];
+export const createMapController = ({ ol, storage, heatStoreKey, renderMode, heatElements }) => {
   const { config, radius, intensity, opacity, weight, palette, radiusValue, intensityValue, opacityValue, weightValue, reset } = heatElements;
-  const layers = ["overpass-fill", "overpass-line", "overpass-point"];
-  const source = "overpass-data";
-  const heatLayer = "overpass-heat";
-  const heatSource = "overpass-heat-data";
-  const validNum = (value, min, max, fallback) => Number.isFinite(+value) && +value >= min && +value <= max ? +value : fallback;
+  const { Map: OlMap, View, Feature, Overlay, format: { GeoJSON }, geom: { Point }, layer: { Tile, WebGLVector, Heatmap }, source: { OSM, Vector }, proj: { fromLonLat } } = ol;
+  const valid = (value, min, max, fallback) => Number.isFinite(+value) && +value >= min && +value <= max ? +value : fallback;
   let heat = { ...HEAT_DEFAULT };
   try {
     const saved = JSON.parse(storage.getItem(heatStoreKey) || "{}");
-    heat = { intensity: validNum(saved.intensity, 0.25, 3, 1), radius: validNum(saved.radius, 0.25, 3, 1), opacity: validNum(saved.opacity, 0, 1, 0.88), weight: validNum(saved.weight, 0.1, 5, 1), palette: PALETTES[saved.palette] ? saved.palette : "default" };
+    heat = { intensity: valid(saved.intensity, 0.25, 3, 1), radius: valid(saved.radius, 0.25, 3, 1), opacity: valid(saved.opacity, 0, 1, 0.88), weight: valid(saved.weight, 0.1, 5, 1), palette: COLORS[saved.palette] ? saved.palette : "default" };
   } catch {}
-  const map = new ml.Map({ container: "map", style: "https://tiles.openfreemap.org/styles/fiord", center: [-3.70379, 40.416775], zoom: 5.5, minZoom: 0, maxZoom: 19, attributionControl: false });
-  let geo;
-  let popup;
-  let lookup = new Map();
-  map.setMissingStyleImageResolver?.((id) => {
-    if (/^circle-\d+$/.test(id) && !map.hasImage(id)) map.addImage(id, { width: 1, height: 1, data: new Uint8Array([0, 0, 0, 0]) });
+  const vars = { minEle: -1000000, maxEle: 1000000, numericEnabled: 0, showErrors: 0 };
+  const vectorSource = new Vector({ wrapX: false });
+  const heatSource = new Vector({ wrapX: false });
+  const vectorLayer = new WebGLVector({ source: vectorSource, variables: { ...vars }, style: [{ filter: FILTER, style: { "circle-radius": 7, "circle-fill-color": styleColor(1), "circle-stroke-color": "#e5edf8", "circle-stroke-width": 1.4, "stroke-color": styleColor(1), "stroke-width": 3, "fill-color": styleColor(0.18) } }] });
+  const heatWeight = ["clamp", ["*", 0.75, ["var", "weight"], ["var", "intensity"], ["case", FILTER, 1, 0]], 0, 1];
+  const heatLayer = new Heatmap({ source: heatSource, radius: ["*", 20, ["var", "radius"]], blur: ["*", 13, ["var", "radius"]], weight: heatWeight, variables: { ...vars, radius: heat.radius, weight: heat.weight, intensity: heat.intensity }, opacity: heat.opacity, gradient: COLORS[heat.palette], visible: false });
+  const baseLayer = new Tile({ className: "dark-base-layer", source: new OSM() });
+  const map = new OlMap({ target: "map", layers: [baseLayer, vectorLayer, heatLayer], view: new View({ center: fromLonLat([-3.70379, 40.416775]), zoom: 5.5, minZoom: 0, maxZoom: 19 }) });
+  const popupElement = document.createElement("div");
+  popupElement.className = "pod-ol-popup";
+  popupElement.hidden = true;
+  const popupClose = document.createElement("button");
+  popupClose.className = "pod-ol-close";
+  popupClose.type = "button";
+  popupClose.textContent = "×";
+  popupClose.setAttribute("aria-label", "Cerrar popup");
+  const popupContent = document.createElement("div");
+  popupElement.append(popupClose, popupContent);
+  map.getTargetElement().append(popupElement);
+  const popup = new Overlay({ element: popupElement, offset: [0, -10], positioning: "bottom-center", autoPan: { animation: { duration: 180 }, margin: 15 } });
+  map.addOverlay(popup);
+  const closePopup = () => { popup.setPosition(undefined); popupElement.hidden = true; };
+  popupClose.onclick = closePopup;
+  popupElement.addEventListener("click", (event) => {
+    const button = event.target.closest(".pop-action");
+    if (button) window.open(button.dataset.url, "_blank", "noopener,noreferrer");
   });
-  map.addControl(new ml.NavigationControl({ showCompass: false }), "top-left");
-  map.addControl(new ml.AttributionControl({ compact: true }), "bottom-right");
-  map.once("load", () => document.querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show"));
-  const oid = (feature) => {
-    const properties = feature.properties || {};
-    let type = postpassType(properties) || "";
-    let id = type && properties.osm_id != null ? String(properties.osm_id) : "";
-    if (!type) {
-      for (const value of [properties.osm_url, feature.id, properties["@id"], properties.id, properties.osm_id]) {
-        if (value == null || value === "") continue;
-        const text = String(value);
-        const match = text.match(/(?:https?:\/\/(?:www\.)?openstreetmap\.org\/)?(node|way|relation)[/:](\d+)$/i) || text.match(/^(node|way|relation)[/:]?(\d+)$/i) || text.match(/^([nwr])(\d+)$/i);
-        if (!match) continue;
-        type = { n: "node", w: "way", r: "relation" }[match[1].toLowerCase()] || match[1].toLowerCase();
-        id = match[2];
-        break;
+  const format = new GeoJSON();
+  let geo = null;
+  let rendered = [];
+  let lastPrepared = "";
+  let options = {};
+  let heatReady = false;
+  let heatShared = false;
+  const basePass = (feature, opts, patterns) => {
+    const tags = featureTags(feature);
+    if (opts.onlySelectedKey && opts.selectedKey && !Object.prototype.hasOwnProperty.call(tags, opts.selectedKey)) return { keep: 0, color: "" };
+    let color = "";
+    if (opts.regexEnabled) {
+      const value = tags[opts.selectedKey] == null ? "" : String(tags[opts.selectedKey]).trim();
+      const match = value ? patterns.find((entry) => entry.regex.test(value)) : null;
+      if (match) color = opts.regexColors?.[match.value] || "";
+      else if (opts.regexOnly) return { keep: 0, color: "" };
+    }
+    return { keep: 1, color };
+  };
+  const syncAttributes = (opts, force = false) => {
+    const signature = JSON.stringify([opts.selectedKey, opts.onlySelectedKey, opts.regexEnabled, opts.regexText, opts.regexInsensitive, opts.regexOnly, opts.regexColors, opts.numericKey]);
+    if (!force && signature === lastPrepared) return;
+    lastPrepared = signature;
+    const patterns = opts.regexEnabled ? compilePatterns(opts.regexText || "", opts.regexInsensitive) : [];
+    for (let i = 0; i < rendered.length; i++) {
+      const original = geo.features[rendered[i].get("podIndex")];
+      const tags = featureTags(original);
+      const attrs = basePass(original, opts, patterns);
+      const n = numeric(tags[opts.numericKey]);
+      const [podR, podG, podB] = hexRgb(attrs.color);
+      rendered[i].setProperties({ podKeep: attrs.keep, podValue: Number.isFinite(n) ? n : 0, podValid: Number.isFinite(n) ? 1 : 0, podR, podG, podB }, true);
+    }
+    vectorSource.changed();
+    if (heatReady && !heatShared) {
+      for (const feat of heatSource.getFeatures()) {
+        const original = rendered[feat.get("podLocalIndex")];
+        if (original) feat.setProperties({ podKeep: original.get("podKeep"), podValue: original.get("podValue"), podValid: original.get("podValid") }, true);
       }
+      heatSource.changed();
     }
-    if (!type && OSM_TYPES.includes(properties.type) && properties.id != null) {
-      type = properties.type;
-      id = String(properties.id);
-    }
-    return { t: type, i: id, s: SHORT[type] || "", txt: type && id ? `${type}/${id}` : String(feature.id || properties["@id"] || properties.id || "") };
   };
-  const entries = (value) => value && typeof value === "object" && !Array.isArray(value) ? Object.entries(value).filter(([, item]) => item != null) : [];
-  const rows = (items) => items.sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `<div class="tr"><div class="tk">${esc(key)}</div><div class="tv">${esc(val(value))}</div></div>`).join("");
-  const section = (title, cls, items) => items.length ? `<section class="ps ${cls}"><div class="psh">${title}</div>${rows(items)}</section>` : "";
-  const popupHtml = (feature) => {
-    const properties = feature.properties || {};
-    const osmId = oid(feature);
-    const nested = properties.tags && typeof properties.tags === "object" && !Array.isArray(properties.tags) ? properties.tags : null;
-    const flat = Object.keys(properties).some((key) => key.startsWith("@"));
-    const tagObject = nested || (flat ? Object.fromEntries(Object.entries(properties).filter(([key, value]) => value != null && !key.startsWith("@") && !["relations", "meta", "id", "type", "_podColor"].includes(key))) : {});
-    const relationData = properties["@relations"] ?? properties.relations;
-    const relations = Array.isArray(relationData) ? relationData.map((value, index) => [String(index + 1), value]) : entries(relationData);
-    const meta = [...entries(properties.meta), ...Object.entries(properties).filter(([key, value]) => value != null && key !== "_podColor" && (nested ? !["tags", "relations", "meta", "@id", "id", "type"].includes(key) : key.startsWith("@") && !["@id", "@relations"].includes(key)))];
-    const name = tagObject.name || tagObject["name:es"] || tagObject.ref || "";
-    const valid = osmId.t && osmId.i;
-    const osm = valid ? `https://www.openstreetmap.org/${osmId.t}/${osmId.i}` : "";
-    const shortId = osmId.s + osmId.i;
-    const body = section("Tags OSM", "tag", entries(tagObject)) + section("Relaciones", "rel", relations) + section("Metadatos", "meta", meta);
-    const links = valid ? [["🔍", "Ver en OSM", osm], ["✏️", "Editar con iD", `https://www.openstreetmap.org/edit?editor=id&${osmId.t}=${osmId.i}`], ["⚡", "Editar con Rapid", `https://rapideditor.org/edit#id=${shortId}`], ["🧩", "Editar con Level0", `https://level0.osmz.ru/?url=${encodeURIComponent(osm)}`], ["🖥️", "Editar con JOSM", `http://127.0.0.1:8111/load_object?objects=${shortId}`]] : [];
-    const actions = links.map(([icon, title, url]) => `<button type="button" class="pop-action" data-url="${esc(url)}" title="${esc(title)}" aria-label="${esc(title)}">${icon}</button>`).join("");
-    return `<div class="pp"><div class="ph"><div class="pt">${esc(name)}</div></div><div class="tags">${body || '<div class="tr"><div class="tk">info</div><div class="tv">Sin información visible</div></div>'}</div>${actions ? `<div class="acts">${actions}</div>` : ""}</div>`;
+  const applyFilters = (next = {}) => {
+    options = next;
+    if (!geo) return;
+    syncAttributes(next);
+    const active = next.numericEnabled && next.numericKey ? 1 : 0;
+    const update = { minEle: Number(next.numericMin) || 0, maxEle: Number(next.numericMax) || 0, numericEnabled: active, showErrors: next.numericShowErrors ? 1 : 0 };
+    vectorLayer.updateStyleVariables(update);
+    heatLayer.updateStyleVariables(update);
   };
-  const display = (collection) => {
-    lookup = new Map();
+  const fit = (features) => {
+    if (!features.length) return;
+    const extent = vectorSource.getExtent();
+    if (extent.every(Number.isFinite)) map.getView().fit(extent, { padding: [28, 28, 28, 28], maxZoom: 17, duration: 300 });
+  };
+  const draw = (collection, { fitBounds = true, filters = options } = {}) => {
+    closePopup();
+    geo = collection;
+    options = filters;
+    rendered = [];
+    heatReady = false;
+    heatShared = true;
+    lastPrepared = "";
+    heatSource.clear(true);
+    vectorSource.clear(true);
     const features = [];
-    for (const feature of collection.features || []) {
-      if (!feature?.geometry) continue;
-      const id = String(features.length);
-      lookup.set(id, feature);
-      const color = feature.properties?._podColor;
-      features.push({ type: "Feature", id: features.length, properties: color ? { _fid: id, _podColor: color } : { _fid: id }, geometry: feature.geometry });
+    for (let i = 0; i < (collection.features || []).length; i++) {
+      const item = collection.features[i];
+      if (!item?.geometry) continue;
+      let geometry;
+      try { geometry = format.readGeometry(item.geometry, { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }); } catch { continue; }
+      if (!geometry) continue;
+      if (geometry.getType() !== "Point") heatShared = false;
+      const feature = new Feature({ geometry, podIndex: i, podKeep: 1, podValid: 0, podValue: 0, podR: 141, podG: 182, podB: 232 });
+      rendered.push(feature);
+      features.push(feature);
     }
-    return { type: "FeatureCollection", features };
+    syncAttributes(options, true);
+    vectorSource.addFeatures(features);
+    heatLayer.setSource(heatShared ? vectorSource : heatSource);
+    heatReady = heatShared;
+    if (fitBounds) fit(features);
+    render();
   };
-  const geoPoints = (geometry, out = []) => {
-    const walk = (coordinates) => {
-      if (!Array.isArray(coordinates)) return;
-      if (typeof coordinates[0] === "number" && typeof coordinates[1] === "number") out.push(coordinates);
-      else coordinates.forEach(walk);
-    };
-    if (!geometry) return out;
-    if (geometry.type === "GeometryCollection") geometry.geometries?.forEach((item) => geoPoints(item, out));
-    else walk(geometry.coordinates);
-    return out;
+  const buildHeat = () => {
+    if (heatReady) return;
+    const points = [];
+    for (let i = 0; i < rendered.length; i++) {
+      const feature = rendered[i];
+      const geometry = feature.getGeometry();
+      const type = geometry.getType();
+      let center;
+      if (type === "Point") center = geometry.getCoordinates();
+      else if (type === "MultiPoint") center = geometry.getCoordinates()[0];
+      else if (type === "Polygon") center = geometry.getInteriorPoint().getCoordinates().slice(0, 2);
+      else if (type === "MultiPolygon") center = geometry.getInteriorPoints().getCoordinates()[0]?.slice(0, 2);
+      else if (type === "LineString") center = geometry.getCoordinateAt(0.5);
+      else if (type === "MultiLineString") center = geometry.getLineStrings()[0]?.getCoordinateAt(0.5);
+      if (!center) {
+        const extent = geometry.getExtent();
+        center = geometry.getClosestPoint([(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2]);
+      }
+      if (!center || !center.every(Number.isFinite)) continue;
+      const point = new Feature({ geometry: new Point(center), podLocalIndex: i, podKeep: feature.get("podKeep"), podValue: feature.get("podValue"), podValid: feature.get("podValid") });
+      points.push(point);
+    }
+    heatSource.addFeatures(points);
+    heatReady = true;
   };
-  const fit = (collection) => {
-    const bounds = new ml.LngLatBounds();
-    for (const feature of collection.features || []) geoPoints(feature.geometry).forEach((point) => bounds.extend(point));
-    if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 24, maxZoom: 17, duration: 500 });
+  const render = () => {
+    const isHeat = renderMode.value === "heat";
+    if (isHeat && geo) buildHeat();
+    vectorLayer.setVisible(!isHeat);
+    heatLayer.setVisible(isHeat);
+    closePopup();
   };
-  const featurePoint = (feature) => {
-    const geometry = feature?.geometry;
-    if (!geometry) return null;
-    if (geometry.type === "Point") return geometry.coordinates;
-    const points = geoPoints(geometry);
-    if (!points.length) return null;
-    const [x, y] = points.reduce(([sumX, sumY], point) => [sumX + point[0], sumY + point[1]], [0, 0]);
-    return [x / points.length, y / points.length];
-  };
-  const heatData = (collection) => ({ type: "FeatureCollection", features: (collection.features || []).flatMap((feature, index) => {
-    const point = featurePoint(feature);
-    return point ? [{ type: "Feature", id: index, properties: { _fid: String(index) }, geometry: { type: "Point", coordinates: point } }] : [];
-  }) });
-  const interpolate = (input, values) => ["interpolate", ["linear"], input, ...values];
-  const heatIntensity = (value) => interpolate(["zoom"], [0, 0.7 * value, 9, 1.5 * value, 15, 2 * value]);
-  const heatRadius = (value) => interpolate(["zoom"], [0, 10 * value, 6, 20 * value, 12, 32 * value, 18, 45 * value]);
-  const heatColor = (value) => interpolate(["heatmap-density"], PALETTES[value]);
   const heatSave = () => storage.setItem(heatStoreKey, JSON.stringify(heat));
-  const heatControls = [[intensity, intensityValue, "intensity"], [radius, radiusValue, "radius"], [opacity, opacityValue, "opacity"], [weight, weightValue, "weight"]];
   const heatUI = () => {
-    heatControls.forEach(([input, output, key]) => input.value = output.value = heat[key]);
+    [[intensity, intensityValue, "intensity"], [radius, radiusValue, "radius"], [opacity, opacityValue, "opacity"], [weight, weightValue, "weight"]].forEach(([input, output, key]) => { input.value = output.value = heat[key]; });
     palette.value = heat.palette;
     config.hidden = renderMode.value !== "heat";
   };
-  const heatStyle = () => ({ "heatmap-intensity": heatIntensity(heat.intensity), "heatmap-radius": heatRadius(heat.radius), "heatmap-opacity": heat.opacity, "heatmap-weight": heat.weight, "heatmap-color": heatColor(heat.palette) });
   const heatPaint = () => {
-    if (map.getLayer(heatLayer)) Object.entries(heatStyle()).forEach(([key, value]) => map.setPaintProperty(heatLayer, key, value));
+    heatLayer.updateStyleVariables({ radius: heat.radius, weight: heat.weight, intensity: heat.intensity });
+    heatLayer.setOpacity(heat.opacity);
+    heatLayer.setGradient(COLORS[heat.palette]);
   };
-  const remove = () => {
-    popup?.remove();
-    popup = null;
-    if (!map.isStyleLoaded()) return;
-    [...layers, heatLayer].forEach((id) => map.getLayer(id) && map.removeLayer(id));
-    [source, heatSource].forEach((id) => map.getSource(id) && map.removeSource(id));
-  };
-  const featureColor = ["coalesce", ["get", "_podColor"], "#8db6e8"];
-  const renderNormal = () => {
-    map.addSource(source, { type: "geojson", data: display(geo) });
-    [
-      ["fill", { "fill-color": featureColor, "fill-opacity": 0.18 }, ["==", "$type", "Polygon"]],
-      ["line", { "line-color": featureColor, "line-width": 3, "line-opacity": 0.95 }, ["any", ["==", "$type", "LineString"], ["==", "$type", "Polygon"]]],
-      ["circle", { "circle-radius": 7, "circle-color": featureColor, "circle-opacity": 0.95, "circle-stroke-color": "#e5edf8", "circle-stroke-width": 1.4 }, ["==", "$type", "Point"]]
-    ].forEach(([type, paint, filter], index) => map.addLayer({ id: layers[index], type, source, paint, filter }));
-  };
-  const renderHeat = () => {
-    map.addSource(heatSource, { type: "geojson", data: heatData(geo) });
-    map.addLayer({ id: heatLayer, type: "heatmap", source: heatSource, paint: heatStyle() });
-  };
-  const render = () => {
-    if (!geo || !map.isStyleLoaded()) return;
-    remove();
-    renderMode.value === "heat" ? renderHeat() : renderNormal();
-  };
-  const draw = (collection, { fitBounds = true } = {}) => {
-    geo = collection;
-    if (map.isStyleLoaded()) {
-      if (renderMode.value === "heat" && map.getSource(heatSource)) map.getSource(heatSource).setData(heatData(geo));
-      else if (renderMode.value !== "heat" && map.getSource(source)) map.getSource(source).setData(display(geo));
-      else render();
-    }
-    if (fitBounds) fit(collection);
-  };
-  const clear = () => {
-    geo = null;
-    lookup = new Map();
-    remove();
-  };
-  const openPopup = (event) => {
-    const feature = event.features?.[0];
-    const original = feature && lookup.get(String(feature.properties?._fid));
-    if (!original) return;
-    popup?.remove();
-    popup = new ml.Popup({ maxWidth: "480px", closeButton: true, closeOnClick: true }).setLngLat(event.lngLat).setHTML(popupHtml(original)).addTo(map);
-    popup.getElement().querySelectorAll(".pop-action").forEach((button) => button.onclick = () => window.open(button.dataset.url, "_blank", "noopener,noreferrer"));
-  };
-  layers.forEach((id) => {
-    map.on("click", id, openPopup);
-    map.on("mouseenter", id, () => map.getCanvas().style.cursor = "pointer");
-    map.on("mouseleave", id, () => map.getCanvas().style.cursor = "");
+  [[intensity, intensityValue, "intensity"], [radius, radiusValue, "radius"], [opacity, opacityValue, "opacity"], [weight, weightValue, "weight"]].forEach(([input, output, key]) => input.addEventListener("input", () => { heat[key] = +input.value; output.value = input.value; heatSave(); heatPaint(); }));
+  palette.onchange = () => { heat.palette = COLORS[palette.value] ? palette.value : "default"; heatSave(); heatPaint(); };
+  reset.onclick = () => { heat = { ...HEAT_DEFAULT }; heatSave(); heatUI(); heatPaint(); };
+  map.on("singleclick", (event) => {
+    if (renderMode.value === "heat") return;
+    const selected = map.forEachFeatureAtPixel(event.pixel, (feature, layer) => layer === vectorLayer ? feature : null, { hitTolerance: 3 });
+    const index = selected?.get("podIndex");
+    if (index == null || !geo?.features[index]) { closePopup(); return; }
+    const raw = geo.features[index];
+    const base = basePass(raw, options, options.regexEnabled ? compilePatterns(options.regexText || "", options.regexInsensitive) : []);
+    const num = numeric(featureTags(raw)[options.numericKey]);
+    const pass = !options.numericEnabled || !options.numericKey || options.numericShowErrors || Number.isFinite(num) && num >= Number(options.numericMin) && num <= Number(options.numericMax);
+    if (!base.keep || !pass) { closePopup(); return; }
+    popupContent.innerHTML = popupHtml(raw);
+    popupElement.hidden = false;
+    popup.setPosition(event.coordinate);
   });
-  heatControls.forEach(([input, output, key]) => input.oninput = () => {
-    heat[key] = +input.value;
-    output.value = input.value;
-    heatSave();
-    heatPaint();
+  map.on("pointermove", (event) => {
+    if (event.dragging || renderMode.value === "heat") return;
+    map.getTargetElement().style.cursor = map.hasFeatureAtPixel(event.pixel, { layerFilter: (layer) => layer === vectorLayer }) ? "pointer" : "";
   });
-  palette.onchange = () => {
-    heat.palette = PALETTES[palette.value] ? palette.value : "default";
-    heatSave();
-    heatPaint();
-  };
-  reset.onclick = () => {
-    heat = { ...HEAT_DEFAULT };
-    heatSave();
-    heatUI();
-    heatPaint();
-  };
-  map.on("style.load", () => geo && render());
+  const clear = () => { closePopup(); geo = null; rendered = []; heatReady = false; heatShared = false; lastPrepared = ""; vectorSource.clear(true); heatSource.clear(true); heatLayer.setSource(heatSource); };
   heatUI();
-  return { map, draw, clear, render, heatUI, hasGeo: () => Boolean(geo) };
+  render();
+  return { map, draw, clear, render, heatUI, hasGeo: () => Boolean(geo), applyFilters };
 };

@@ -25,14 +25,14 @@ export const analyzeCollection = (collection) => {
       counts.set(key, (counts.get(key) || 0) + 1);
       const number = numericValue(value);
       if (Number.isFinite(number)) {
-        const values = numeric.get(key) || [];
-        values.push(number);
-        numeric.set(key, values);
+        const stat = numeric.get(key);
+        if (stat) { stat.min = Math.min(stat.min, number); stat.max = Math.max(stat.max, number); stat.count++; }
+        else numeric.set(key, { min: number, max: number, count: 1 });
       }
     }
   }
   const keys = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "es"));
-  const numericKeys = [...numeric].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], "es")).map(([key, values]) => [key, Math.min(...values), Math.max(...values), values.length]);
+  const numericKeys = [...numeric].sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0], "es")).map(([key, stat]) => [key, stat.min, stat.max, stat.count]);
   return { keys, numericKeys };
 };
 const compilePatterns = (raw, insensitive) => raw.split(",").map((value) => value.trim()).filter(Boolean).flatMap((source) => {
@@ -152,7 +152,7 @@ export const createAnalysis = ({ elements, onChange }) => {
     numericMaxValue.value = String(max);
   };
   const options = () => ({ selectedKey: key.value, onlySelectedKey: onlyKey.checked, regexEnabled: regexEnable.checked, regexText: regexText.value, regexInsensitive: regexInsensitive.checked, regexOnly: regexOnly.checked, regexColors: colors, numericEnabled: numericEnable.checked, numericKey: numericKey.value, numericMin: numericMin.value, numericMax: numericMax.value, numericShowErrors: numericErrors.checked, errorColor: "#ef8491" });
-  const emit = () => onChange?.(filterCollection(collection, options()));
+  const emit = () => onChange?.(options());
   const emitFrame = () => {
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(emit);
@@ -260,5 +260,5 @@ export const createAnalysis = ({ elements, onChange }) => {
     numericMax.disabled = true;
   };
   clear();
-  return { setData, clear, apply: emit, htmlKey: () => esc(key.value) };
+  return { setData, clear, apply: emit, options, htmlKey: () => esc(key.value) };
 };

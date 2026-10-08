@@ -169,18 +169,18 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
   });
   const colors = HighlightStyle.define(
     [
-      [t.keyword, "#90b8ec"],
-      [t.bool, "#c6a0f6"],
-      [t.number, "#8fc9e8"],
-      [t.variableName, "#ef8491"],
-      [t.special(t.variableName), "#91c9bc"],
-      [t.constant(t.variableName), "#d6b56d"],
-      [t.standard(t.variableName), "#82c6dc"],
-      [t.operator, "#b4c3d8"],
-      [t.bracket, "#b4c3d8"],
-      [t.comment, "#8295b4"],
-      [t.string, "#9fcda8"],
-      [t.meta, "#d9bf77"]
+      [t.keyword, "#a9dcaf"],
+      [t.bool, "#d2c3a0"],
+      [t.number, "#92c9bb"],
+      [t.variableName, "#e7a18b"],
+      [t.special(t.variableName), "#99d3ba"],
+      [t.constant(t.variableName), "#dbb579"],
+      [t.standard(t.variableName), "#92c5ae"],
+      [t.operator, "#b9cabc"],
+      [t.bracket, "#b9cabc"],
+      [t.comment, "#859e8c"],
+      [t.string, "#b5dc9f"],
+      [t.meta, "#dbc18e"]
     ].map(([tag, color]) => ({ tag, color }))
   );
   const queryFilter = [

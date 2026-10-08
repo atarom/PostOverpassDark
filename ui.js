@@ -43,7 +43,7 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
       $(`${item}Panel`).classList.toggle("on", on);
     }
     if (name === "data") show();
-    requestAnimationFrame(() => map.resize());
+    requestAnimationFrame(() => map.updateSize());
   };
   const copy = async () => {
     try {

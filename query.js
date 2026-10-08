@@ -60,19 +60,25 @@ export const createQueryPreparer = ({ map, storage, areaStoreKey, log }) => {
     return date.toISOString().replace(/\.\d{3}Z$/, "Z");
   };
   const stripComments = (text) => text.replace(/"(?:\\[\s\S]|[^"\\])*(?:"|\\?$)|'(?:\\[\s\S]|[^'\\])*(?:'|\\?$)|\/\/[^\n]*|\/\*[\s\S]*?(?:\*\/|$)/g, (part) => part.startsWith("/") ? part.replace(/[^\n]/g, "") : part).replace(/^[ \t]+$/gm, "").replace(/\n{3,}/g, "\n\n").trim();
+  const mapBounds = () => {
+    const extent = map.getView().calculateExtent(map.getSize() || [1024, 768]);
+    const [west, south] = window.ol.proj.toLonLat([extent[0], extent[1]]);
+    const [east, north] = window.ol.proj.toLonLat([extent[2], extent[3]]);
+    return { west, south, east, north };
+  };
   const prepOverpass = async (input, signal) => {
     const vars = new Map();
     let text = input.replace(/\{\{\s*([A-Za-z_][\w-]*)\s*=\s*([^{}]+?)\s*\}\}/g, (_, key, value) => (vars.set(key, value.trim()), "")).replace(/\{\{style:[\s\S]*?\}\}/gi, "").replace(/\{\{date:([^}]+)\}\}/gi, (_, spec) => turboDate(spec)).replace(/\{\{\s*([A-Za-z_][\w-]*)\s*\}\}/g, (match, key) => vars.has(key) ? vars.get(key) : match);
-    const bounds = map.getBounds();
-    const center = map.getCenter();
-    text = text.replaceAll("{{bbox}}", [bounds.getSouth(), bounds.getWest(), bounds.getNorth(), bounds.getEast()].join(",")).replaceAll("{{center}}", `${center.lat},${center.lng}`).replaceAll("{{zoom}}", String(map.getZoom()));
+    const bounds = mapBounds();
+    const center = window.ol.proj.toLonLat(map.getView().getCenter());
+    text = text.replaceAll("{{bbox}}", [bounds.south, bounds.west, bounds.north, bounds.east].join(",")).replaceAll("{{center}}", `${center[1]},${center[0]}`).replaceAll("{{zoom}}", String(map.getView().getZoom()));
     for (const match of [...text.matchAll(/\{\{geocodeArea:([^}]+)\}\}/gi)]) text = text.replace(match[0], `area(${await areaId(match[1].trim(), signal)})`);
     return stripComments(text);
   };
   const prepPostpass = (input) => {
     let text = input.replace(/\{\{\s*data\s*:\s*sql(?:,[^{}]*)?\}\}\s*/gi, "");
-    const bounds = map.getBounds();
-    const box = `ST_SetSRID(ST_MakeBox2D(ST_MakePoint(${bounds.getWest()},${bounds.getSouth()}),ST_MakePoint(${bounds.getEast()},${bounds.getNorth()})),4326)`;
+    const bounds = mapBounds();
+    const box = `ST_SetSRID(ST_MakeBox2D(ST_MakePoint(${bounds.west},${bounds.south}),ST_MakePoint(${bounds.east},${bounds.north})),4326)`;
     return text.replaceAll("{{bbox}}", box).trim();
   };
   return { prep: (text, signal, engine) => engine === "postpass" ? prepPostpass(text) : prepOverpass(text, signal) };
