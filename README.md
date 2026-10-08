@@ -22,18 +22,10 @@
 - Inspección de la consulta enviada, respuesta original y GeoJSON generado.
 - Acceso directo desde los resultados a OpenStreetMap y distintos editores OSM.
 
-## Ejecución local
-
-```sh
-python3 -m http.server 8000
-```
-
-Después abre `http://localhost:8000/`.
-
 ## Tecnologías y datos
 
-- [MapLibre GL JS](https://maplibre.org/) — renderización y navegación del mapa.
-- [OpenFreeMap](https://openfreemap.org/) — estilo y teselas del mapa.
+- [OpenLayers](https://openlayers.org/) — renderización WebGL, filtros dinámicos y navegación del mapa.
+- [OpenStreetMap](https://www.openstreetmap.org/) — teselas del mapa base con estilo oscuro.
 - [Overpass API](https://overpass-api.de/) — consultas Overpass QL sobre datos de OpenStreetMap.
 - [Postpass](https://postpass.geofabrik.de/) — consultas SQL/PostGIS sobre datos de OpenStreetMap.
 - [CodeMirror](https://codemirror.net/) — editor de consultas.
