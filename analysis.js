@@ -75,6 +75,25 @@ export const filterCollection = (collection, options = {}) => {
 };
 export const createAnalysis = ({ elements, onChange }) => {
   const { key, onlyKey, multivalue, values, summary, numericEnable, numericKey, numericErrors, numericMin, numericMax, numericMinValue, numericMaxValue, regexEnable, regexText, regexInsensitive, regexOnly, regexColors, reset } = elements;
+  const modeLabel = document.createElement("label");
+  modeLabel.htmlFor = "analysisCountMode";
+  modeLabel.textContent = "Contar por";
+  modeLabel.className = "analysis-box";
+  const countMode = document.createElement("select");
+  countMode.id = "analysisCountMode";
+  countMode.setAttribute("aria-label", "Tipo de recuento");
+  for (const [value, label] of [["value", "Valor completo"], ["semicolon", "Separar por ;"], ["word", "Palabra"]]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    countMode.append(option);
+  }
+  const checks = multivalue.closest(".analysis-checks");
+  multivalue.closest("label").remove();
+  checks.after(modeLabel, countMode);
+  const valuesLabel = values.previousElementSibling;
+  valuesLabel.textContent = "Valores únicos";
+  valuesLabel.classList.add("analysis-box");
   let collection = { type: "FeatureCollection", features: [] };
   let info = { keys: [], numericKeys: [] };
   let colors = {};
@@ -94,15 +113,16 @@ export const createAnalysis = ({ elements, onChange }) => {
       const tags = featureTags(feature);
       if (!own(tags, selected)) continue;
       const raw = textValue(tags[selected]);
-      const list = multivalue.checked ? raw.split(";").map((item) => item.trim()).filter(Boolean) : [raw];
+      const list = countMode.value === "word" ? raw.normalize("NFC").toLocaleLowerCase("es").normalize("NFC").match(/\p{L}[\p{L}\p{M}\p{N}]*/gu) || [] : countMode.value === "semicolon" ? raw.split(";").map((item) => item.trim()).filter(Boolean) : [raw];
       for (const item of list) counts.set(item, (counts.get(item) || 0) + 1);
     }
     return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "es"));
   };
   const renderValues = () => {
     const counts = valueCounts();
-    values.textContent = counts.length ? counts.map(([value, count]) => `${count} ${value}`).join("\n") : "Sin valores.";
-    summary.textContent = `${collection.features.length.toLocaleString("es-ES")} entidades · ${info.keys.length.toLocaleString("es-ES")} keys · ${counts.length.toLocaleString("es-ES")} valores`;
+    valuesLabel.textContent = countMode.value === "word" ? "Palabras únicas" : "Valores únicos";
+    values.textContent = counts.length ? counts.map(([value, count]) => `${count} ${value}`).join("\n") : countMode.value === "word" ? "Sin palabras." : "Sin valores.";
+    summary.textContent = `${collection.features.length.toLocaleString("es-ES")} entidades · ${info.keys.length.toLocaleString("es-ES")} keys · ${counts.length.toLocaleString("es-ES")} ${countMode.value === "word" ? "palabras" : "valores"}`;
   };
   const regexCount = (pattern) => {
     const selected = key.value;
@@ -175,7 +195,7 @@ export const createAnalysis = ({ elements, onChange }) => {
   };
   const resetControls = () => {
     onlyKey.checked = false;
-    multivalue.checked = false;
+    countMode.value = "value";
     numericEnable.checked = false;
     numericErrors.checked = false;
     regexEnable.checked = false;
@@ -190,7 +210,7 @@ export const createAnalysis = ({ elements, onChange }) => {
   };
   key.onchange = keyChanged;
   onlyKey.onchange = emit;
-  multivalue.onchange = renderValues;
+  countMode.onchange = renderValues;
   numericEnable.onchange = () => {
     for (const input of [numericMin, numericMax]) input.disabled = !numericEnable.checked || !numericKey.value;
     emit();
