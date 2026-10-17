@@ -25,8 +25,9 @@ const initializeApp = (deps) => {
   const queryNode = $("query");
   const wrapLines = $("wrapLines");
   const renderMode = $("renderMode");
-  const presetSelect = $("presetSelect");
-  const presetDescription = $("presetDescription");
+  const presetToggle = $("presetToggle");
+  const presetPanel = $("presetPanel");
+  const presetList = $("presetList");
   const endpoints = [...endpoint.options].map((option) => option.value);
   const savedEndpoint = storage.getItem(STORE.endpoint);
   const wrap = storage.getItem(STORE.wrap) === "wrap" ? "wrap" : "scroll";
@@ -38,41 +39,72 @@ const initializeApp = (deps) => {
   const defaults = { overpass: PRESETS.overpass[0]?.query ?? "", postpass: PRESETS.postpass[0]?.query ?? "" };
   let editor;
   let busy = false;
+  const closePresets = () => {
+    presetPanel.hidden = true;
+    presetToggle.setAttribute("aria-expanded", "false");
+  };
   const syncPreset = () => {
     if (!editor) return;
-    const presets = PRESETS[editor.getEngine()];
     const query = editor.getQuery().trim();
-    const index = presets.findIndex((preset) => preset.query.trim() === query);
-    presetSelect.value = index < 0 ? "custom" : String(index);
-    presetDescription.textContent = index < 0 ? "Consulta editada manualmente." : presets[index].description;
+    const presets = PRESETS[editor.getEngine()];
+    for (const button of presetList.children) {
+      const index = Number(button.dataset.index);
+      button.setAttribute("aria-pressed", String(presets[index]?.query.trim() === query));
+    }
   };
   const renderPresets = () => {
     const presets = PRESETS[editor.getEngine()];
-    presetSelect.replaceChildren();
+    presetList.replaceChildren();
     presets.forEach((preset, index) => {
-      const option = document.createElement("option");
-      option.value = String(index);
-      option.textContent = preset.title;
-      presetSelect.append(option);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "preset-item";
+      button.dataset.index = String(index);
+      const title = document.createElement("span");
+      title.className = "preset-item-title";
+      title.textContent = preset.title;
+      const description = document.createElement("span");
+      description.className = "preset-item-description";
+      description.textContent = preset.description;
+      button.append(title, description);
+      button.onclick = () => {
+        editor.setQuery(preset.query);
+        syncPreset();
+        closePresets();
+        presetToggle.focus();
+      };
+      presetList.append(button);
     });
-    const custom = document.createElement("option");
-    custom.value = "custom";
-    custom.textContent = "Consulta personalizada";
-    presetSelect.append(custom);
     syncPreset();
   };
   editor = createEditor({ deps, queryNode, wrapMode: wrap, engine: getEngine(), defaults, onChange: syncPreset });
   renderPresets();
-  presetSelect.onchange = () => {
-    if (presetSelect.value === "custom") return;
-    const preset = PRESETS[editor.getEngine()][Number(presetSelect.value)];
-    if (preset) editor.setQuery(preset.query);
+  presetToggle.onclick = () => {
+    if (presetPanel.hidden) {
+      closeConfig();
+      presetPanel.hidden = false;
+      presetToggle.setAttribute("aria-expanded", "true");
+      (presetList.querySelector('[aria-pressed="true"]') || presetList.firstElementChild)?.focus();
+    } else {
+      closePresets();
+      presetToggle.focus();
+    }
   };
+  document.addEventListener("pointerdown", (event) => {
+    if (!presetPanel.hidden && !presetPanel.contains(event.target) && !presetToggle.contains(event.target)) closePresets();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !presetPanel.hidden) {
+      closePresets();
+      presetToggle.focus();
+    }
+  });
   const mapController = createMapController({ ol: deps.ol, storage, heatStoreKey: STORE.heat, renderMode, heatElements: { config: $("heatCfg"), radius: $("heatRadius"), intensity: $("heatIntensity"), opacity: $("heatOpacity"), weight: $("heatWeight"), palette: $("heatPalette"), radiusValue: $("heatRadiusVal"), intensityValue: $("heatIntensityVal"), opacityValue: $("heatOpacityVal"), weightValue: $("heatWeightVal"), reset: $("heatReset") } });
   const map = mapController.map;
   const cfg = $("cfg");
   const cfgToggle = $("cfgToggle");
   cfgToggle.onclick = () => {
+    closePresets();
     const expanded = cfg.hidden;
     cfg.hidden = !expanded;
     cfgToggle.setAttribute("aria-expanded", String(expanded));

@@ -24,6 +24,7 @@
             <div id="josmTools" class="josm-tools" hidden>
               <button id="josmSend" class="action-button josm-label" type="button" title="Enviar a JOSM" aria-label="Enviar a JOSM" disabled>JOSM</button>
             </div>
+            <button id="presetToggle" class="action-button preset-toggle" type="button" title="Ejemplos de consulta" aria-label="Ejemplos de consulta" aria-controls="presetPanel" aria-expanded="false">Ejemplos</button>
             <button id="cfgToggle" class="action-button cfg-toggle" type="button" title="Configuración" aria-label="Configuración" aria-controls="cfg" aria-expanded="false"><span aria-hidden="true">&#9881;&#65038;</span></button>
           </div>
           <div id="cfg" class="cfg cfg-panel" hidden>
@@ -121,12 +122,8 @@
                 </select>
               </div>
           </div>
+          <div id="presetPanel" class="preset-panel" role="region" aria-label="Ejemplos de consulta" hidden><div id="presetList" class="preset-list"></div></div>
           <div id="josmMessage" class="josm-message" role="status" aria-live="polite"></div>
-        </div>
-        <div class="preset">
-          <label for="presetSelect">Ejemplo</label>
-          <select id="presetSelect" aria-describedby="presetDescription"></select>
-          <div id="presetDescription" class="preset-desc"></div>
         </div>
         <div class="edit">
           <div id="query">
