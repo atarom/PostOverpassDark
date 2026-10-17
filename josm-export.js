@@ -2,22 +2,40 @@ const PREFIX = { N: "n", W: "w", R: "r", node: "n", way: "w", relation: "r" };
 const JOSM = "http://127.0.0.1:8111/";
 const LIMIT = 500;
 const URL_LIMIT = 1700;
-export const osmIdentifiers = (geo) => {
-  const found = new Map();
+const identifiers = (entries) => {
+  const found = new Set();
   let omitted = 0;
-  for (const feature of geo?.features || []) {
-    const properties = feature?.properties || {};
-    const type = String(properties.osm_type ?? properties.type ?? "").trim();
+  for (const entry of entries) {
+    const type = String(entry?.type ?? "").trim();
     const prefix = PREFIX[type] || PREFIX[type.toUpperCase()];
-    const rawId = properties.osm_id ?? properties.id;
-    const id = typeof rawId === "string" && !/^\d+$/.test(rawId) ? NaN : Number(rawId);
+    const rawId = entry?.id;
+    const validId = typeof rawId === "string" ? /^\d+$/.test(rawId) : typeof rawId === "number";
+    const id = validId ? Number(rawId) : NaN;
     if (!prefix || !Number.isSafeInteger(id) || id <= 0) {
       omitted++;
       continue;
     }
-    found.set(`${prefix}${id}`, `${prefix}${id}`);
+    found.add(`${prefix}${id}`);
   }
-  return { ids: [...found.values()], omitted };
+  return { ids: [...found], omitted };
+};
+export const osmIdentifiers = (geo) => identifiers((geo?.features || []).map((feature) => {
+  const properties = feature?.properties || {};
+  return { type: properties.osm_type ?? properties.type, id: properties.osm_id ?? properties.id };
+}));
+export const overpassIdentifiers = (raw) => {
+  const source = String(raw ?? "").trim();
+  if (!source) return { ids: [], omitted: 0 };
+  if (source.startsWith("<")) {
+    const xml = new DOMParser().parseFromString(source, "application/xml");
+    if (xml.querySelector("parsererror")) throw Error("XML de Overpass inválido");
+    if (xml.documentElement?.localName !== "osm") throw Error("El XML no contiene una respuesta OSM");
+    const objects = [...xml.documentElement.children].filter((element) => ["node", "way", "relation"].includes(element.localName));
+    return identifiers(objects.map((element) => ({ type: element.localName, id: element.getAttribute("id") })));
+  }
+  const json = JSON.parse(source);
+  if (!Array.isArray(json?.elements)) throw Error("JSON de Overpass sin elementos OSM");
+  return identifiers(json.elements);
 };
 export const josmUrl = (ids, first = true) => {
   const url = new URL("load_object", JOSM);
@@ -59,14 +77,20 @@ export const createJosmExporter = ({ container, sendButton, message }) => {
     notify("");
     sync();
   };
-  const setEngine = (engine) => {
-    container.hidden = engine !== "postpass";
-    if (engine !== "postpass") reset();
-  };
-  const setData = (geo) => {
+  const setEngine = () => {
+    container.hidden = false;
     reset();
-    const result = osmIdentifiers(geo);
-    const warning = result.omitted ? ` · ${result.omitted} sin ID OSM, excluidos` : "";
+  };
+  const setData = (data, engine) => {
+    reset();
+    let result;
+    try {
+      result = engine === "postpass" ? osmIdentifiers(data) : overpassIdentifiers(data);
+    } catch (error) {
+      notify(`No se pudieron identificar los objetos OSM: ${error.message}`, true);
+      return;
+    }
+    const warning = result.omitted ? ` · ${result.omitted} sin ID OSM válido, excluidos` : "";
     if (result.ids.length > LIMIT) {
       notify(`Límite de envío: ${LIMIT} objetos OSM. Reduce la consulta.`, true);
       return;
@@ -112,6 +136,6 @@ export const createJosmExporter = ({ container, sendButton, message }) => {
     }
   };
   sendButton.addEventListener("click", send);
-  setEngine("overpass");
+  setEngine();
   return { setEngine, setData, reset };
 };

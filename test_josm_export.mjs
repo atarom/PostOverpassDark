@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { osmIdentifiers, josmUrl, josmBatches, createJosmExporter } from "./josm-export.js";
+import { osmIdentifiers, overpassIdentifiers, josmUrl, josmBatches, createJosmExporter } from "./josm-export.js";
 const result = osmIdentifiers({ features: [
   { properties: { osm_type: "R", osm_id: 100 } },
   { properties: { osm_type: "R", osm_id: 100 } },
@@ -34,10 +34,10 @@ globalThis.fetch = async (input) => {
   return { ok: true };
 };
 const exporter = createJosmExporter({ container, sendButton, message });
-assert.equal(container.hidden, true);
+assert.equal(container.hidden, false);
 exporter.setEngine("postpass");
 assert.equal(container.hidden, false);
-exporter.setData({ features: [{ properties: { osm_type: "W", osm_id: 20 } }, { properties: { osm_type: "W", osm_id: 20 } }] });
+exporter.setData({ features: [{ properties: { osm_type: "W", osm_id: 20 } }, { properties: { osm_type: "W", osm_id: 20 } }] }, "postpass");
 assert.equal(sendButton.disabled, false);
 await sendButton.click();
 assert.equal(calls.length, 2);
@@ -45,15 +45,15 @@ assert.equal(calls[0], "http://127.0.0.1:8111/version");
 assert.equal(new URL(calls[1]).searchParams.get("objects"), "w20");
 assert.match(message.textContent, /1 objeto solicitado/);
 calls = [];
-exporter.setData({ features: large.map((id) => ({ properties: { osm_type: "W", osm_id: id.slice(1) } })) });
+exporter.setData({ features: large.map((id) => ({ properties: { osm_type: "W", osm_id: id.slice(1) } })) }, "postpass");
 await sendButton.click();
 assert.equal(calls.length, chunks.length + 1);
 assert.equal(new URL(calls[1]).searchParams.get("new_layer"), "true");
 assert.equal(new URL(calls[2]).searchParams.get("new_layer"), "false");
-exporter.setData({ features: Array.from({ length: 501 }, (_, i) => ({ properties: { osm_type: "N", osm_id: i + 1 } })) });
+exporter.setData({ features: Array.from({ length: 501 }, (_, i) => ({ properties: { osm_type: "N", osm_id: i + 1 } })) }, "postpass");
 assert.equal(sendButton.disabled, true);
 assert.match(message.textContent, /Límite de envío/);
-exporter.setData({ features: [{ properties: { osm_type: "N", osm_id: 5 } }] });
+exporter.setData({ features: [{ properties: { osm_type: "N", osm_id: 5 } }] }, "postpass");
 globalThis.fetch = async () => { throw TypeError("Failed to fetch"); };
 await sendButton.click();
 assert.match(message.textContent, /Control remoto activado/);
@@ -62,6 +62,27 @@ globalThis.fetch = async () => ({ ok: true, json: async () => ({ protocolversion
 await sendButton.click();
 assert.match(message.textContent, /Versión incompatible/);
 exporter.setEngine("overpass");
-assert.equal(container.hidden, true);
+assert.equal(container.hidden, false);
 assert.equal(sendButton.disabled, true);
+const overpassJson = JSON.stringify({ elements: [{ type: "node", id: 17 }, { type: "way", id: 45, center: { lat: 42, lon: -1 } }, { type: "relation", id: 87 }, { type: "way", id: 45 }, { type: "area", id: 999 }, { type: "node", id: 0 }] });
+assert.deepEqual(overpassIdentifiers(overpassJson), { ids: ["n17", "w45", "r87"], omitted: 2 });
+assert.deepEqual(overpassIdentifiers(JSON.stringify({ elements: [{ type: "count", tags: { nodes: "5" } }] })), { ids: [], omitted: 1 });
+exporter.setData(overpassJson, "overpass");
+assert.equal(sendButton.disabled, false);
+calls = [];
+globalThis.fetch = async (input) => {
+  calls.push(String(input));
+  return String(input).endsWith("/version") ? { ok: true, json: async () => ({ protocolversion: { major: 1, minor: 9 } }) } : { ok: true };
+};
+await sendButton.click();
+assert.equal(new URL(calls[1]).searchParams.get("objects"), "n17,w45,r87");
+assert.match(message.textContent, /3 objetos solicitados/);
+exporter.setData(JSON.stringify({ elements: [] }), "overpass");
+assert.equal(sendButton.disabled, true);
+assert.match(message.textContent, /no devuelve identificadores/);
+exporter.setData(JSON.stringify({ elements: [{ type: "way", id: 5 }] }), "overpass");
+assert.equal(sendButton.disabled, false);
+exporter.setEngine("postpass");
+assert.equal(sendButton.disabled, true);
+assert.equal(container.hidden, false);
 console.log("Pruebas JOSM Remote Control superadas");

@@ -104,7 +104,7 @@ const initializeApp = (deps) => {
     ui.overlayDone();
   };
   const geoResult = (result, start, postpass) => {
-    if (postpass) josm.setData(result.geo);
+    josm.setData(postpass ? result.geo : result.raw, postpass ? "postpass" : "overpass");
     ui.data.geojson = json(result.geo);
     analysis.setData(result.geo, true);
     ui.log(postpass ? `GeoJSON recibido\nDibujando ${result.geo.features.length} entidades GeoJSON…` : `Conversión GeoJSON completada\nDibujando ${result.geo.features.length} entidades GeoJSON…`);
