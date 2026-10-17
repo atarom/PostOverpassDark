@@ -18,9 +18,15 @@
     <div class="app">
       <aside class="side">
         <div class="pan">
-          <details id="cfg">
-            <summary title="Configurar">⚙️ Config</summary>
-            <div class="cfg">
+          <div class="action-bar" role="group" aria-label="Acciones de consulta">
+            <button id="runBtn" class="pri action-button" type="button" title="Ejecutar" aria-label="Ejecutar" disabled><span class="action-icon icon-run" aria-hidden="true"></span></button>
+            <button id="shareBtn" class="action-button" type="button" title="Compartir" aria-label="Compartir"><span class="action-icon icon-share" aria-hidden="true"></span></button>
+            <div id="josmTools" class="josm-tools" hidden>
+              <button id="josmSend" class="action-button josm-label" type="button" title="Enviar a JOSM" aria-label="Enviar a JOSM" disabled>JOSM</button>
+            </div>
+            <button id="cfgToggle" class="action-button cfg-toggle" type="button" title="Configuración" aria-label="Configuración" aria-controls="cfg" aria-expanded="false"><span aria-hidden="true">&#9881;&#65038;</span></button>
+          </div>
+          <div id="cfg" class="cfg cfg-panel" hidden>
               <label for="endpoint">Servidor</label>
               <select id="endpoint">
                 <option
@@ -114,14 +120,6 @@
                   <option value="fire">Fuego</option>
                 </select>
               </div>
-            </div>
-          </details>
-          <div class="action-bar" role="group" aria-label="Acciones de consulta">
-            <button id="runBtn" class="pri action-button" type="button" title="Ejecutar" aria-label="Ejecutar" disabled><span class="action-icon icon-run" aria-hidden="true"></span></button>
-            <button id="shareBtn" class="action-button" type="button" title="Compartir" aria-label="Compartir"><span class="action-icon icon-share" aria-hidden="true"></span></button>
-            <div id="josmTools" class="josm-tools" hidden>
-              <button id="josmSend" class="action-button josm-label" type="button" title="Enviar a JOSM" aria-label="Enviar a JOSM" disabled>JOSM</button>
-            </div>
           </div>
           <div id="josmMessage" class="josm-message" role="status" aria-live="polite"></div>
         </div>
@@ -258,6 +256,7 @@ out center;</textarea>
           </div>
         </section>
       </aside>
+      <div id="sidebarResize" class="sidebar-resizer" role="separator" aria-label="Ajustar anchura del panel de consultas" aria-orientation="vertical" aria-valuemin="320" aria-valuenow="430" title="Arrastra para ajustar la anchura; doble clic para restaurar" tabindex="0"></div>
       <main class="mapbox">
         <div id="map" aria-label="Mapa"></div>
       </main>

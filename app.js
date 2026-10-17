@@ -11,7 +11,7 @@ import { encodeShare, decodeShare, sharedFragment } from "./share.js";
 import { $, esc, json, abortError } from "./utils.js";
 import { OVERPASS_PRESETS } from "./presets-overpass.js";
 import { POSTPASS_PRESETS } from "./presets-postpass.js";
-const STORE = { endpoint: "postoverpassdark:endpoint", wrap: "postoverpassdark:wrap", mode: "postoverpassdark:render", heat: "postoverpassdark:heat", areas: "postoverpassdark:geocode-areas" };
+const STORE = { endpoint: "postoverpassdark:endpoint", wrap: "postoverpassdark:wrap", mode: "postoverpassdark:render", heat: "postoverpassdark:heat", areas: "postoverpassdark:geocode-areas", sidebar: "postoverpassdark:sidebar-width" };
 const PRESETS = { overpass: OVERPASS_PRESETS, postpass: POSTPASS_PRESETS };
 const initializeApp = (deps) => {
   const status = $("status");
@@ -69,6 +69,84 @@ const initializeApp = (deps) => {
   };
   const mapController = createMapController({ ol: deps.ol, storage, heatStoreKey: STORE.heat, renderMode, heatElements: { config: $("heatCfg"), radius: $("heatRadius"), intensity: $("heatIntensity"), opacity: $("heatOpacity"), weight: $("heatWeight"), palette: $("heatPalette"), radiusValue: $("heatRadiusVal"), intensityValue: $("heatIntensityVal"), opacityValue: $("heatOpacityVal"), weightValue: $("heatWeightVal"), reset: $("heatReset") } });
   const map = mapController.map;
+  const cfg = $("cfg");
+  const cfgToggle = $("cfgToggle");
+  cfgToggle.onclick = () => {
+    const expanded = cfg.hidden;
+    cfg.hidden = !expanded;
+    cfgToggle.setAttribute("aria-expanded", String(expanded));
+  };
+  const closeConfig = () => {
+    cfg.hidden = true;
+    cfgToggle.setAttribute("aria-expanded", "false");
+  };
+  document.addEventListener("pointerdown", (event) => {
+    if (!cfg.hidden && !cfg.contains(event.target) && !cfgToggle.contains(event.target)) closeConfig();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !cfg.hidden) {
+      closeConfig();
+      cfgToggle.focus();
+    }
+  });
+  const app = document.querySelector(".app");
+  const splitter = $("sidebarResize");
+  const savedWidth = Number(storage.getItem(STORE.sidebar));
+  let desiredWidth = Number.isFinite(savedWidth) && savedWidth >= 320 ? savedWidth : 430;
+  let dragging = null;
+  const widthLimits = () => ({ min: 320, max: Math.max(320, innerWidth - 340) });
+  const applyWidth = () => {
+    const { min, max } = widthLimits();
+    const width = Math.max(min, Math.min(max, Math.round(desiredWidth)));
+    document.documentElement.style.setProperty("--sidebar-width", `${width}px`);
+    splitter.setAttribute("aria-valuemin", String(min));
+    splitter.setAttribute("aria-valuemax", String(max));
+    splitter.setAttribute("aria-valuenow", String(width));
+    map.updateSize();
+  };
+  const saveWidth = () => storage.setItem(STORE.sidebar, String(Math.round(desiredWidth)));
+  splitter.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || innerWidth <= 850) return;
+    event.preventDefault();
+    dragging = event.pointerId;
+    splitter.setPointerCapture(dragging);
+    app.classList.add("is-resizing");
+  });
+  splitter.addEventListener("pointermove", (event) => {
+    if (event.pointerId !== dragging) return;
+    desiredWidth = event.clientX - app.getBoundingClientRect().left;
+    applyWidth();
+  });
+  const finishResize = (event) => {
+    if (event.pointerId !== dragging) return;
+    dragging = null;
+    app.classList.remove("is-resizing");
+    desiredWidth = Number(splitter.getAttribute("aria-valuenow"));
+    saveWidth();
+    if (splitter.hasPointerCapture(event.pointerId)) splitter.releasePointerCapture(event.pointerId);
+  };
+  splitter.addEventListener("pointerup", finishResize);
+  splitter.addEventListener("pointercancel", finishResize);
+  splitter.addEventListener("lostpointercapture", finishResize);
+  splitter.addEventListener("keydown", (event) => {
+    const { min, max } = widthLimits();
+    const current = Number(splitter.getAttribute("aria-valuenow"));
+    if (event.key === "ArrowLeft") desiredWidth = current - (event.shiftKey ? 60 : 24);
+    else if (event.key === "ArrowRight") desiredWidth = current + (event.shiftKey ? 60 : 24);
+    else if (event.key === "Home") desiredWidth = min;
+    else if (event.key === "End") desiredWidth = max;
+    else return;
+    event.preventDefault();
+    applyWidth();
+    desiredWidth = Number(splitter.getAttribute("aria-valuenow"));
+    saveWidth();
+  });
+  splitter.addEventListener("dblclick", () => {
+    desiredWidth = 430;
+    applyWidth();
+    saveWidth();
+  });
+  applyWidth();
   const shareDialog = $("shareDialog");
   const shareAuto = $("shareAuto");
   const shareUrl = $("shareUrl");
@@ -304,7 +382,7 @@ const initializeApp = (deps) => {
       run();
     }
   }, true);
-  addEventListener("resize", () => map.updateSize());
+  addEventListener("resize", applyWidth);
   ui.show();
   const restoreShared = async () => {
     const fragment = sharedFragment();
