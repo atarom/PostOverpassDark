@@ -1,6 +1,5 @@
 const PREFIX = { N: "n", W: "w", R: "r", node: "n", way: "w", relation: "r" };
 const JOSM = "http://127.0.0.1:8111/";
-const LIMIT = 500;
 const URL_LIMIT = 1700;
 const identifiers = (entries) => {
   const found = new Set();
@@ -91,10 +90,6 @@ export const createJosmExporter = ({ container, sendButton, message }) => {
       return;
     }
     const warning = result.omitted ? ` · ${result.omitted} sin ID OSM válido, excluidos` : "";
-    if (result.ids.length > LIMIT) {
-      notify(`Límite de envío: ${LIMIT} objetos OSM. Reduce la consulta.`, true);
-      return;
-    }
     ids = result.ids;
     notify(ids.length ? `${ids.length} objetos OSM listos para JOSM${warning}` : "La consulta no devuelve identificadores OSM válidos.");
     sync();
