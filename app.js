@@ -13,7 +13,6 @@ import { POSTPASS_PRESETS } from "./presets-postpass.js";
 const STORE = { endpoint: "postoverpassdark:endpoint", wrap: "postoverpassdark:wrap", mode: "postoverpassdark:render", heat: "postoverpassdark:heat", areas: "postoverpassdark:geocode-areas" };
 const PRESETS = { overpass: OVERPASS_PRESETS, postpass: POSTPASS_PRESETS };
 const initializeApp = (deps) => {
-  storage.removePrefix("osm-overpass-map:");
   const status = $("status");
   const dataOutput = $("dataOutput");
   const dataView = $("dataView");
