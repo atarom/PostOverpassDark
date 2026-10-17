@@ -232,6 +232,96 @@ const initializeApp = (deps) => {
     }
   };
   const ui = createUI({ map, status, dataOutput, dataView, overlay, overlayLog, copyButton });
+  const panelResize = $("panelResize");
+  const side = document.querySelector(".side");
+  const headerPanel = document.querySelector(".pan");
+  const tabStrip = document.querySelector(".tabs");
+  const panelDefaults = { status: 64, data: 250, analysis: 390 };
+  const panelStoreKey = "postoverpassdark:panel-heights";
+  let panelHeights;
+  try {
+    const saved = JSON.parse(storage.getItem(panelStoreKey) || "{}");
+    panelHeights = Object.fromEntries(Object.entries(panelDefaults).map(([name, height]) => [name, Number.isFinite(saved?.[name]) && saved[name] >= (name === "status" ? 64 : 80) ? saved[name] : height]));
+  } catch {
+    panelHeights = { ...panelDefaults };
+  }
+  let activePanel = "status";
+  let panelDragging = null;
+  const mobilePanels = () => matchMedia("(max-width: 850px)").matches;
+  const panelBounds = () => {
+    const minEditor = Math.min(120, Math.max(60, Math.round(side.clientHeight * 0.22)));
+    const available = Math.floor(side.clientHeight - headerPanel.offsetHeight - tabStrip.offsetHeight - panelResize.offsetHeight - minEditor);
+    const minimum = activePanel === "status" ? 64 : 80;
+    const max = Math.max(0, available);
+    return { min: Math.min(minimum, max), max };
+  };
+  const syncPanelHeight = () => {
+    if (mobilePanels()) {
+      side.style.removeProperty("--panel-height");
+      panelResize.tabIndex = -1;
+      return;
+    }
+    panelResize.tabIndex = 0;
+    const { min, max } = panelBounds();
+    const height = Math.round(Math.max(min, Math.min(max, panelHeights[activePanel])));
+    side.style.setProperty("--panel-height", `${height}px`);
+    panelResize.setAttribute("aria-valuemin", String(min));
+    panelResize.setAttribute("aria-valuemax", String(max));
+    panelResize.setAttribute("aria-valuenow", String(height));
+    panelResize.setAttribute("aria-valuetext", `${height} píxeles: ${activePanel === "analysis" ? "Análisis" : activePanel === "data" ? "Datos" : "Estado"}`);
+  };
+  const savePanelHeight = () => storage.setItem(panelStoreKey, JSON.stringify(panelHeights));
+  const movePanel = (height) => {
+    const { min, max } = panelBounds();
+    panelHeights[activePanel] = Math.round(Math.max(min, Math.min(max, height)));
+    syncPanelHeight();
+  };
+  panelResize.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || mobilePanels()) return;
+    event.preventDefault();
+    panelDragging = event.pointerId;
+    panelResize.setPointerCapture(panelDragging);
+    side.classList.add("is-panel-resizing");
+  });
+  panelResize.addEventListener("pointermove", (event) => {
+    if (event.pointerId !== panelDragging) return;
+    movePanel(side.getBoundingClientRect().bottom - tabStrip.offsetHeight - event.clientY - panelResize.offsetHeight / 2);
+  });
+  const finishPanelResize = (event) => {
+    if (event.pointerId !== panelDragging) return;
+    panelDragging = null;
+    side.classList.remove("is-panel-resizing");
+    savePanelHeight();
+    if (panelResize.hasPointerCapture(event.pointerId)) panelResize.releasePointerCapture(event.pointerId);
+  };
+  panelResize.addEventListener("pointerup", finishPanelResize);
+  panelResize.addEventListener("pointercancel", finishPanelResize);
+  panelResize.addEventListener("lostpointercapture", finishPanelResize);
+  panelResize.addEventListener("keydown", (event) => {
+    if (mobilePanels()) return;
+    const current = Number(panelResize.getAttribute("aria-valuenow"));
+    const { min, max } = panelBounds();
+    if (event.key === "ArrowUp") movePanel(current + (event.shiftKey ? 60 : 24));
+    else if (event.key === "ArrowDown") movePanel(current - (event.shiftKey ? 60 : 24));
+    else if (event.key === "Home") movePanel(min);
+    else if (event.key === "End") movePanel(max);
+    else return;
+    event.preventDefault();
+    savePanelHeight();
+  });
+  panelResize.addEventListener("dblclick", () => {
+    if (mobilePanels()) return;
+    panelHeights[activePanel] = panelDefaults[activePanel];
+    syncPanelHeight();
+    savePanelHeight();
+  });
+  const showTab = (name) => {
+    activePanel = name;
+    syncPanelHeight();
+    ui.tab(name);
+  };
+  syncPanelHeight();
+  new ResizeObserver(syncPanelHeight).observe(headerPanel);
   const analysis = createAnalysis({ elements: { key: $("analysisKey"), onlyKey: $("analysisOnlyKey"), multivalue: $("analysisMultivalue"), values: $("analysisValues"), summary: $("analysisSummary"), numericEnable: $("numericEnable"), numericKey: $("numericKey"), numericErrors: $("numericErrors"), numericMin: $("numericMin"), numericMax: $("numericMax"), numericMinValue: $("numericMinValue"), numericMaxValue: $("numericMaxValue"), regexEnable: $("regexEnable"), regexText: $("regexText"), regexInsensitive: $("regexInsensitive"), regexOnly: $("regexOnly"), regexColors: $("regexColors"), reset: $("analysisReset") }, onChange: (options) => mapController.applyFilters(options) });
   const josm = createJosmExporter({ container: $("josmTools"), sendButton: $("josmSend"), message: $("josmMessage") });
   josm.setEngine(getEngine());
@@ -257,7 +347,7 @@ const initializeApp = (deps) => {
     setOverlayButton(false);
     runButton.disabled = false;
     ui.setStatus(`<strong>Consulta cancelada</strong><br>${esc(message)}`, "err");
-    ui.tab("status");
+    showTab("status");
   };
   const elapsed = (start) => {
     const ms = performance.now() - start;
@@ -271,7 +361,7 @@ const initializeApp = (deps) => {
     dataView.value = "raw";
     ui.setStatus(`<strong>Respuesta textual recibida</strong><br>Formato: ${esc(result.format.toUpperCase())} · Tiempo: ${time}`, "ok");
     ui.show();
-    ui.tab("data");
+    showTab("data");
     ui.log(`Respuesta ${result.format.toUpperCase()} recibida\nSin representación en el mapa\nTiempo: ${time}`);
     ui.overlayDone();
   };
@@ -292,7 +382,7 @@ const initializeApp = (deps) => {
     const summary = `<strong>${title}</strong><br>` + (hasOSM ? counts.map(([label, count]) => `${label}: ${formatter.format(count)}`).join(" · ") + "<br>" : "") + (!postpass && !hasOSM ? "Elementos OSM: 0 · " : "") + `GeoJSON: ${formatter.format(featureCount)}` + (!postpass && !hasOSM ? "<br>" : " · ") + `Tiempo: ${time}`;
     const done = [hasResults ? "Mapa actualizado" : `Consulta${postpass ? " Postpass" : ""} completada correctamente`, hasOSM ? `${result.cnt.total} elementos OSM` : hasResults ? `${featureCount} resultados Postpass` : `Sin resultados${postpass ? "" : " OSM"}`, ...(hasOSM ? counts.map(([label, count]) => `${label}: ${count}`) : []), ...(!postpass || hasOSM ? [`GeoJSON: ${featureCount}`] : []), `Tiempo: ${time}`].join("\n");
     ui.setStatus(summary, "ok");
-    ui.tab("status");
+    showTab("status");
     ui.log(done);
     ui.overlayDone();
   };
@@ -355,13 +445,13 @@ const initializeApp = (deps) => {
       if (error?.name === "AbortError") {
         const message = error.message || "Consulta cancelada";
         ui.setStatus(`<strong>Consulta cancelada</strong><br>${esc(message)}`, "err");
-        ui.tab("status");
+        showTab("status");
         ui.log("ERROR: " + message);
       } else {
         const info = error?.overpass;
         const message = error?.message || String(error);
         ui.setStatus(info ? errorStatusHtml(info, message) : `<strong>Error</strong><br>${esc(message).replace(/\n/g, "<br>")}`, "err");
-        ui.tab("status");
+        showTab("status");
         ui.log("ERROR: " + (info?.raw || message));
       }
     } finally {
@@ -383,7 +473,7 @@ const initializeApp = (deps) => {
       editor.setMode(next);
       renderPresets();
       ui.setStatus(`Modo <strong>${next === "postpass" ? "Postpass SQL" : "Overpass QL"}</strong> listo para ejecutar.`);
-      ui.tab("status");
+      showTab("status");
     }
   };
   wrapLines.onchange = () => {
@@ -400,13 +490,13 @@ const initializeApp = (deps) => {
   overlayButton.onclick = () => busy ? stop("Consulta cancelada por el usuario") : ui.overlayClose();
   const tabNames = ["status", "data", "analysis"];
   tabNames.forEach((name) => {
-    $(`${name}TabBtn`).onclick = () => ui.tab(name);
+    $(`${name}TabBtn`).onclick = () => showTab(name);
     $(`${name}TabBtn`).onkeydown = (event) => {
       if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
       event.preventDefault();
       const offset = event.key === "ArrowRight" ? 1 : -1;
       const next = tabNames[(tabNames.indexOf(name) + offset + tabNames.length) % tabNames.length];
-      ui.tab(next);
+      showTab(next);
       $(`${next}TabBtn`).focus();
     };
   });
@@ -427,7 +517,7 @@ const initializeApp = (deps) => {
       run();
     }
   }, true);
-  addEventListener("resize", applyWidth);
+  addEventListener("resize", () => { applyWidth(); syncPanelHeight(); });
   ui.show();
   const restoreShared = async () => {
     const fragment = sharedFragment();
@@ -452,11 +542,11 @@ const initializeApp = (deps) => {
       josm.setEngine(engine);
       syncPreset();
       ui.setStatus(`<strong>Consulta compartida restaurada</strong><br>${shared.autoRun ? "Ejecutando automáticamente…" : "Preparada para ejecutar"}`, "ok");
-      ui.tab("status");
+      showTab("status");
       if (shared.autoRun) requestAnimationFrame(() => run());
     } catch (error) {
       ui.setStatus(`<strong>Enlace compartido inválido</strong><br>${esc(error.message || String(error))}`, "err");
-      ui.tab("status");
+      showTab("status");
     }
   };
   void restoreShared();
