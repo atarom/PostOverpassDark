@@ -1,5 +1,5 @@
 import { esc, val } from "./utils.js";
-import { featureTags } from "./analysis.js";
+import { featureTags, matchesTagValue } from "./analysis.js";
 const TYPES = { N: "node", W: "way", R: "relation", node: "node", way: "way", relation: "relation" };
 const COLORS = { default: ["#355f8d", "#3f8f9c", "#79b88d", "#d6b56d", "#e58b68", "#ef5d72"], warm: ["#72543b", "#a26c43", "#d1924f", "#e6b95f", "#ef8262", "#ef4e5d"], cool: ["#324a7a", "#326b98", "#3f98a7", "#63b7a8", "#88d0b4", "#d3f0c0"], fire: ["#3a173d", "#7d2450", "#bd3a45", "#e96d3e", "#f5b747", "#fff2a1"] };
 const HEAT_DEFAULT = { intensity: 1, radius: 1, opacity: 0.88, weight: 1, palette: "default" };
@@ -98,17 +98,20 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   const basePass = (feature, opts, patterns) => {
     const tags = featureTags(feature);
     if (opts.onlySelectedKey && opts.selectedKey && !Object.prototype.hasOwnProperty.call(tags, opts.selectedKey)) return { keep: 0, color: "" };
+    const selected = opts.selectedValue === null || opts.selectedValue === undefined ? null : matchesTagValue(tags, opts.selectedKey, opts.selectedValue, opts.countMode);
+    if (selected === false && opts.hideOtherValues) return { keep: 0, color: "" };
     let color = "";
-    if (opts.regexEnabled) {
+    if (opts.regexEnabled && selected === null) {
       const value = tags[opts.selectedKey] == null ? "" : String(tags[opts.selectedKey]).trim();
       const match = value ? patterns.find((entry) => entry.regex.test(value)) : null;
       if (match) color = opts.regexColors?.[match.value] || "";
       else if (opts.regexOnly) return { keep: 0, color: "" };
     }
+    if (selected !== null) color = selected ? opts.selectedValueColor || "#4abde1" : opts.otherValueColor || "#708b7a";
     return { keep: 1, color };
   };
   const syncAttributes = (opts, force = false) => {
-    const signature = JSON.stringify([opts.selectedKey, opts.onlySelectedKey, opts.regexEnabled, opts.regexText, opts.regexInsensitive, opts.regexOnly, opts.regexColors, opts.numericKey]);
+    const signature = JSON.stringify([opts.selectedKey, opts.onlySelectedKey, opts.regexEnabled, opts.regexText, opts.regexInsensitive, opts.regexOnly, opts.regexColors, opts.numericKey, opts.selectedValue, opts.countMode, opts.selectedValueColor, opts.otherValueColor, opts.hideOtherValues]);
     if (!force && signature === lastPrepared) return;
     lastPrepared = signature;
     const patterns = opts.regexEnabled ? compilePatterns(opts.regexText || "", opts.regexInsensitive) : [];

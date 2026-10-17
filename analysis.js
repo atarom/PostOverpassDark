@@ -15,6 +15,11 @@ const numericValue = (value) => {
   return Number.isFinite(number) ? number : NaN;
 };
 const own = (value, key) => Boolean(key) && Object.prototype.hasOwnProperty.call(value, key);
+export const tagValueParts = (value, mode = "value") => {
+  const raw = textValue(value);
+  return mode === "word" ? raw.normalize("NFC").toLocaleLowerCase("es").normalize("NFC").match(/\p{L}[\p{L}\p{M}\p{N}]*/gu) || [] : mode === "semicolon" ? raw.split(";").map((item) => item.trim()).filter(Boolean) : [raw];
+};
+export const matchesTagValue = (tags, key, selectedValue, mode = "value") => own(tags, key) && tagValueParts(tags[key], mode).includes(selectedValue);
 export const analyzeCollection = (collection) => {
   const counts = new Map();
   const numeric = new Map();
@@ -50,13 +55,16 @@ export const filterCollection = (collection, options = {}) => {
   for (const feature of collection?.features || []) {
     const tags = featureTags(feature);
     if (options.onlySelectedKey && selectedKey && !own(tags, selectedKey)) continue;
+    const selected = options.selectedValue === null || options.selectedValue === undefined ? null : matchesTagValue(tags, selectedKey, options.selectedValue, options.countMode);
+    if (selected === false && options.hideOtherValues) continue;
     let color = "";
-    if (options.regexEnabled) {
+    if (options.regexEnabled && selected === null) {
       const value = textValue(tags[selectedKey]);
       const match = value ? patterns.find(({ regex }) => regex.test(value)) : null;
       if (match) color = options.regexColors?.[match.source] || "";
       else if (options.regexOnly) continue;
     }
+    if (selected !== null) color = selected ? options.selectedValueColor || "#4abde1" : options.otherValueColor || "#708b7a";
     if (options.numericEnabled && options.numericKey) {
       const number = numericValue(tags[options.numericKey]);
       const pass = Number.isFinite(number) && number >= min && number <= max;
@@ -73,7 +81,7 @@ export const filterCollection = (collection, options = {}) => {
   return { type: "FeatureCollection", features: out };
 };
 export const createAnalysis = ({ elements, onChange }) => {
-  const { key, onlyKey, multivalue, values, summary, numericEnable, numericKey, numericErrors, numericMin, numericMax, numericMinValue, numericMaxValue, regexEnable, regexText, regexInsensitive, regexOnly, regexColors, reset } = elements;
+  const { key, onlyKey, multivalue, values, valueTools, valueSelectedColor, valueOtherColor, valueHideOthers, summary, numericEnable, numericKey, numericErrors, numericMin, numericMax, numericMinValue, numericMaxValue, regexEnable, regexText, regexInsensitive, regexOnly, regexColors, reset } = elements;
   const modeLabel = document.createElement("label");
   modeLabel.htmlFor = "analysisCountMode";
   modeLabel.textContent = "Contar por";
@@ -96,6 +104,7 @@ export const createAnalysis = ({ elements, onChange }) => {
   let collection = { type: "FeatureCollection", features: [] };
   let info = { keys: [], numericKeys: [] };
   let colors = {};
+  let selectedValue = null;
   let timer;
   let frame;
   const colorFor = (source, used) => {
@@ -111,8 +120,7 @@ export const createAnalysis = ({ elements, onChange }) => {
     for (const feature of collection.features || []) {
       const tags = featureTags(feature);
       if (!own(tags, selected)) continue;
-      const raw = textValue(tags[selected]);
-      const list = countMode.value === "word" ? raw.normalize("NFC").toLocaleLowerCase("es").normalize("NFC").match(/\p{L}[\p{L}\p{M}\p{N}]*/gu) || [] : countMode.value === "semicolon" ? raw.split(";").map((item) => item.trim()).filter(Boolean) : [raw];
+      const list = tagValueParts(tags[selected], countMode.value);
       for (const item of list) counts.set(item, (counts.get(item) || 0) + 1);
     }
     return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "es"));
@@ -120,7 +128,32 @@ export const createAnalysis = ({ elements, onChange }) => {
   const renderValues = () => {
     const counts = valueCounts();
     valuesLabel.textContent = countMode.value === "word" ? "Palabras únicas" : "Valores únicos";
-    values.textContent = counts.length ? counts.map(([value, count]) => `${count} ${value}`).join("\n") : countMode.value === "word" ? "Sin palabras." : "Sin valores.";
+    const scroll = values.scrollTop;
+    values.replaceChildren();
+    for (const [value, count] of counts) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "analysis-value";
+      button.setAttribute("aria-pressed", String(value === selectedValue));
+      button.title = value === selectedValue ? "Quitar selección" : `Seleccionar ${value || "(vacío)"}`;
+      const amount = document.createElement("span");
+      amount.className = "analysis-value-count";
+      amount.textContent = count.toLocaleString("es-ES");
+      const text = document.createElement("span");
+      text.className = "analysis-value-text";
+      text.textContent = value || "(vacío)";
+      button.append(amount, text);
+      button.onclick = () => {
+        selectedValue = selectedValue === value ? null : value;
+        valueTools.hidden = selectedValue === null;
+        for (const item of values.querySelectorAll(".analysis-value")) item.setAttribute("aria-pressed", String(item === button && selectedValue !== null));
+        emit();
+      };
+      values.append(button);
+    }
+    if (!counts.length) values.textContent = countMode.value === "word" ? "Sin palabras." : "Sin valores.";
+    values.scrollTop = scroll;
+    valueTools.hidden = selectedValue === null;
     summary.textContent = `${collection.features.length.toLocaleString("es-ES")} entidades · ${info.keys.length.toLocaleString("es-ES")} keys · ${counts.length.toLocaleString("es-ES")} ${countMode.value === "word" ? "palabras" : "valores"}`;
   };
   const regexCount = (pattern) => {
@@ -170,13 +203,14 @@ export const createAnalysis = ({ elements, onChange }) => {
     numericMinValue.value = String(min);
     numericMaxValue.value = String(max);
   };
-  const options = () => ({ selectedKey: key.value, onlySelectedKey: onlyKey.checked, regexEnabled: regexEnable.checked, regexText: regexText.value, regexInsensitive: regexInsensitive.checked, regexOnly: regexOnly.checked, regexColors: colors, numericEnabled: numericEnable.checked, numericKey: numericKey.value, numericMin: numericMin.value, numericMax: numericMax.value, numericShowErrors: numericErrors.checked, errorColor: "#ef8491" });
+  const options = () => ({ selectedKey: key.value, onlySelectedKey: onlyKey.checked, selectedValue, countMode: countMode.value, selectedValueColor: valueSelectedColor.value, otherValueColor: valueOtherColor.value, hideOtherValues: valueHideOthers.checked, regexEnabled: regexEnable.checked, regexText: regexText.value, regexInsensitive: regexInsensitive.checked, regexOnly: regexOnly.checked, regexColors: colors, numericEnabled: numericEnable.checked, numericKey: numericKey.value, numericMin: numericMin.value, numericMax: numericMax.value, numericShowErrors: numericErrors.checked, errorColor: "#ef8491" });
   const emit = () => onChange?.(options());
   const emitFrame = () => {
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(emit);
   };
   const keyChanged = () => {
+    selectedValue = null;
     renderValues();
     renderRegex();
     emit();
@@ -194,6 +228,10 @@ export const createAnalysis = ({ elements, onChange }) => {
   };
   const resetControls = () => {
     onlyKey.checked = false;
+    selectedValue = null;
+    valueSelectedColor.value = "#4abde1";
+    valueOtherColor.value = "#708b7a";
+    valueHideOthers.checked = false;
     countMode.value = "value";
     numericEnable.checked = false;
     numericErrors.checked = false;
@@ -209,7 +247,14 @@ export const createAnalysis = ({ elements, onChange }) => {
   };
   key.onchange = keyChanged;
   onlyKey.onchange = emit;
-  countMode.onchange = renderValues;
+  countMode.onchange = () => {
+    selectedValue = null;
+    renderValues();
+    emit();
+  };
+  valueSelectedColor.oninput = emit;
+  valueOtherColor.oninput = emit;
+  valueHideOthers.onchange = emit;
   numericEnable.onchange = () => {
     for (const input of [numericMin, numericMax]) input.disabled = !numericEnable.checked || !numericKey.value;
     emit();
@@ -258,6 +303,7 @@ export const createAnalysis = ({ elements, onChange }) => {
       return option;
     }));
     if (info.numericKeys.some(([name]) => name === oldNumeric)) numericKey.value = oldNumeric;
+    selectedValue = null;
     numericRange();
     renderValues();
     renderRegex();
@@ -268,6 +314,8 @@ export const createAnalysis = ({ elements, onChange }) => {
     cancelAnimationFrame(frame);
     collection = { type: "FeatureCollection", features: [] };
     info = { keys: [], numericKeys: [] };
+    selectedValue = null;
+    valueTools.hidden = true;
     key.replaceChildren();
     numericKey.replaceChildren();
     values.textContent = "Sin datos.";

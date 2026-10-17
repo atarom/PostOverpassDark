@@ -221,8 +221,13 @@ out center;</textarea>
               <label><input id="analysisOnlyKey" type="checkbox" /> Solo key seleccionada</label>
               <label><input id="analysisMultivalue" type="checkbox" /> Separar valores por ;</label>
             </div>
-            <label for="analysisValues">Valores únicos</label>
-            <pre id="analysisValues" class="analysis-values">Sin datos.</pre>
+            <div id="analysisValuesLabel">Valores únicos</div>
+            <div id="analysisValues" class="analysis-values" role="group" aria-labelledby="analysisValuesLabel">Sin datos.</div>
+            <div id="analysisValueTools" class="analysis-value-tools" hidden>
+              <label>Seleccionado <input id="analysisValueSelectedColor" type="color" value="#4abde1" aria-label="Color del valor seleccionado" /></label>
+              <label>Otros <input id="analysisValueOtherColor" type="color" value="#708b7a" aria-label="Color de los demás valores" /></label>
+              <label class="analysis-value-hide"><input id="analysisValueHideOthers" type="checkbox" /> Ocultar los demás</label>
+            </div>
             <details class="analysis-box">
               <summary>Regex y colores</summary>
               <div class="analysis-body">
