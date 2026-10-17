@@ -121,6 +121,7 @@
               Ejecutar
             </button>
             <button id="clearBtn" type="button">Restablecer</button>
+            <button id="shareBtn" type="button">Compartir</button>
           </div>
           <div id="josmTools" class="josm-tools" hidden>
             <button id="josmSend" type="button" disabled>Enviar a JOSM</button>
@@ -277,6 +278,17 @@ out center;</textarea>
         <pre id="ovLog" aria-live="polite"></pre>
       </div>
     </div>
+    <dialog id="shareDialog" class="share-dialog" aria-labelledby="shareTitle">
+      <div class="share-head">
+        <h2 id="shareTitle">Compartir consulta</h2>
+        <button id="shareClose" type="button" aria-label="Cerrar">×</button>
+      </div>
+      <label class="share-check"><input id="shareAuto" type="checkbox" checked> Ejecutar automáticamente al abrir</label>
+      <label for="shareUrl">Enlace autocontenido</label>
+      <input id="shareUrl" type="text" readonly aria-label="Enlace compartido">
+      <button id="shareCopy" type="button" class="pri" disabled>Copiar enlace</button>
+      <div id="shareMessage" class="share-message" role="status" aria-live="polite"></div>
+    </dialog>
     <script type="module" src="./app.js"></script>
   </body>
 </html>

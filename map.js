@@ -204,6 +204,12 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     heatLayer.setVisible(isHeat);
     closePopup();
   };
+  const getHeat = () => ({ ...heat });
+  const setHeat = (options) => {
+    heat = { intensity: valid(options?.intensity, 0.25, 3, 1), radius: valid(options?.radius, 0.25, 3, 1), opacity: valid(options?.opacity, 0, 1, 0.88), weight: valid(options?.weight, 0.1, 5, 1), palette: COLORS[options?.palette] ? options.palette : "default" };
+    heatUI();
+    heatPaint();
+  };
   const heatSave = () => storage.setItem(heatStoreKey, JSON.stringify(heat));
   const heatUI = () => {
     [[intensity, intensityValue, "intensity"], [radius, radiusValue, "radius"], [opacity, opacityValue, "opacity"], [weight, weightValue, "weight"]].forEach(([input, output, key]) => { input.value = output.value = heat[key]; });
@@ -239,5 +245,5 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   const clear = () => { closePopup(); geo = null; rendered = []; heatReady = false; heatShared = false; lastPrepared = ""; vectorSource.clear(true); heatSource.clear(true); heatLayer.setSource(heatSource); };
   heatUI();
   render();
-  return { map, draw, clear, render, heatUI, hasGeo: () => Boolean(geo), applyFilters };
+  return { map, draw, clear, render, heatUI, getHeat, setHeat, hasGeo: () => Boolean(geo), applyFilters };
 };

@@ -161,7 +161,7 @@ input:disabled {
 }
 .row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-top: 10px;
 }
@@ -816,6 +816,10 @@ a {
   background: #69876c;
 }
 @media (max-width: 850px) {
+  .row button {
+    padding-inline: 6px;
+    font-size: 12px;
+  }
   .app {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 48%) minmax(0, 52%);
@@ -917,6 +921,68 @@ a {
   #analysisPanel.on {
     flex-basis: min(125px, 32dvh);
   }
+}
+.share-dialog {
+  width: min(480px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 18px;
+  overflow: auto;
+  border: 1px solid var(--b2);
+  border-radius: var(--r);
+  color: var(--t);
+  background: var(--p);
+  box-shadow: 0 12px 48px #0009;
+}
+.share-dialog::backdrop {
+  background: #000a;
+}
+.share-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 15px;
+}
+.share-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.share-head button {
+  width: 38px;
+  padding: 5px;
+  flex: none;
+}
+.share-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 17px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+}
+.share-check input {
+  width: 16px;
+  height: 16px;
+}
+#shareUrl {
+  width: 100%;
+  font: 12px var(--mono);
+}
+#shareCopy {
+  margin-top: 12px;
+}
+.share-message {
+  margin-top: 10px;
+  min-height: 18px;
+  color: var(--m);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.share-message.err {
+  color: var(--d);
 }
 @media (prefers-reduced-motion: reduce) {
   *,

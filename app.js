@@ -7,6 +7,7 @@ import { createMapController } from "./map.js";
 import { createUI } from "./ui.js";
 import { createAnalysis } from "./analysis.js";
 import { createJosmExporter } from "./josm-export.js";
+import { encodeShare, decodeShare, sharedFragment } from "./share.js";
 import { $, esc, json, abortError } from "./utils.js";
 import { OVERPASS_PRESETS } from "./presets-overpass.js";
 import { POSTPASS_PRESETS } from "./presets-postpass.js";
@@ -68,6 +69,57 @@ const initializeApp = (deps) => {
   };
   const mapController = createMapController({ ol: deps.ol, storage, heatStoreKey: STORE.heat, renderMode, heatElements: { config: $("heatCfg"), radius: $("heatRadius"), intensity: $("heatIntensity"), opacity: $("heatOpacity"), weight: $("heatWeight"), palette: $("heatPalette"), radiusValue: $("heatRadiusVal"), intensityValue: $("heatIntensityVal"), opacityValue: $("heatOpacityVal"), weightValue: $("heatWeightVal"), reset: $("heatReset") } });
   const map = mapController.map;
+  const shareDialog = $("shareDialog");
+  const shareAuto = $("shareAuto");
+  const shareUrl = $("shareUrl");
+  const shareCopy = $("shareCopy");
+  const shareMessage = $("shareMessage");
+  let shareRevision = 0;
+  const shareStatus = (value, error = false) => {
+    shareMessage.textContent = value;
+    shareMessage.classList.toggle("err", error);
+  };
+  const shareState = () => {
+    const [longitude, latitude] = deps.ol.proj.toLonLat(map.getView().getCenter());
+    return { query: editor.getQuery(), longitude: ((longitude + 180) % 360 + 360) % 360 - 180, latitude, zoom: map.getView().getZoom(), endpoint: endpoint.value, heatMode: renderMode.value === "heat", heat: mapController.getHeat(), autoRun: shareAuto.checked };
+  };
+  const refreshShare = async () => {
+    const revision = ++shareRevision;
+    shareCopy.disabled = true;
+    shareUrl.value = "";
+    shareStatus("Comprimiendo consulta…");
+    try {
+      const encoded = await encodeShare(shareState());
+      if (revision !== shareRevision || !shareDialog.open) return;
+      const url = new URL(".", location.href);
+      url.hash = `s=${encoded}`;
+      shareUrl.value = url.href;
+      shareCopy.disabled = false;
+      shareStatus(`${url.href.length} caracteres${url.href.length > 4000 ? " · Enlace largo: algunas aplicaciones pueden recortarlo" : ""}`);
+    } catch (error) {
+      if (revision === shareRevision) shareStatus(error.message || String(error), true);
+    }
+  };
+  $("shareBtn").onclick = () => {
+    shareAuto.checked = true;
+    shareDialog.showModal();
+    refreshShare();
+  };
+  shareAuto.onchange = refreshShare;
+  $("shareClose").onclick = () => shareDialog.close();
+  shareDialog.addEventListener("close", () => { shareRevision++; });
+  shareUrl.onclick = () => shareUrl.select();
+  shareCopy.onclick = async () => {
+    if (!shareUrl.value) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl.value);
+      shareStatus("Enlace copiado al portapapeles");
+    } catch {
+      shareUrl.focus();
+      shareUrl.select();
+      shareStatus("Copia el enlace seleccionado manualmente");
+    }
+  };
   const ui = createUI({ map, status, dataOutput, dataView, overlay, overlayLog, copyButton });
   const analysis = createAnalysis({ elements: { key: $("analysisKey"), onlyKey: $("analysisOnlyKey"), multivalue: $("analysisMultivalue"), values: $("analysisValues"), summary: $("analysisSummary"), numericEnable: $("numericEnable"), numericKey: $("numericKey"), numericErrors: $("numericErrors"), numericMin: $("numericMin"), numericMax: $("numericMax"), numericMinValue: $("numericMinValue"), numericMaxValue: $("numericMaxValue"), regexEnable: $("regexEnable"), regexText: $("regexText"), regexInsensitive: $("regexInsensitive"), regexOnly: $("regexOnly"), regexColors: $("regexColors"), reset: $("analysisReset") }, onChange: (options) => mapController.applyFilters(options) });
   const josm = createJosmExporter({ container: $("josmTools"), sendButton: $("josmSend"), message: $("josmMessage") });
@@ -268,6 +320,37 @@ const initializeApp = (deps) => {
   }, true);
   addEventListener("resize", () => map.updateSize());
   ui.show();
+  const restoreShared = async () => {
+    const fragment = sharedFragment();
+    if (!fragment) return;
+    try {
+      const shared = await decodeShare(fragment);
+      if (!endpoints.includes(shared.endpoint)) throw Error("El servidor compartido no está disponible en esta versión");
+      endpoint.value = shared.endpoint;
+      const engine = getEngine();
+      if (engine !== editor.getEngine()) {
+        editor.setMode(engine);
+        renderPresets();
+      }
+      editor.setQuery(shared.query);
+      mapController.setHeat(shared.heat);
+      renderMode.value = shared.heatMode ? "heat" : "normal";
+      mapController.heatUI();
+      mapController.render();
+      map.getView().setCenter(deps.ol.proj.fromLonLat([shared.longitude, shared.latitude]));
+      map.getView().setZoom(shared.zoom);
+      map.updateSize();
+      josm.setEngine(engine);
+      syncPreset();
+      ui.setStatus(`<strong>Consulta compartida restaurada</strong><br>${shared.autoRun ? "Ejecutando automáticamente…" : "Preparada para ejecutar"}`, "ok");
+      ui.tab("status");
+      if (shared.autoRun) requestAnimationFrame(() => run());
+    } catch (error) {
+      ui.setStatus(`<strong>Enlace compartido inválido</strong><br>${esc(error.message || String(error))}`, "err");
+      ui.tab("status");
+    }
+  };
+  void restoreShared();
 };
 const boot = async () => {
   const button = $("runBtn");

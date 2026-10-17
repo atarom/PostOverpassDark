@@ -31,6 +31,12 @@ Se deduplican los identificadores en ambos modos, incluidas las representaciones
 
 Para probar la aplicación localmente desde la carpeta del proyecto puedes ejecutar `python3 -m http.server 8000` y visitar `http://127.0.0.1:8000`.
 
+## Compartir consultas
+
+El botón **Compartir** genera un enlace autocontenido con la consulta completa, el servidor, el centro y zoom del mapa y la configuración de mapa de calor. Los parámetros visuales con valores predeterminados se omiten del enlace. Se utiliza compresión DEFLATE sin cabeceras cuando acorta el resultado, y codificación directa si resulta más compacta. Los datos van en el fragmento `#s=` de la URL; no se envían a un servidor de almacenamiento.
+
+La opción **Ejecutar automáticamente al abrir** está activada por defecto y se puede desactivar antes de copiar el enlace. Abrir enlaces compartidos con autoejecución iniciará una consulta en el servidor indicado. Los enlaces muy largos pueden superar los límites de algunas aplicaciones de mensajería.
+
 ## Tecnologías y datos
 
 - [OpenLayers](https://openlayers.org/) — renderización WebGL, filtros dinámicos y navegación del mapa.
