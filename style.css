@@ -1149,35 +1149,3 @@ a {
     max-height: min(42dvh, calc(100dvh - 110px));
   }
 }
-.action-bar #runBtn.is-cooling {
-  position: relative;
-  opacity: 1;
-  cursor: wait;
-  border-color: var(--b2);
-  background: var(--p2);
-  color: var(--m);
-  font: 800 11px/1 var(--mono);
-}
-.action-bar #runBtn.is-cooling .action-icon {
-  display: none;
-}
-.action-bar #runBtn.is-cooling::before {
-  content: attr(data-cooldown);
-}
-.action-bar #runBtn.is-cooling::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: var(--cooldown-left, 100%);
-  height: 3px;
-  border-radius: 0 0 0 6px;
-  background: var(--a);
-  transition: width .1s linear;
-  pointer-events: none;
-}
-@media (prefers-reduced-motion: reduce) {
-  .action-bar #runBtn.is-cooling::after {
-    transition: none;
-  }
-}

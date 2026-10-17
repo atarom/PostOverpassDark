@@ -38,45 +38,8 @@ const initializeApp = (deps) => {
   const defaults = { overpass: PRESETS.overpass[0]?.query ?? "", postpass: PRESETS.postpass[0]?.query ?? "" };
   let editor;
   let busy = false;
-  let cooldownKey = "";
-  let cooldownUntil = 0;
-  let cooldownInterval = null;
-  const keyForRun = () => `${editor.getEngine()}\u0000${editor.getQuery()}`;
-  const syncRunButton = () => {
-    if (!editor) return;
-    const key = keyForRun();
-    if (cooldownKey && (key !== cooldownKey || Date.now() >= cooldownUntil)) {
-      cooldownKey = "";
-      cooldownUntil = 0;
-      clearInterval(cooldownInterval);
-      cooldownInterval = null;
-    }
-    const remaining = cooldownKey ? Math.max(0, cooldownUntil - Date.now()) : 0;
-    const cooling = !busy && remaining > 0;
-    runButton.disabled = busy || cooling;
-    runButton.classList.toggle("is-cooling", cooling);
-    if (cooling) {
-      const seconds = Math.ceil(remaining / 1000);
-      runButton.dataset.cooldown = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-      runButton.style.setProperty("--cooldown-left", `${remaining / 1200}%`);
-      runButton.title = `Disponible en ${seconds} s; edita la consulta o cambia de motor`;
-      runButton.setAttribute("aria-label", `Ejecutar: espera ${seconds} segundos`);
-    } else {
-      delete runButton.dataset.cooldown;
-      runButton.style.removeProperty("--cooldown-left");
-      runButton.title = "Ejecutar";
-      runButton.setAttribute("aria-label", "Ejecutar");
-    }
-  };
-  const startCooldown = (key) => {
-    cooldownKey = key;
-    cooldownUntil = Date.now() + 120000;
-    if (cooldownInterval === null) cooldownInterval = setInterval(syncRunButton, 100);
-    syncRunButton();
-  };
   const syncPreset = () => {
     if (!editor) return;
-    syncRunButton();
     const presets = PRESETS[editor.getEngine()];
     const query = editor.getQuery().trim();
     const index = presets.findIndex((preset) => preset.query.trim() === query);
@@ -260,7 +223,7 @@ const initializeApp = (deps) => {
     if (active && !active.signal.aborted) active.abort(abortError(message));
     ui.overlayClose();
     setOverlayButton(false);
-    syncRunButton();
+    runButton.disabled = false;
     ui.setStatus(`<strong>Consulta cancelada</strong><br>${esc(message)}`, "err");
     ui.tab("status");
   };
@@ -302,19 +265,17 @@ const initializeApp = (deps) => {
     ui.overlayDone();
   };
   const run = async () => {
-    syncRunButton();
-    if (busy || cooldownKey) return;
+    if (busy) return;
     const runId = ++runSeq;
     josm.reset();
     const queryText = editor.getQuery();
     const runEngine = editor.getEngine();
-    const runKey = keyForRun();
     const postpassTextOnly = runEngine === "postpass" && /\{\{\s*data\s*:\s*sql\s*,[^{}]*\bgeojson\s*=\s*false\b[^{}]*\}\}/i.test(queryText);
     const url = endpoint.value;
     const start = performance.now();
     const active = new AbortController();
     busy = true;
-    syncRunButton();
+    runButton.disabled = true;
     setOverlayButton(true);
     controller = active;
     timer = null;
@@ -336,7 +297,6 @@ const initializeApp = (deps) => {
       ui.log(`Consulta ${runEngine === "postpass" ? "Postpass" : "Overpass"} preparada\nEnviando consulta…`);
       const body = new URLSearchParams({ data: query });
       if (postpassTextOnly) body.set("options[geojson]", "false");
-      startCooldown(runKey);
       const response = await fetch(url, { method: "POST", body, signal: active.signal, cache: "no-store" });
       const text = await response.text();
       const contentType = response.headers.get("content-type") || "";
@@ -378,7 +338,7 @@ const initializeApp = (deps) => {
         if (controller === active) controller = null;
         busy = false;
         setOverlayButton(false);
-        syncRunButton();
+        runButton.disabled = false;
       }
     }
   };
@@ -393,7 +353,6 @@ const initializeApp = (deps) => {
       ui.setStatus(`Modo <strong>${next === "postpass" ? "Postpass SQL" : "Overpass QL"}</strong> listo para ejecutar.`);
       ui.tab("status");
     }
-    syncRunButton();
   };
   wrapLines.onchange = () => {
     const value = wrapLines.value === "wrap" ? "wrap" : "scroll";
