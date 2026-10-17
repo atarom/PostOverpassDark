@@ -194,6 +194,28 @@ const initializeApp = (deps) => {
     const [longitude, latitude] = deps.ol.proj.toLonLat(map.getView().getCenter());
     return { query: editor.getQuery(), longitude: ((longitude + 180) % 360 + 360) % 360 - 180, latitude, zoom: map.getView().getZoom(), endpoint: endpoint.value, heatMode: renderMode.value === "heat", heat: mapController.getHeat(), autoRun: shareAuto.checked };
   };
+  let bookmarkRun = null;
+  let bookmarkRevision = 0;
+  let bookmarkTimer;
+  const updateBookmark = (delay = 350) => {
+    if (!bookmarkRun) return;
+    const revision = ++bookmarkRevision;
+    clearTimeout(bookmarkTimer);
+    bookmarkTimer = setTimeout(async () => {
+      try {
+        const state = { ...shareState(), ...bookmarkRun, autoRun: true };
+        const encoded = await encodeShare(state);
+        if (revision === bookmarkRevision) history.replaceState(history.state, "", `#s=${encoded}`);
+      } catch (error) {
+        console.warn("No se pudo actualizar el enlace del marcador", error);
+      }
+    }, delay);
+  };
+  map.on("moveend", () => updateBookmark(0));
+  const heatConfig = $("heatCfg");
+  heatConfig.addEventListener("input", () => updateBookmark());
+  heatConfig.addEventListener("change", () => updateBookmark());
+  $("heatReset").addEventListener("click", () => updateBookmark());
   const refreshShare = async () => {
     const revision = ++shareRevision;
     shareCopy.disabled = true;
@@ -419,6 +441,8 @@ const initializeApp = (deps) => {
       ui.log(`Consulta ${runEngine === "postpass" ? "Postpass" : "Overpass"} preparada\nEnviando consulta…`);
       const body = new URLSearchParams({ data: query });
       if (postpassTextOnly) body.set("options[geojson]", "false");
+      bookmarkRun = { query: queryText, endpoint: url };
+      updateBookmark(0);
       const response = await fetch(url, { method: "POST", body, signal: active.signal, cache: "no-store" });
       const text = await response.text();
       const contentType = response.headers.get("content-type") || "";
@@ -486,6 +510,7 @@ const initializeApp = (deps) => {
     storage.setItem(STORE.mode, value);
     mapController.heatUI();
     if (mapController.hasGeo()) mapController.render();
+    updateBookmark();
   };
   overlayButton.onclick = () => busy ? stop("Consulta cancelada por el usuario") : ui.overlayClose();
   const tabNames = ["status", "data", "analysis"];
