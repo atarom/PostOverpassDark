@@ -10,9 +10,10 @@ import { createJosmExporter } from "./josm-export.js";
 import { $, esc, json, abortError } from "./utils.js";
 import { OVERPASS_PRESETS } from "./presets-overpass.js";
 import { POSTPASS_PRESETS } from "./presets-postpass.js";
-const STORE = { endpoint: "osm-overpass-map:endpoint", wrap: "osm-overpass-map:wrap", mode: "osm-overpass-map:render", heat: "osm-overpass-map:heat", areas: "osm-overpass-map:geocode-areas" };
+const STORE = { endpoint: "postoverpassdark:endpoint", wrap: "postoverpassdark:wrap", mode: "postoverpassdark:render", heat: "postoverpassdark:heat", areas: "postoverpassdark:geocode-areas" };
 const PRESETS = { overpass: OVERPASS_PRESETS, postpass: POSTPASS_PRESETS };
 const initializeApp = (deps) => {
+  storage.removePrefix("osm-overpass-map:");
   const status = $("status");
   const dataOutput = $("dataOutput");
   const dataView = $("dataView");
