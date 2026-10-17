@@ -6,6 +6,7 @@ import { parseResponse, responseError, errorStatusHtml, OSM_TYPES } from "./resp
 import { createMapController } from "./map.js";
 import { createUI } from "./ui.js";
 import { createAnalysis } from "./analysis.js";
+import { createJosmExporter } from "./josm-export.js";
 import { $, esc, json, abortError } from "./utils.js";
 import { OVERPASS_PRESETS } from "./presets-overpass.js";
 import { POSTPASS_PRESETS } from "./presets-postpass.js";
@@ -69,6 +70,8 @@ const initializeApp = (deps) => {
   const map = mapController.map;
   const ui = createUI({ map, status, dataOutput, dataView, overlay, overlayLog, copyButton });
   const analysis = createAnalysis({ elements: { key: $("analysisKey"), onlyKey: $("analysisOnlyKey"), multivalue: $("analysisMultivalue"), values: $("analysisValues"), summary: $("analysisSummary"), numericEnable: $("numericEnable"), numericKey: $("numericKey"), numericErrors: $("numericErrors"), numericMin: $("numericMin"), numericMax: $("numericMax"), numericMinValue: $("numericMinValue"), numericMaxValue: $("numericMaxValue"), regexEnable: $("regexEnable"), regexText: $("regexText"), regexInsensitive: $("regexInsensitive"), regexOnly: $("regexOnly"), regexColors: $("regexColors"), reset: $("analysisReset") }, onChange: (options) => mapController.applyFilters(options) });
+  const josm = createJosmExporter({ container: $("josmTools"), sendButton: $("josmSend"), message: $("josmMessage") });
+  josm.setEngine(getEngine());
   const preparer = createQueryPreparer({ map, storage, areaStoreKey: STORE.areas, log: ui.log });
   let controller;
   let timer;
@@ -89,6 +92,7 @@ const initializeApp = (deps) => {
     return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toLocaleString("es-ES", { maximumFractionDigits: 2 })} s`;
   };
   const textResult = (result, start) => {
+    josm.reset();
     const time = elapsed(start);
     analysis.clear();
     ui.data.geojson = "";
@@ -100,6 +104,7 @@ const initializeApp = (deps) => {
     ui.overlayDone();
   };
   const geoResult = (result, start, postpass) => {
+    if (postpass) josm.setData(result.geo);
     ui.data.geojson = json(result.geo);
     analysis.setData(result.geo, true);
     ui.log(postpass ? `GeoJSON recibido\nDibujando ${result.geo.features.length} entidades GeoJSON…` : `Conversión GeoJSON completada\nDibujando ${result.geo.features.length} entidades GeoJSON…`);
@@ -122,6 +127,7 @@ const initializeApp = (deps) => {
   const run = async () => {
     if (busy) return;
     const runId = ++runSeq;
+    josm.reset();
     const queryText = editor.getQuery();
     const runEngine = editor.getEngine();
     const postpassTextOnly = runEngine === "postpass" && /\{\{\s*data\s*:\s*sql\s*,[^{}]*\bgeojson\s*=\s*false\b[^{}]*\}\}/i.test(queryText);
@@ -195,6 +201,7 @@ const initializeApp = (deps) => {
     }
   };
   const clear = () => {
+    josm.reset();
     stop("Consulta cancelada al restablecer");
     ui.clearOverlayTimer();
     mapController.clear();
@@ -210,6 +217,7 @@ const initializeApp = (deps) => {
     endpoints.includes(endpoint.value) ? storage.setItem(STORE.endpoint, endpoint.value) : storage.removeItem(STORE.endpoint);
     if (busy) stop("Consulta cancelada al cambiar de servidor");
     const next = getEngine();
+    josm.setEngine(next);
     if (next !== editor.getEngine()) {
       editor.setMode(next);
       renderPresets();
