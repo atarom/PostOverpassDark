@@ -145,6 +145,7 @@ export const createAnalysis = ({ elements, onChange }) => {
       button.append(amount, text);
       button.onclick = () => {
         selectedValue = selectedValue === value ? null : value;
+        if (selectedValue !== null) regexEnable.checked = false;
         valueTools.hidden = selectedValue === null;
         for (const item of values.querySelectorAll(".analysis-value")) item.setAttribute("aria-pressed", String(item === button && selectedValue !== null));
         emit();
@@ -274,6 +275,10 @@ export const createAnalysis = ({ elements, onChange }) => {
     emitFrame();
   };
   regexEnable.onchange = () => {
+    if (regexEnable.checked && selectedValue !== null) {
+      selectedValue = null;
+      renderValues();
+    }
     renderRegex();
     emit();
   };
