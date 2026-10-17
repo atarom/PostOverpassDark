@@ -1031,22 +1031,6 @@ a {
   border-bottom: 8px solid transparent;
   border-left: 13px solid currentColor;
 }
-.icon-clear::before {
-  inset: 3px;
-  border: 2px solid currentColor;
-  border-left-color: transparent;
-  border-radius: 50%;
-  transform: rotate(-35deg);
-}
-.icon-clear::after {
-  top: 1px;
-  left: 1px;
-  width: 8px;
-  height: 8px;
-  border-left: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  transform: rotate(20deg);
-}
 .icon-share {
   background: radial-gradient(circle at 3px 11px, currentColor 2.7px, transparent 3px), radial-gradient(circle at 19px 3px, currentColor 2.7px, transparent 3px), radial-gradient(circle at 19px 19px, currentColor 2.7px, transparent 3px);
 }
@@ -1065,30 +1049,16 @@ a {
 .icon-share::after {
   transform: rotate(27deg);
 }
-.icon-josm {
-  background: linear-gradient(currentColor, currentColor) 2px 10px / 12px 2px no-repeat;
-}
-.icon-josm::before {
-  top: 3px;
-  right: 0;
-  width: 12px;
-  height: 16px;
-  border: 2px solid currentColor;
-  border-left: 0;
-  border-radius: 0 2px 2px 0;
-}
-.icon-josm::after {
-  top: 7px;
-  left: 7px;
-  width: 8px;
-  height: 8px;
-  border-top: 2px solid currentColor;
-  border-right: 2px solid currentColor;
-  transform: rotate(45deg);
+.action-bar .josm-label {
+  flex-basis: 56px;
+  width: 56px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .025em;
 }
 .josm-tools {
-  flex: 0 0 44px;
-  width: 44px;
+  flex: 0 0 56px;
+  width: 56px;
   height: 44px;
 }
 .josm-tools[hidden] {

@@ -252,19 +252,6 @@ const initializeApp = (deps) => {
       }
     }
   };
-  const clear = () => {
-    josm.reset();
-    stop("Consulta cancelada al restablecer");
-    ui.clearOverlayTimer();
-    mapController.clear();
-    analysis.clear();
-    ui.resetData();
-    editor.reset();
-    syncPreset();
-    ui.show();
-    ui.setStatus("Pulsa <strong>Ejecutar</strong> o <strong>Ctrl+Intro</strong> para ejecutar la consulta.");
-    ui.tab("status");
-  };
   endpoint.onchange = () => {
     endpoints.includes(endpoint.value) ? storage.setItem(STORE.endpoint, endpoint.value) : storage.removeItem(STORE.endpoint);
     if (busy) stop("Consulta cancelada al cambiar de servidor");
@@ -301,7 +288,6 @@ const initializeApp = (deps) => {
       $(`${next}TabBtn`).focus();
     };
   });
-  $("clearBtn").onclick = clear;
   dataView.onchange = ui.show;
   copyButton.onclick = ui.copy;
   runButton.onclick = run;
