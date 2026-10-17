@@ -479,9 +479,5 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
     setQuery(queries[next]);
   };
   const setWrap = (value) => ed.dispatch({ effects: wrapComp.reconfigure(value === "wrap" ? EditorView.lineWrapping : []) });
-  const reset = () => {
-    queries[currentEngine] = defaults[currentEngine];
-    setQuery(queries[currentEngine]);
-  };
-  return { getQuery, setQuery, setMode, setWrap, reset, getEngine: () => currentEngine };
+  return { getQuery, setQuery, setMode, setWrap, getEngine: () => currentEngine };
 };

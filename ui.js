@@ -61,5 +61,5 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
       tab("status");
     }
   };
-  return { data, log, overlayClose, overlayOpen, overlayDone, setStatus, show, resetData, tab, copy, clearOverlayTimer: () => clearTimeout(overlayTimer) };
+  return { data, log, overlayClose, overlayOpen, overlayDone, setStatus, show, resetData, tab, copy };
 };
