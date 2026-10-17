@@ -12,7 +12,7 @@
 
 ## Funciones
 
-- Consultas mediante **Overpass API** y **Postpass**.
+- Consultas mediante **Overpass** y **Postpass**.
 - Editor con resaltado, autocompletado y presets de ejemplo.
 - Variables compatibles con consultas como `{{bbox}}`, `{{center}}`, `{{geocodeArea:...}}`...
 - Visualización normal o como mapa de calor.
@@ -21,29 +21,25 @@
 - Filtro numérico por key con rango mínimo/máximo y visualización opcional de valores fuera de rango.
 - Inspección de la consulta enviada, respuesta original y GeoJSON generado.
 - Acceso directo desde los resultados a OpenStreetMap y distintos editores OSM.
-- Envío directo a JOSM de objetos encontrados con Overpass o Postpass mediante Remote Control, sin XML intermedio ni backend Python.
+- Envío directo a JOSM de objetos encontrados con Overpass o Postpass mediante Remote Control.
 
 ## Enviar resultados Overpass o Postpass a JOSM
 
-En JOSM activa **Preferencias → Control remoto → Habilitar control remoto**. Ejecuta una consulta Overpass con salida OSM XML o JSON, o una consulta Postpass que devuelva `osm_type`, `osm_id` y `geom`. El botón **Enviar a JOSM** recoge únicamente los IDs OSM originales devueltos en el resultado y permite que JOSM descargue los objetos actuales y miembros de las relaciones desde la API oficial de OpenStreetMap. No se genera XML intermedio ni se necesita Python en GitHub Pages. Las salidas tabulares o derivadas sin IDs originales no son enviables.
+En JOSM activa **Preferencias → Control remoto → Habilitar control remoto**. Ejecuta una consulta Overpass con salida OSM XML o JSON, o una consulta Postpass que devuelva `osm_type`, `osm_id` y `geom`. El botón **Enviar a JOSM** recoge únicamente los IDs OSM originales devueltos en el resultado y permite que JOSM descargue los objetos actuales y miembros de las relaciones desde la API oficial de OpenStreetMap. Las salidas tabulares o derivadas sin IDs originales no son enviables.
 
-Se deduplican los identificadores en ambos modos, incluidas las representaciones geométricas múltiples de Postpass. No se impone un límite artificial de objetos; los envíos grandes se dividen automáticamente en solicitudes más pequeñas para respetar la longitud de las URL de JOSM. Consultas muy grandes pueden tardar o alcanzar límites de JOSM o de la API OSM. La primera crea una capa nueva en JOSM y las siguientes intentan añadir objetos a esa capa. Los datos proceden de OSM en su estado actual y pueden diferir de la actualización de Postpass. El navegador debe permitir solicitudes a `127.0.0.1:8111`, y JOSM debe estar abierto.
-
-Para probar la aplicación localmente desde la carpeta del proyecto puedes ejecutar `python3 -m http.server 8000` y visitar `http://127.0.0.1:8000`.
+Se deduplican los identificadores en ambos modos, incluidas las representaciones geométricas múltiples de Postpass. Los envíos grandes se dividen automáticamente en solicitudes más pequeñas para respetar la longitud de las URL de JOSM.
 
 ## Compartir consultas
 
-El botón **Compartir** genera un enlace autocontenido con la consulta completa, el servidor, el centro y zoom del mapa y la configuración de mapa de calor. Los parámetros visuales con valores predeterminados se omiten del enlace. Se utiliza compresión DEFLATE sin cabeceras cuando acorta el resultado, y codificación directa si resulta más compacta. Los datos van en el fragmento `#s=` de la URL; no se envían a un servidor de almacenamiento.
-
-La opción **Ejecutar automáticamente al abrir** está activada por defecto y se puede desactivar antes de copiar el enlace. Abrir enlaces compartidos con autoejecución iniciará una consulta en el servidor indicado. Los enlaces muy largos pueden superar los límites de algunas aplicaciones de mensajería.
+El botón **Compartir** genera un enlace autocontenido con la consulta completa, el servidor, el centro y zoom del mapa y la configuración de mapa de calor. Los parámetros visuales con valores predeterminados se omiten del enlace. Se utiliza compresión DEFLATE sin cabeceras cuando acorta el resultado, y codificación directa si resulta más compacta. Los datos van en el fragmento `#s=` de la URL.
 
 ## Tecnologías y datos
 
 - [OpenLayers](https://openlayers.org/) — renderización WebGL, filtros dinámicos y navegación del mapa.
-- [OpenStreetMap](https://www.openstreetmap.org/) — teselas del mapa base con estilo oscuro.
-- [Overpass API](https://overpass-api.de/) — consultas Overpass QL sobre datos de OpenStreetMap.
-- [Postpass](https://postpass.geofabrik.de/) — consultas SQL/PostGIS sobre datos de OpenStreetMap.
+- [OpenStreetMap](https://www.openstreetmap.org/) — teselas del mapa base.
+- [Overpass API](https://overpass-api.de/) — consultas Overpass QL.
+- [Postpass](https://postpass.geofabrik.de/) — consultas SQL/PostGIS.
 - [CodeMirror](https://codemirror.net/) — editor de consultas.
 - [osmtogeojson](https://github.com/tyrasd/osmtogeojson) — conversión de respuestas OSM a GeoJSON.
 - [Nominatim](https://nominatim.org/) — resolución de áreas para `{{geocodeArea:...}}`.
-- [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) — datos disponibles bajo licencia ODbL.
+- [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) — datos.
