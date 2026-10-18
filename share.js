@@ -148,6 +148,36 @@ export const encodeShareDetailed = async (state) => {
   return { encoded, info: { rawBytes: bytes.length, directChars, compressedBytes, compressedChars, compressionStatus, method: encoded[0] === "b" ? "deflate-raw" : "direct" } };
 };
 export const encodeShare = async (state) => (await encodeShareDetailed(state)).encoded;
+export const encodeShareZopfli = (state, signal) => new Promise((resolve, reject) => {
+  if (signal?.aborted) return reject(new DOMException("Compresión cancelada", "AbortError"));
+  if (typeof Worker !== "function") return reject(Error("Este navegador no permite ejecutar Zopfli en segundo plano"));
+  const data = encodeData(state);
+  const worker = new Worker(new URL("./zopfli-worker.js", import.meta.url));
+  let finished = false;
+  let timeout;
+  const cleanup = () => {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", cancel);
+    worker.terminate();
+  };
+  const finish = (error, bytes) => {
+    if (finished) return;
+    finished = true;
+    cleanup();
+    if (error) reject(error);
+    else resolve({ encoded: `b${toBase64(bytes)}`, compressedBytes: bytes.length });
+  };
+  const cancel = () => finish(new DOMException("Compresión cancelada", "AbortError"));
+  worker.onerror = (event) => { event.preventDefault(); finish(Error("No se pudo cargar el compresor Zopfli")); };
+  worker.onmessage = (event) => {
+    if (event.data?.error) finish(Error(event.data.error));
+    else if (event.data instanceof Uint8Array) finish(null, event.data);
+    else finish(Error("Respuesta inválida del compresor Zopfli"));
+  };
+  signal?.addEventListener("abort", cancel, { once: true });
+  timeout = setTimeout(() => finish(Error("Zopfli ha superado el límite de 60 segundos")), 60000);
+  worker.postMessage(data, [data.buffer]);
+});
 export const decodeShare = async (value) => {
   const match = String(value).match(/^([ab])([A-Za-z0-9_-]+)$/);
   if (!match) throw Error("Formato de enlace compartido desconocido");

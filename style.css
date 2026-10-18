@@ -1070,6 +1070,20 @@ a {
 #shareCopy {
   margin-top: 12px;
 }
+#shareMax {
+  margin-top: 8px;
+  width: 100%;
+}
+.share-max-result {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--m);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.share-max-result:empty {
+  display: none;
+}
 .share-details {
   margin-top: 12px;
 }

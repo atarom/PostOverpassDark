@@ -7,7 +7,7 @@ import { createMapController } from "./map.js";
 import { createUI } from "./ui.js";
 import { createAnalysis } from "./analysis.js";
 import { createJosmExporter } from "./josm-export.js";
-import { encodeShare, encodeShareDetailed, decodeShare, sharedFragment } from "./share.js";
+import { encodeShare, encodeShareDetailed, encodeShareZopfli, decodeShare, sharedFragment } from "./share.js";
 import { $, esc, json, abortError } from "./utils.js";
 import { OVERPASS_PRESETS } from "./presets-overpass.js";
 import { POSTPASS_PRESETS } from "./presets-postpass.js";
@@ -184,9 +184,17 @@ const initializeApp = (deps) => {
   const shareAuto = $("shareAuto");
   const shareUrl = $("shareUrl");
   const shareCopy = $("shareCopy");
+  const shareMax = $("shareMax");
+  const shareMaxResult = $("shareMaxResult");
   const shareMessage = $("shareMessage");
   const shareInfo = Object.fromEntries(["Endpoint", "Center", "Zoom", "Mode", "Heat", "Auto", "Query", "Method", "Bytes", "Direct", "Compressed", "Reason"].map((name) => [name, $("shareInfo" + name)]));
   let shareRevision = 0;
+  let maximumController = null;
+  const stopMaximum = () => {
+    maximumController?.abort();
+    maximumController = null;
+    shareMax.textContent = "Probar compresión máxima (Zopfli)";
+  };
   const shareStatus = (value, error = false) => {
     shareMessage.textContent = value;
     shareMessage.classList.toggle("err", error);
@@ -219,6 +227,9 @@ const initializeApp = (deps) => {
   $("heatReset").addEventListener("click", () => updateBookmark());
   const refreshShare = async () => {
     const revision = ++shareRevision;
+    stopMaximum();
+    shareMax.disabled = true;
+    shareMaxResult.textContent = "";
     shareCopy.disabled = true;
     shareUrl.value = "";
     shareStatus("Preparando enlace…");
@@ -231,6 +242,7 @@ const initializeApp = (deps) => {
       url.hash = `s=${encoded}`;
       shareUrl.value = url.href;
       shareCopy.disabled = false;
+      shareMax.disabled = false;
       shareInfo.Endpoint.textContent = decoded.endpoint;
       shareInfo.Center.textContent = `${decoded.latitude.toFixed(6)}, ${decoded.longitude.toFixed(6)} (lat, lon)`;
       shareInfo.Zoom.textContent = String(decoded.zoom);
@@ -256,6 +268,48 @@ const initializeApp = (deps) => {
       if (revision === shareRevision) shareStatus(error.message || String(error), true);
     }
   };
+  shareMax.onclick = async () => {
+    if (maximumController) {
+      stopMaximum();
+      shareMaxResult.textContent = "Compresión cancelada.";
+      return;
+    }
+    if (!shareUrl.value) return;
+    const revision = shareRevision;
+    const currentUrl = shareUrl.value;
+    const currentEncoded = new URL(currentUrl).hash.slice(3);
+    const controller = new AbortController();
+    maximumController = controller;
+    shareMax.textContent = "Cancelar compresión";
+    shareMaxResult.textContent = "Probando Zopfli (15 iteraciones)…";
+    try {
+      const start = performance.now();
+      const result = await encodeShareZopfli(shareState(), controller.signal);
+      if (revision !== shareRevision || !shareDialog.open || controller.signal.aborted) return;
+      const elapsed = ((performance.now() - start) / 1000).toFixed(1);
+      const saved = currentEncoded.length - result.encoded.length;
+      if (saved > 0) {
+        const url = new URL(currentUrl);
+        url.hash = `s=${result.encoded}`;
+        shareUrl.value = url.href;
+        shareInfo.Method.textContent = "Zopfli DEFLATE raw + Base64URL (b)";
+        shareInfo.Compressed.textContent = `${result.encoded.length.toLocaleString("es-ES")} caracteres (${result.compressedBytes.toLocaleString("es-ES")} bytes comprimidos)`;
+        shareInfo.Reason.textContent = `Zopfli reduce el enlace ${saved.toLocaleString("es-ES")} caracteres más que el mejor método automático.`;
+        shareStatus(`${url.href.length} caracteres${url.href.length > 4000 ? " · Enlace largo: algunas aplicaciones pueden recortarlo" : ""}`);
+        shareMaxResult.textContent = `Zopfli ahorra ${saved.toLocaleString("es-ES")} caracteres adicionales (${(saved / currentEncoded.length * 100).toFixed(1)} %) en ${elapsed} s. Enlace actualizado.`;
+      } else {
+        shareMaxResult.textContent = `Zopfli: ${result.encoded.length.toLocaleString("es-ES")} caracteres en ${elapsed} s. No mejora los ${currentEncoded.length.toLocaleString("es-ES")} del enlace actual; se conserva el más corto.`;
+      }
+      shareMax.disabled = true;
+    } catch (error) {
+      if (revision === shareRevision && !controller.signal.aborted) shareMaxResult.textContent = `Zopfli no disponible: ${error.message || error}. Se conserva el enlace original.`;
+    } finally {
+      if (maximumController === controller) {
+        maximumController = null;
+        shareMax.textContent = "Probar compresión máxima (Zopfli)";
+      }
+    }
+  };
   $("shareBtn").onclick = () => {
     $("shareDetails").open = false;
     shareAuto.checked = true;
@@ -264,7 +318,7 @@ const initializeApp = (deps) => {
   };
   shareAuto.onchange = refreshShare;
   $("shareClose").onclick = () => shareDialog.close();
-  shareDialog.addEventListener("close", () => { shareRevision++; });
+  shareDialog.addEventListener("close", () => { shareRevision++; stopMaximum(); });
   shareUrl.onclick = () => shareUrl.select();
   shareCopy.onclick = async () => {
     if (!shareUrl.value) return;
