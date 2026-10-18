@@ -50,56 +50,6 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
   const PP_FUNCS = words(
     "ST_Intersects ST_Contains ST_Within ST_DWithin ST_Distance ST_Length ST_Area ST_Centroid ST_PointOnSurface ST_Buffer ST_MakeEnvelope ST_MakePoint ST_MakeBox2D ST_SetSRID ST_Collect ST_MakeLine ST_Union ST_Difference ST_Intersection ST_IsEmpty ST_Transform ST_MaximumInscribedCircle jsonb_path_query_first jsonb_build_object jsonb_each_text jsonb_object_keys jsonb_array_elements pg_input_is_valid"
   );
-  const stops = (...c) => [
-    0,
-    "rgba(16,24,39,0)",
-    0.15,
-    c[0],
-    0.35,
-    c[1],
-    0.55,
-    c[2],
-    0.72,
-    c[3],
-    0.88,
-    c[4],
-    1,
-    c[5]
-  ];
-  const PALETTES = {
-    default: stops(
-      "#355f8d",
-      "#3f8f9c",
-      "#79b88d",
-      "#d6b56d",
-      "#e58b68",
-      "#ef5d72"
-    ),
-    warm: stops(
-      "#72543b",
-      "#a26c43",
-      "#d1924f",
-      "#e6b95f",
-      "#ef8262",
-      "#ef4e5d"
-    ),
-    cool: stops(
-      "#324a7a",
-      "#326b98",
-      "#3f98a7",
-      "#63b7a8",
-      "#88d0b4",
-      "#d3f0c0"
-    ),
-    fire: stops(
-      "#3a173d",
-      "#7d2450",
-      "#bd3a45",
-      "#e96d3e",
-      "#f5b747",
-      "#fff2a1"
-    )
-  };
   const lang = StreamLanguage.define({
     tokenTable: { atom: t.bool, opt: t.constant(t.variableName) },
     startState: () => ({ c: false, x: "" }),
