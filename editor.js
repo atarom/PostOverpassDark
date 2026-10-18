@@ -1,5 +1,5 @@
 export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onChange }) => {
-  const { EditorView, Compartment, Prec, basicSetup, StreamLanguage, HighlightStyle, defaultHighlightStyle, syntaxHighlighting, autocompletion, linter, tags: t, sql, PostgreSQL, keywordCompletionSource, schemaCompletionSource } = deps;
+  const { EditorView, Compartment, basicSetup, StreamLanguage, HighlightStyle, syntaxHighlighting, autocompletion, linter, tags: t, sql, PostgreSQL, keywordCompletionSource, schemaCompletionSource } = deps;
   const words = (s) => s.split(" ");
   const setOf = (s) => new Set(words(s));
   const opts = (a, type = "constant", detail) => [...a].map((label) => ({ label, type, detail }));
@@ -167,48 +167,25 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       return null;
     }
   });
-  const colors = HighlightStyle.define(
-    [
-      [t.keyword, "#a9dcaf"],
-      [t.bool, "#d2c3a0"],
-      [t.number, "#92c9bb"],
-      [t.variableName, "#e7a18b"],
-      [t.special(t.variableName), "#99d3ba"],
-      [t.constant(t.variableName), "#dbb579"],
-      [t.standard(t.variableName), "#92c5ae"],
-      [t.operator, "#b9cabc"],
-      [t.bracket, "#b9cabc"],
-      [t.comment, "#859e8c"],
-      [t.string, "#b5dc9f"],
-      [t.meta, "#dbc18e"]
-    ].map(([tag, color]) => ({ tag, color }))
-  );
-  const sqlPalette = {
-    "#708": "#b8e4ff",
-    "#219": "#dbdda5",
-    "#164": "#b6edc8",
-    "#a11": "#ffcfaa",
-    "#e40": "#ffd49e",
-    "#00f": "#a6ddff",
-    "#30a": "#c3e3ff",
-    "#085": "#a5e6d3",
-    "#167": "#afe5d3",
-    "#256": "#f7d89b",
-    "#00c": "#c0e2ff",
-    "#940": "#b4cab8",
-    "#7a757a": "#e8cd9d",
-    "#f00": "#ffb6aa"
-  };
-  const sqlColors = HighlightStyle.define(defaultHighlightStyle.specs.map((spec) => {
-    const original = spec.color?.toLowerCase();
-    return original && sqlPalette[original] ? { ...spec, color: sqlPalette[original], ...(original === "#708" ? { fontWeight: "700" } : {}) } : spec;
-  }));
+  const sqlColors = HighlightStyle.define([
+    { tag: [t.keyword, t.controlKeyword, t.operatorKeyword, t.moduleKeyword, t.definitionKeyword], color: "#b8e4ff", fontWeight: "700" },
+    { tag: [t.string, t.special(t.string), t.regexp, t.escape], color: "#ffcfaa" },
+    { tag: t.number, color: "#f4d391" },
+    { tag: [t.bool, t.null, t.atom, t.literal], color: "#d6e9a3" },
+    { tag: [t.name, t.variableName, t.propertyName, t.className], color: "#e8f1e9" },
+    { tag: [t.standard(t.name), t.function(t.variableName), t.function(t.propertyName)], color: "#abe8c5" },
+    { tag: [t.typeName, t.namespace], color: "#bbdff0" },
+    { tag: [t.operator, t.punctuation, t.bracket], color: "#d2e5d7" },
+    { tag: [t.macroName, t.meta, t.special(t.variableName)], color: "#f4db9b" },
+    { tag: t.comment, color: "#a6bcac", fontStyle: "italic" },
+    { tag: t.invalid, color: "#ffb6aa", textDecoration: "underline" }
+  ]);
   const sqlTheme = EditorView.theme({
-    "&": { backgroundColor: "#192720", color: "#edf5ee", fontSize: "14px" },
+    "&": { backgroundColor: "#0e1713", color: "#d7e6d9", fontSize: "14px" },
     ".cm-content": { padding: "7px 0", lineHeight: "1.55", caretColor: "#f1fff3" },
     ".cm-line": { padding: "0 8px" },
-    ".cm-gutters": { backgroundColor: "#14221b", color: "#b1cbb7", borderRight: "1px solid #375141" },
-    ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "#294034" },
+    ".cm-gutters": { backgroundColor: "#0b1410", color: "#849c88", borderRight: "1px solid #2b4436" },
+    ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "#193023" },
     ".cm-matchingBracket": { backgroundColor: "#35664b", color: "#e7f8e5", outline: "1px solid #639e7b" },
     ".cm-cursor": { borderLeftColor: "#f1fff3" },
     ".cm-selectionBackground": { backgroundColor: "#315440" },
@@ -490,7 +467,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
   const appearanceComp = new Compartment();
   const completeComp = new Compartment();
   const lintComp = new Compartment();
-  const highlight = (x) => syntaxHighlighting(x === "postpass" ? sqlColors : colors);
+  const highlight = (x) => x === "postpass" ? syntaxHighlighting(sqlColors) : [];
   const appearance = (x) => EditorView.editorAttributes.of({ class: x === "postpass" ? "pod-sql" : "pod-overpass" });
   const queries = { ...defaults };
   let currentEngine = engine;
@@ -500,7 +477,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
     extensions: [
       basicSetup,
       langComp.of(language(currentEngine)),
-      Prec.highest(colorComp.of(highlight(currentEngine))),
+      colorComp.of(highlight(currentEngine)),
       themeComp.of(currentEngine === "postpass" ? sqlTheme : []),
       appearanceComp.of(appearance(currentEngine)),
       completeComp.of(completion(currentEngine)),
