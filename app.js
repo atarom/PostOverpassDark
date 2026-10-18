@@ -14,20 +14,7 @@ import { POSTPASS_PRESETS } from "./presets-postpass.js";
 const STORE = { endpoint: "postoverpassdark:endpoint", wrap: "postoverpassdark:wrap", mode: "postoverpassdark:render", heat: "postoverpassdark:heat", areas: "postoverpassdark:geocode-areas", sidebar: "postoverpassdark:sidebar-width" };
 const PRESETS = { overpass: OVERPASS_PRESETS, postpass: POSTPASS_PRESETS };
 const initializeApp = (deps) => {
-  const status = $("status");
-  const dataOutput = $("dataOutput");
-  const dataView = $("dataView");
-  const runButton = $("runBtn");
-  const endpoint = $("endpoint");
-  const overlay = $("ov");
-  const overlayLog = $("ovLog");
-  const copyButton = $("copyDataBtn");
-  const queryNode = $("query");
-  const wrapLines = $("wrapLines");
-  const renderMode = $("renderMode");
-  const presetToggle = $("presetToggle");
-  const presetPanel = $("presetPanel");
-  const presetList = $("presetList");
+  const [status, dataOutput, dataView, runButton, endpoint, overlay, overlayLog, copyButton, queryNode, wrapLines, renderMode, presetToggle, presetPanel, presetList] = "status dataOutput dataView runBtn endpoint ov ovLog copyDataBtn query wrapLines renderMode presetToggle presetPanel presetList".split(" ").map($);
   const endpoints = [...endpoint.options].map((option) => option.value);
   const savedEndpoint = storage.getItem(STORE.endpoint);
   const wrap = storage.getItem(STORE.wrap) === "wrap" ? "wrap" : "scroll";
@@ -90,15 +77,6 @@ const initializeApp = (deps) => {
       presetToggle.focus();
     }
   };
-  document.addEventListener("pointerdown", (event) => {
-    if (!presetPanel.hidden && !presetPanel.contains(event.target) && !presetToggle.contains(event.target)) closePresets();
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !presetPanel.hidden) {
-      closePresets();
-      presetToggle.focus();
-    }
-  });
   const mapController = createMapController({ ol: deps.ol, storage, heatStoreKey: STORE.heat, renderMode, heatElements: { config: $("heatCfg"), radius: $("heatRadius"), intensity: $("heatIntensity"), opacity: $("heatOpacity"), weight: $("heatWeight"), palette: $("heatPalette"), radiusValue: $("heatRadiusVal"), intensityValue: $("heatIntensityVal"), opacityValue: $("heatOpacityVal"), weightValue: $("heatWeightVal"), reset: $("heatReset") } });
   const map = mapController.map;
   const cfg = $("cfg");
@@ -114,13 +92,13 @@ const initializeApp = (deps) => {
     cfgToggle.setAttribute("aria-expanded", "false");
   };
   document.addEventListener("pointerdown", (event) => {
+    if (!presetPanel.hidden && !presetPanel.contains(event.target) && !presetToggle.contains(event.target)) closePresets();
     if (!cfg.hidden && !cfg.contains(event.target) && !cfgToggle.contains(event.target)) closeConfig();
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !cfg.hidden) {
-      closeConfig();
-      cfgToggle.focus();
-    }
+    if (event.key !== "Escape") return;
+    if (!presetPanel.hidden) { closePresets(); presetToggle.focus(); }
+    if (!cfg.hidden) { closeConfig(); cfgToggle.focus(); }
   });
   const app = document.querySelector(".app");
   const splitter = $("sidebarResize");
@@ -158,9 +136,8 @@ const initializeApp = (deps) => {
     saveWidth();
     if (splitter.hasPointerCapture(event.pointerId)) splitter.releasePointerCapture(event.pointerId);
   };
-  splitter.addEventListener("pointerup", finishResize);
-  splitter.addEventListener("pointercancel", finishResize);
-  splitter.addEventListener("lostpointercapture", finishResize);
+  const onPointerEnd = (node, handler) => ["pointerup", "pointercancel", "lostpointercapture"].forEach((name) => node.addEventListener(name, handler));
+  onPointerEnd(splitter, finishResize);
   splitter.addEventListener("keydown", (event) => {
     const { min, max } = widthLimits();
     const current = Number(splitter.getAttribute("aria-valuenow"));
@@ -180,13 +157,7 @@ const initializeApp = (deps) => {
     saveWidth();
   });
   applyWidth();
-  const shareDialog = $("shareDialog");
-  const shareAuto = $("shareAuto");
-  const shareUrl = $("shareUrl");
-  const shareCopy = $("shareCopy");
-  const shareMax = $("shareMax");
-  const shareMaxResult = $("shareMaxResult");
-  const shareMessage = $("shareMessage");
+  const [shareDialog, shareAuto, shareUrl, shareCopy, shareMax, shareMaxResult, shareMessage] = "shareDialog shareAuto shareUrl shareCopy shareMax shareMaxResult shareMessage".split(" ").map($);
   const shareInfo = Object.fromEntries(["Endpoint", "Center", "Zoom", "Mode", "Heat", "Auto", "Query", "Method", "Bytes", "Direct", "Compressed", "Reason"].map((name) => [name, $("shareInfo" + name)]));
   let shareRevision = 0;
   let maximumController = null;
@@ -221,10 +192,10 @@ const initializeApp = (deps) => {
     }, delay);
   };
   map.on("moveend", () => updateBookmark(0));
-  const heatConfig = $("heatCfg");
-  heatConfig.addEventListener("input", () => updateBookmark());
-  heatConfig.addEventListener("change", () => updateBookmark());
+  for (const name of ["input", "change"]) $("heatCfg").addEventListener(name, () => updateBookmark());
   $("heatReset").addEventListener("click", () => updateBookmark());
+  const setLinkStatus = (url) => shareStatus(`${url.length} caracteres${url.length > 4000 ? " · Enlace largo: algunas aplicaciones pueden recortarlo" : ""}`);
+  const fmt = (value) => value.toLocaleString("es-ES");
   const refreshShare = async () => {
     const revision = ++shareRevision;
     stopMaximum();
@@ -252,18 +223,18 @@ const initializeApp = (deps) => {
       shareInfo.Auto.textContent = decoded.autoRun ? "Sí" : "No";
       shareInfo.Query.textContent = decoded.query;
       shareInfo.Method.textContent = info.method === "deflate-raw" ? "DEFLATE raw + Base64URL (b)" : "Binario directo + Base64URL (a)";
-      shareInfo.Bytes.textContent = `${info.rawBytes.toLocaleString("es-ES")} bytes`;
-      shareInfo.Direct.textContent = `${info.directChars.toLocaleString("es-ES")} caracteres`;
-      shareInfo.Compressed.textContent = info.compressedChars === null ? info.compressionStatus === "failed" ? "Falló la compresión" : "No disponible" : `${info.compressedChars.toLocaleString("es-ES")} caracteres (${info.compressedBytes.toLocaleString("es-ES")} bytes comprimidos)`;
+      shareInfo.Bytes.textContent = `${fmt(info.rawBytes)} bytes`;
+      shareInfo.Direct.textContent = `${fmt(info.directChars)} caracteres`;
+      shareInfo.Compressed.textContent = info.compressedChars === null ? info.compressionStatus === "failed" ? "Falló la compresión" : "No disponible" : `${fmt(info.compressedChars)} caracteres (${fmt(info.compressedBytes)} bytes comprimidos)`;
       if (info.method === "deflate-raw") {
         const saved = info.directChars - info.compressedChars;
-        shareInfo.Reason.textContent = `Se eligió DEFLATE raw porque ahorra ${saved.toLocaleString("es-ES")} caracteres (${(saved / info.directChars * 100).toFixed(1)} %) frente a la versión directa.`;
+        shareInfo.Reason.textContent = `Se eligió DEFLATE raw porque ahorra ${fmt(saved)} caracteres (${(saved / info.directChars * 100).toFixed(1)} %) frente a la versión directa.`;
       } else if (info.compressionStatus === "compared") {
         shareInfo.Reason.textContent = info.compressedChars === info.directChars ? "Ambos formatos ocupan lo mismo; se conserva la versión directa." : `Se conserva la versión directa porque DEFLATE raw añadiría ${(info.compressedChars - info.directChars).toLocaleString("es-ES")} caracteres.`;
       } else {
         shareInfo.Reason.textContent = info.compressionStatus === "failed" ? "No se pudo comprimir con DEFLATE raw; se conserva el formato directo." : "Este navegador no admite DEFLATE raw para estos enlaces; se utiliza el formato directo.";
       }
-      shareStatus(`${url.href.length} caracteres${url.href.length > 4000 ? " · Enlace largo: algunas aplicaciones pueden recortarlo" : ""}`);
+      setLinkStatus(url.href);
     } catch (error) {
       if (revision === shareRevision) shareStatus(error.message || String(error), true);
     }
@@ -293,12 +264,12 @@ const initializeApp = (deps) => {
         url.hash = `s=${result.encoded}`;
         shareUrl.value = url.href;
         shareInfo.Method.textContent = "Zopfli DEFLATE raw + Base64URL (b)";
-        shareInfo.Compressed.textContent = `${result.encoded.length.toLocaleString("es-ES")} caracteres (${result.compressedBytes.toLocaleString("es-ES")} bytes comprimidos)`;
-        shareInfo.Reason.textContent = `Zopfli reduce el enlace ${saved.toLocaleString("es-ES")} caracteres más que el mejor método automático.`;
-        shareStatus(`${url.href.length} caracteres${url.href.length > 4000 ? " · Enlace largo: algunas aplicaciones pueden recortarlo" : ""}`);
-        shareMaxResult.textContent = `Zopfli ahorra ${saved.toLocaleString("es-ES")} caracteres adicionales (${(saved / currentEncoded.length * 100).toFixed(1)} %) en ${elapsed} s. Enlace actualizado.`;
+        shareInfo.Compressed.textContent = `${result.encoded.length.toLocaleString("es-ES")} caracteres (${fmt(result.compressedBytes)} bytes comprimidos)`;
+        shareInfo.Reason.textContent = `Zopfli reduce el enlace ${fmt(saved)} caracteres más que el mejor método automático.`;
+        setLinkStatus(url.href);
+        shareMaxResult.textContent = `Zopfli ahorra ${fmt(saved)} caracteres adicionales (${(saved / currentEncoded.length * 100).toFixed(1)} %) en ${elapsed} s. Enlace actualizado.`;
       } else {
-        shareMaxResult.textContent = `Zopfli: ${result.encoded.length.toLocaleString("es-ES")} caracteres en ${elapsed} s. No mejora los ${currentEncoded.length.toLocaleString("es-ES")} del enlace actual; se conserva el más corto.`;
+        shareMaxResult.textContent = `Zopfli: ${result.encoded.length.toLocaleString("es-ES")} caracteres en ${elapsed} s. No mejora los ${fmt(currentEncoded.length)} del enlace actual; se conserva el más corto.`;
       }
       shareMax.disabled = true;
     } catch (error) {
@@ -394,9 +365,7 @@ const initializeApp = (deps) => {
     savePanelHeight();
     if (panelResize.hasPointerCapture(event.pointerId)) panelResize.releasePointerCapture(event.pointerId);
   };
-  panelResize.addEventListener("pointerup", finishPanelResize);
-  panelResize.addEventListener("pointercancel", finishPanelResize);
-  panelResize.addEventListener("lostpointercapture", finishPanelResize);
+  onPointerEnd(panelResize, finishPanelResize);
   panelResize.addEventListener("keydown", (event) => {
     if (mobilePanels()) return;
     const current = Number(panelResize.getAttribute("aria-valuenow"));
@@ -422,7 +391,9 @@ const initializeApp = (deps) => {
   };
   syncPanelHeight();
   new ResizeObserver(syncPanelHeight).observe(headerPanel);
-  const analysis = createAnalysis({ elements: { key: $("analysisKey"), onlyKey: $("analysisOnlyKey"), countMode: $("analysisCountMode"), values: $("analysisValues"), valueTools: $("analysisValueTools"), valueSelectedColor: $("analysisValueSelectedColor"), valueOtherColor: $("analysisValueOtherColor"), valueHideOthers: $("analysisValueHideOthers"), summary: $("analysisSummary"), numericEnable: $("numericEnable"), numericKey: $("numericKey"), numericErrors: $("numericErrors"), numericMin: $("numericMin"), numericMax: $("numericMax"), numericMinValue: $("numericMinValue"), numericMaxValue: $("numericMaxValue"), regexEnable: $("regexEnable"), regexText: $("regexText"), regexInsensitive: $("regexInsensitive"), regexOnly: $("regexOnly"), regexColors: $("regexColors"), reset: $("analysisReset") }, onChange: (options) => mapController.applyFilters(options) });
+  const groupNodes = (names, prefix = "") => Object.fromEntries(names.split(" ").map((name) => [name, $(prefix ? prefix + name[0].toUpperCase() + name.slice(1) : name)]));
+  const analysisElements = { ...groupNodes("key onlyKey countMode values valueTools valueSelectedColor valueOtherColor valueHideOthers summary", "analysis"), ...groupNodes("numericEnable numericKey numericErrors numericMin numericMax numericMinValue numericMaxValue regexEnable regexText regexInsensitive regexOnly regexColors"), reset: $("analysisReset") };
+  const analysis = createAnalysis({ elements: analysisElements, onChange: (options) => mapController.applyFilters(options) });
   const josm = createJosmExporter({ container: $("josmTools"), sendButton: $("josmSend"), message: $("josmMessage") });
   josm.setEngine(getEngine());
   const preparer = createQueryPreparer({ map, storage, areaStoreKey: STORE.areas, log: ui.log });
@@ -469,7 +440,7 @@ const initializeApp = (deps) => {
     josm.setData(postpass ? result.geo : result.raw, postpass ? "postpass" : "overpass");
     ui.data.geojson = json(result.geo);
     analysis.setData(result.geo, true);
-    ui.log(postpass ? `GeoJSON recibido\nDibujando ${result.geo.features.length} entidades GeoJSON…` : `Conversión GeoJSON completada\nDibujando ${result.geo.features.length} entidades GeoJSON…`);
+    ui.log(`${postpass ? "GeoJSON recibido" : "Conversión GeoJSON completada"}\nDibujando ${result.geo.features.length} entidades GeoJSON…`);
     mapController.draw(result.geo, { filters: analysis.options() });
     mapController.applyFilters(analysis.options());
     const formatter = new Intl.NumberFormat("es-ES");
@@ -547,15 +518,14 @@ const initializeApp = (deps) => {
       if (error?.name === "AbortError") {
         const message = error.message || "Consulta cancelada";
         ui.setStatus(`<strong>Consulta cancelada</strong><br>${esc(message)}`, "err");
-        showTab("status");
         ui.log("ERROR: " + message);
       } else {
         const info = error?.overpass;
         const message = error?.message || String(error);
         ui.setStatus(info ? errorStatusHtml(info, message) : `<strong>Error</strong><br>${esc(message).replace(/\n/g, "<br>")}`, "err");
-        showTab("status");
         ui.log("ERROR: " + (info?.raw || message));
       }
+      showTab("status");
     } finally {
       if (runId === runSeq) {
         clearTimeout(timer);
