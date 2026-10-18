@@ -167,6 +167,22 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       return null;
     }
   });
+  const colors = HighlightStyle.define(
+    [
+      [t.keyword, "#a9dcaf"],
+      [t.bool, "#d2c3a0"],
+      [t.number, "#92c9bb"],
+      [t.variableName, "#e7a18b"],
+      [t.special(t.variableName), "#99d3ba"],
+      [t.constant(t.variableName), "#dbb579"],
+      [t.standard(t.variableName), "#92c5ae"],
+      [t.operator, "#b9cabc"],
+      [t.bracket, "#b9cabc"],
+      [t.comment, "#859e8c"],
+      [t.string, "#b5dc9f"],
+      [t.meta, "#dbc18e"]
+    ].map(([tag, color]) => ({ tag, color }))
+  );
   const sqlColors = HighlightStyle.define([
     { tag: [t.keyword, t.controlKeyword, t.operatorKeyword, t.moduleKeyword, t.definitionKeyword], color: "#b8e4ff", fontWeight: "700" },
     { tag: [t.string, t.special(t.string), t.regexp, t.escape], color: "#ffcfaa" },
@@ -467,7 +483,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
   const appearanceComp = new Compartment();
   const completeComp = new Compartment();
   const lintComp = new Compartment();
-  const highlight = (x) => x === "postpass" ? syntaxHighlighting(sqlColors) : [];
+  const highlight = (x) => syntaxHighlighting(x === "postpass" ? sqlColors : colors);
   const appearance = (x) => EditorView.editorAttributes.of({ class: x === "postpass" ? "pod-sql" : "pod-overpass" });
   const queries = { ...defaults };
   let currentEngine = engine;
