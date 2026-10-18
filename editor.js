@@ -1,5 +1,5 @@
 export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onChange }) => {
-  const { EditorView, Compartment, basicSetup, StreamLanguage, HighlightStyle, syntaxHighlighting, autocompletion, linter, tags: t, sql, PostgreSQL, keywordCompletionSource, schemaCompletionSource } = deps;
+  const { EditorView, Compartment, basicSetup, StreamLanguage, HighlightStyle, defaultHighlightStyle, syntaxHighlighting, autocompletion, linter, tags: t, sql, PostgreSQL, keywordCompletionSource, schemaCompletionSource } = deps;
   const words = (s) => s.split(" ");
   const setOf = (s) => new Set(words(s));
   const opts = (a, type = "constant", detail) => [...a].map((label) => ({ label, type, detail }));
@@ -183,6 +183,26 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       [t.meta, "#dbc18e"]
     ].map(([tag, color]) => ({ tag, color }))
   );
+  const sqlPalette = {
+    "#708": "#8bd5ff",
+    "#219": "#eecb88",
+    "#164": "#a7e1bc",
+    "#a11": "#ffc28f",
+    "#e40": "#ffac85",
+    "#00f": "#99d3f3",
+    "#30a": "#c4b5f5",
+    "#085": "#a1ddcc",
+    "#167": "#a0dccc",
+    "#256": "#f4d18f",
+    "#00c": "#b6d9f2",
+    "#940": "#91ac9b",
+    "#7a757a": "#edc988",
+    "#f00": "#ffa4a4"
+  };
+  const sqlColors = HighlightStyle.define(defaultHighlightStyle.specs.map((spec) => {
+    const color = spec.color?.toLowerCase();
+    return color && sqlPalette[color] ? { ...spec, color: sqlPalette[color], ...(color === "#708" ? { fontWeight: "650" } : {}) } : spec;
+  }));
   const queryFilter = [
     ...words(
       "around: around. area area. pivot pivot. id: newer: changed: user: uid: user_touched: uid_touched: if: way_cnt: way_link:"
@@ -454,8 +474,12 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       x === "postpass" ? [] : linter(overpassLint, { delay: 250 });
   const wrapComp = new Compartment();
   const langComp = new Compartment();
+  const colorComp = new Compartment();
+  const appearanceComp = new Compartment();
   const completeComp = new Compartment();
   const lintComp = new Compartment();
+  const highlight = (x) => syntaxHighlighting(x === "postpass" ? sqlColors : colors);
+  const appearance = (x) => EditorView.editorAttributes.of({ class: x === "postpass" ? "pod-sql" : "pod-overpass" });
   const queries = { ...defaults };
   let currentEngine = engine;
   const ed = new EditorView({
@@ -464,7 +488,8 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
     extensions: [
       basicSetup,
       langComp.of(language(currentEngine)),
-      syntaxHighlighting(colors),
+      colorComp.of(highlight(currentEngine)),
+      appearanceComp.of(appearance(currentEngine)),
       completeComp.of(completion(currentEngine)),
       lintComp.of(lint(currentEngine)),
       wrapComp.of(wrapMode === "wrap" ? EditorView.lineWrapping : []),
@@ -481,7 +506,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
     if (next === currentEngine) return;
     queries[currentEngine] = getQuery();
     currentEngine = next;
-    ed.dispatch({ effects: [langComp.reconfigure(language(next)), completeComp.reconfigure(completion(next)), lintComp.reconfigure(lint(next))] });
+    ed.dispatch({ effects: [langComp.reconfigure(language(next)), colorComp.reconfigure(highlight(next)), appearanceComp.reconfigure(appearance(next)), completeComp.reconfigure(completion(next)), lintComp.reconfigure(lint(next))] });
     setQuery(queries[next]);
   };
   const setWrap = (value) => ed.dispatch({ effects: wrapComp.reconfigure(value === "wrap" ? EditorView.lineWrapping : []) });

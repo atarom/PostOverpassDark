@@ -238,6 +238,31 @@ input:disabled {
   color: #d7e6d9;
   font: 13px var(--mono);
 }
+.cm-editor.pod-sql {
+  background: #101d17;
+  color: #e6f0e8;
+  font-size: 14px;
+}
+.cm-editor.pod-sql .cm-content {
+  padding: 7px 0;
+  line-height: 1.55;
+}
+.cm-editor.pod-sql .cm-line {
+  padding: 0 8px;
+}
+.cm-editor.pod-sql .cm-gutters {
+  background: #0c1812 !important;
+  color: #90ab98 !important;
+}
+.cm-editor.pod-sql .cm-activeLine,
+.cm-editor.pod-sql .cm-activeLineGutter {
+  background: #20362a66 !important;
+}
+.cm-editor.pod-sql .cm-matchingBracket {
+  color: #e7f8e5 !important;
+  background: #35664b !important;
+  outline: 1px solid #639e7b;
+}
 .cm-editor.cm-focused {
   outline: 1px solid #6d9d78;
   outline-offset: -1px;
