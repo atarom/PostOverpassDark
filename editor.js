@@ -1,5 +1,24 @@
 export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onChange }) => {
-  const { EditorView, Compartment, basicSetup, StreamLanguage, HighlightStyle, syntaxHighlighting, autocompletion, linter, tags: t, sql, PostgreSQL, keywordCompletionSource, schemaCompletionSource } = deps;
+  const { EditorView, EditorState, Compartment, keymap, lineNumbers, highlightActiveLineGutter, highlightSpecialChars, history, historyKeymap, drawSelection, dropCursor, indentOnInput, defaultHighlightStyle, bracketMatching, closeBrackets, closeBracketsKeymap, rectangularSelection, crosshairCursor, highlightActiveLine, highlightSelectionMatches, defaultKeymap, searchKeymap, completionKeymap, lintKeymap, StreamLanguage, HighlightStyle, syntaxHighlighting, autocompletion, linter, tags: t, sql, PostgreSQL, keywordCompletionSource, schemaCompletionSource } = deps;
+  const setup = [
+    lineNumbers(),
+    highlightActiveLineGutter(),
+    highlightSpecialChars(),
+    history(),
+    drawSelection(),
+    dropCursor(),
+    EditorState.allowMultipleSelections.of(true),
+    indentOnInput(),
+    syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+    bracketMatching(),
+    closeBrackets(),
+    autocompletion(),
+    rectangularSelection(),
+    crosshairCursor(),
+    highlightActiveLine(),
+    highlightSelectionMatches(),
+    keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...searchKeymap, ...historyKeymap, ...completionKeymap, ...lintKeymap])
+  ];
   const words = (s) => s.split(" ");
   const setOf = (s) => new Set(words(s));
   const opts = (a, type = "constant", detail) => [...a].map((label) => ({ label, type, detail }));
@@ -441,7 +460,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
     parent: queryNode,
     doc: queries[currentEngine],
     extensions: [
-      basicSetup,
+      setup,
       langComp.of(language(currentEngine)),
       colorComp.of(highlight(currentEngine)),
       themeComp.of(currentEngine === "postpass" ? sqlTheme : []),

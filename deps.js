@@ -15,16 +15,18 @@ const loadOl = async () => {
   throw Error("No se pudo cargar OpenLayers desde los servidores CDN");
 };
 export const loadDependencies = async () => {
-  const [ol, editor, state, language, autocomplete, lint, highlight, sql] = await Promise.all([
+  const [ol, view, state, language, autocomplete, lint, highlight, sql, commands, search] = await Promise.all([
     loadOl(),
-    import("codemirror"),
+    import("@codemirror/view"),
     import("@codemirror/state"),
     import("@codemirror/language"),
     import("@codemirror/autocomplete"),
     import("@codemirror/lint"),
     import("@lezer/highlight"),
-    import("@codemirror/lang-sql")
+    import("@codemirror/lang-sql"),
+    import("@codemirror/commands"),
+    import("@codemirror/search")
   ]);
   if (typeof window.osmtogeojson !== "function") throw Error("No se pudo cargar osmtogeojson");
-  return { ol, ...editor, ...state, ...language, ...autocomplete, ...lint, ...highlight, ...sql };
+  return { ol, ...view, ...state, ...language, ...autocomplete, ...lint, ...highlight, ...sql, ...commands, ...search };
 };

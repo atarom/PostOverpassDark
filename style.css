@@ -264,9 +264,6 @@ input:disabled {
 .cm-gutterElement {
   padding: 0 6px !important;
 }
-.cm-foldGutter {
-  display: none;
-}
 .cm-editor:not(.pod-sql) .cm-activeLine,
 .cm-editor:not(.pod-sql) .cm-activeLineGutter {
   background: transparent !important;
