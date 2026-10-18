@@ -477,9 +477,15 @@ input:disabled {
   background: #0e1713;
 }
 .analysis-scroll {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   min-height: 0;
   padding: 10px;
   overflow: auto;
+}
+.analysis-scroll > :not(.analysis-values) {
+  flex-shrink: 0;
 }
 .analysis-head {
   display: grid;
@@ -530,7 +536,8 @@ input:disabled {
   letter-spacing: 0.04em;
 }
 .analysis-values {
-  max-height: 115px;
+  flex: 1 1 90px;
+  min-height: 90px;
   margin: 0 0 10px;
   padding: 8px 10px;
   overflow: auto;
@@ -955,16 +962,8 @@ a {
   #analysisPanel.on {
     flex-basis: min(160px, 35dvh);
   }
-  #analysisValuesLabel {
-  margin-bottom: 6px;
-  color: var(--m);
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.analysis-values {
-    max-height: 80px;
+  .analysis-values {
+    min-height: 64px;
   }
   .pod-ol-popup {
     min-width: min(280px, 88vw);
