@@ -126,18 +126,28 @@ const decodeData = (bytes) => {
   if (!query.trim()) throw Error("El enlace no contiene una consulta");
   return { query, longitude, latitude, zoom, endpoint, heatMode: Boolean(flags & 2), heat, autoRun: !(flags & 1) };
 };
-export const encodeShare = async (state) => {
+export const encodeShareDetailed = async (state) => {
   const bytes = encodeData(state);
-  let best = `a${toBase64(bytes)}`;
+  let encoded = `a${toBase64(bytes)}`;
+  let compressedBytes = null;
+  let compressedChars = null;
+  let compressionStatus = "unavailable";
+  const directChars = encoded.length;
   if (typeof CompressionStream === "function" && typeof DecompressionStream === "function") {
     try {
       const compressed = await transform(bytes, new CompressionStream("deflate-raw"));
-      const value = `b${toBase64(compressed)}`;
-      if (value.length < best.length) best = value;
-    } catch {}
+      const candidate = `b${toBase64(compressed)}`;
+      compressedBytes = compressed.length;
+      compressedChars = candidate.length;
+      compressionStatus = "compared";
+      if (candidate.length < directChars) encoded = candidate;
+    } catch {
+      compressionStatus = "failed";
+    }
   }
-  return best;
+  return { encoded, info: { rawBytes: bytes.length, directChars, compressedBytes, compressedChars, compressionStatus, method: encoded[0] === "b" ? "deflate-raw" : "direct" } };
 };
+export const encodeShare = async (state) => (await encodeShareDetailed(state)).encoded;
 export const decodeShare = async (value) => {
   const match = String(value).match(/^([ab])([A-Za-z0-9_-]+)$/);
   if (!match) throw Error("Formato de enlace compartido desconocido");

@@ -1070,6 +1070,64 @@ a {
 #shareCopy {
   margin-top: 12px;
 }
+.share-details {
+  margin-top: 12px;
+}
+.share-details summary {
+  font-size: 12px;
+  font-weight: 700;
+}
+.share-detail-body {
+  padding: 12px;
+  min-width: 0;
+}
+.share-facts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+}
+.share-facts > div {
+  display: grid;
+  grid-template-columns: minmax(100px, 35%) minmax(0, 1fr);
+  gap: 10px;
+}
+.share-facts dt {
+  color: var(--m);
+}
+.share-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.share-detail-title {
+  margin: 15px 0 7px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.share-query {
+  max-height: 180px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--b);
+  border-radius: 4px;
+  background: var(--p);
+  color: var(--t);
+  font: 12px/1.45 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.share-reason,
+.share-explain {
+  margin: 11px 0 0;
+  color: var(--m);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.share-reason {
+  color: var(--t);
+}
 .share-message {
   margin-top: 10px;
   min-height: 18px;

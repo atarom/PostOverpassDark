@@ -7,7 +7,7 @@ import { createMapController } from "./map.js";
 import { createUI } from "./ui.js";
 import { createAnalysis } from "./analysis.js";
 import { createJosmExporter } from "./josm-export.js";
-import { encodeShare, decodeShare, sharedFragment } from "./share.js";
+import { encodeShare, encodeShareDetailed, decodeShare, sharedFragment } from "./share.js";
 import { $, esc, json, abortError } from "./utils.js";
 import { OVERPASS_PRESETS } from "./presets-overpass.js";
 import { POSTPASS_PRESETS } from "./presets-postpass.js";
@@ -185,6 +185,7 @@ const initializeApp = (deps) => {
   const shareUrl = $("shareUrl");
   const shareCopy = $("shareCopy");
   const shareMessage = $("shareMessage");
+  const shareInfo = Object.fromEntries(["Endpoint", "Center", "Zoom", "Mode", "Heat", "Auto", "Query", "Method", "Bytes", "Direct", "Compressed", "Reason"].map((name) => [name, $("shareInfo" + name)]));
   let shareRevision = 0;
   const shareStatus = (value, error = false) => {
     shareMessage.textContent = value;
@@ -220,20 +221,43 @@ const initializeApp = (deps) => {
     const revision = ++shareRevision;
     shareCopy.disabled = true;
     shareUrl.value = "";
-    shareStatus("Comprimiendo consulta…");
+    shareStatus("Preparando enlace…");
     try {
-      const encoded = await encodeShare(shareState());
+      const { encoded, info } = await encodeShareDetailed(shareState());
+      if (revision !== shareRevision || !shareDialog.open) return;
+      const decoded = await decodeShare(encoded);
       if (revision !== shareRevision || !shareDialog.open) return;
       const url = new URL(".", location.href);
       url.hash = `s=${encoded}`;
       shareUrl.value = url.href;
       shareCopy.disabled = false;
+      shareInfo.Endpoint.textContent = decoded.endpoint;
+      shareInfo.Center.textContent = `${decoded.latitude.toFixed(6)}, ${decoded.longitude.toFixed(6)} (lat, lon)`;
+      shareInfo.Zoom.textContent = String(decoded.zoom);
+      shareInfo.Mode.textContent = decoded.heatMode ? "Mapa de calor" : "Normal";
+      const paletteNames = { default: "Azul → rojo", warm: "Cálida", cool: "Fría", fire: "Fuego" };
+      shareInfo.Heat.textContent = `Intensidad ${decoded.heat.intensity} · Radio ${decoded.heat.radius} · Opacidad ${decoded.heat.opacity} · Peso ${decoded.heat.weight} · Paleta ${paletteNames[decoded.heat.palette]}`;
+      shareInfo.Auto.textContent = decoded.autoRun ? "Sí" : "No";
+      shareInfo.Query.textContent = decoded.query;
+      shareInfo.Method.textContent = info.method === "deflate-raw" ? "DEFLATE raw + Base64URL (b)" : "Binario directo + Base64URL (a)";
+      shareInfo.Bytes.textContent = `${info.rawBytes.toLocaleString("es-ES")} bytes`;
+      shareInfo.Direct.textContent = `${info.directChars.toLocaleString("es-ES")} caracteres`;
+      shareInfo.Compressed.textContent = info.compressedChars === null ? info.compressionStatus === "failed" ? "Falló la compresión" : "No disponible" : `${info.compressedChars.toLocaleString("es-ES")} caracteres (${info.compressedBytes.toLocaleString("es-ES")} bytes comprimidos)`;
+      if (info.method === "deflate-raw") {
+        const saved = info.directChars - info.compressedChars;
+        shareInfo.Reason.textContent = `Se eligió DEFLATE raw porque ahorra ${saved.toLocaleString("es-ES")} caracteres (${(saved / info.directChars * 100).toFixed(1)} %) frente a la versión directa.`;
+      } else if (info.compressionStatus === "compared") {
+        shareInfo.Reason.textContent = info.compressedChars === info.directChars ? "Ambos formatos ocupan lo mismo; se conserva la versión directa." : `Se conserva la versión directa porque DEFLATE raw añadiría ${(info.compressedChars - info.directChars).toLocaleString("es-ES")} caracteres.`;
+      } else {
+        shareInfo.Reason.textContent = info.compressionStatus === "failed" ? "No se pudo comprimir con DEFLATE raw; se conserva el formato directo." : "Este navegador no admite DEFLATE raw para estos enlaces; se utiliza el formato directo.";
+      }
       shareStatus(`${url.href.length} caracteres${url.href.length > 4000 ? " · Enlace largo: algunas aplicaciones pueden recortarlo" : ""}`);
     } catch (error) {
       if (revision === shareRevision) shareStatus(error.message || String(error), true);
     }
   };
   $("shareBtn").onclick = () => {
+    $("shareDetails").open = false;
     shareAuto.checked = true;
     shareDialog.showModal();
     refreshShare();

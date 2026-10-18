@@ -291,6 +291,30 @@ out center;</textarea>
       <label for="shareUrl">Enlace autocontenido</label>
       <input id="shareUrl" type="text" readonly aria-label="Enlace compartido">
       <button id="shareCopy" type="button" class="pri" disabled>Copiar enlace</button>
+      <details id="shareDetails" class="share-details">
+        <summary>Ver contenido y compresión</summary>
+        <div class="share-detail-body">
+          <dl class="share-facts">
+            <div><dt>Servidor</dt><dd id="shareInfoEndpoint"></dd></div>
+            <div><dt>Centro del mapa</dt><dd id="shareInfoCenter"></dd></div>
+            <div><dt>Zoom</dt><dd id="shareInfoZoom"></dd></div>
+            <div><dt>Representación</dt><dd id="shareInfoMode"></dd></div>
+            <div><dt>Mapa de calor</dt><dd id="shareInfoHeat"></dd></div>
+            <div><dt>Ejecutar al abrir</dt><dd id="shareInfoAuto"></dd></div>
+          </dl>
+          <div class="share-detail-title">Consulta incluida</div>
+          <pre id="shareInfoQuery" class="share-query"></pre>
+          <div class="share-detail-title">Codificación del enlace</div>
+          <dl class="share-facts">
+            <div><dt>Método elegido</dt><dd id="shareInfoMethod"></dd></div>
+            <div><dt>Datos binarios</dt><dd id="shareInfoBytes"></dd></div>
+            <div><dt>Sin comprimir</dt><dd id="shareInfoDirect"></dd></div>
+            <div><dt>DEFLATE raw</dt><dd id="shareInfoCompressed"></dd></div>
+          </dl>
+          <p id="shareInfoReason" class="share-reason"></p>
+          <p class="share-explain">Los ajustes se guardan en formato binario compacto y la consulta en UTF-8. Base64URL permite incluirlos en el fragmento #s= sin enviarlos al servidor web. Los filtros de Análisis no se incluyen.</p>
+        </div>
+      </details>
       <div id="shareMessage" class="share-message" role="status" aria-live="polite"></div>
     </dialog>
     <script type="module" src="./app.js"></script>
