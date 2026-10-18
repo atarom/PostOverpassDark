@@ -234,6 +234,8 @@ input:disabled {
 }
 .cm-editor {
   height: 100%;
+}
+.cm-editor.pod-overpass {
   background: #0e1713;
   color: #d7e6d9;
   font: 13px var(--mono);
