@@ -219,8 +219,13 @@ out center;</textarea>
             <select id="analysisKey" aria-label="Key analizada"></select>
             <div class="analysis-checks">
               <label><input id="analysisOnlyKey" type="checkbox" /> Solo key seleccionada</label>
-              <label><input id="analysisMultivalue" type="checkbox" /> Separar valores por ;</label>
             </div>
+            <label for="analysisCountMode" class="analysis-box">Contar por</label>
+            <select id="analysisCountMode" aria-label="Tipo de recuento">
+              <option value="value">Valor completo</option>
+              <option value="semicolon">Separar por ;</option>
+              <option value="word">Palabra</option>
+            </select>
             <div id="analysisValuesLabel">Valores únicos</div>
             <div id="analysisValues" class="analysis-values" role="group" aria-labelledby="analysisValuesLabel">Sin datos.</div>
             <div id="analysisValueTools" class="analysis-value-tools" hidden>

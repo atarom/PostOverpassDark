@@ -46,58 +46,8 @@ const compilePatterns = (raw, insensitive) => raw.split(",").map((value) => valu
     return [];
   }
 });
-export const filterCollection = (collection, options = {}) => {
-  const selectedKey = options.selectedKey || "";
-  const patterns = options.regexEnabled ? compilePatterns(options.regexText || "", options.regexInsensitive) : [];
-  const min = Number(options.numericMin);
-  const max = Number(options.numericMax);
-  const out = [];
-  for (const feature of collection?.features || []) {
-    const tags = featureTags(feature);
-    if (options.onlySelectedKey && selectedKey && !own(tags, selectedKey)) continue;
-    const selected = options.selectedValue === null || options.selectedValue === undefined ? null : matchesTagValue(tags, selectedKey, options.selectedValue, options.countMode);
-    if (selected === false && options.hideOtherValues) continue;
-    let color = "";
-    if (options.regexEnabled && selected === null) {
-      const value = textValue(tags[selectedKey]);
-      const match = value ? patterns.find(({ regex }) => regex.test(value)) : null;
-      if (match) color = options.regexColors?.[match.source] || "";
-      else if (options.regexOnly) continue;
-    }
-    if (selected !== null) color = selected ? options.selectedValueColor || "#4abde1" : options.otherValueColor || "#708b7a";
-    if (options.numericEnabled && options.numericKey) {
-      const number = numericValue(tags[options.numericKey]);
-      const pass = Number.isFinite(number) && number >= min && number <= max;
-      if (!pass) {
-        if (!options.numericShowErrors) continue;
-        color = options.errorColor || "#ef8491";
-      }
-    }
-    const properties = color ? { ...(feature.properties || {}), _podColor: color } : { ...(feature.properties || {}) };
-    delete properties._podColor;
-    if (color) properties._podColor = color;
-    out.push({ ...feature, properties });
-  }
-  return { type: "FeatureCollection", features: out };
-};
 export const createAnalysis = ({ elements, onChange }) => {
-  const { key, onlyKey, multivalue, values, valueTools, valueSelectedColor, valueOtherColor, valueHideOthers, summary, numericEnable, numericKey, numericErrors, numericMin, numericMax, numericMinValue, numericMaxValue, regexEnable, regexText, regexInsensitive, regexOnly, regexColors, reset } = elements;
-  const modeLabel = document.createElement("label");
-  modeLabel.htmlFor = "analysisCountMode";
-  modeLabel.textContent = "Contar por";
-  modeLabel.className = "analysis-box";
-  const countMode = document.createElement("select");
-  countMode.id = "analysisCountMode";
-  countMode.setAttribute("aria-label", "Tipo de recuento");
-  for (const [value, label] of [["value", "Valor completo"], ["semicolon", "Separar por ;"], ["word", "Palabra"]]) {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = label;
-    countMode.append(option);
-  }
-  const checks = multivalue.closest(".analysis-checks");
-  multivalue.closest("label").remove();
-  checks.after(modeLabel, countMode);
+  const { key, onlyKey, countMode, values, valueTools, valueSelectedColor, valueOtherColor, valueHideOthers, summary, numericEnable, numericKey, numericErrors, numericMin, numericMax, numericMinValue, numericMaxValue, regexEnable, regexText, regexInsensitive, regexOnly, regexColors, reset } = elements;
   const valuesLabel = values.previousElementSibling;
   valuesLabel.textContent = "Valores únicos";
   valuesLabel.classList.add("analysis-box");
