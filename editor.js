@@ -280,6 +280,12 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
             apply: macroApply("bbox"),
             type: "constant",
             detail: "BBox PostGIS"
+          },
+          {
+            label: "geocodeArea",
+            apply: "geocodeArea:",
+            type: "function",
+            detail: "ID de relación OSM por Nominatim o ID directo"
           }
         ],
         validFor: /^[^{}]*$/

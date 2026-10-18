@@ -19,7 +19,7 @@ export const createQueryPreparer = ({ map, storage, areaStoreKey, log }) => {
   };
   const areaId = async (name, signal) => {
     const key = name.trim().toLocaleLowerCase();
-    if (Number.isFinite(+areaCache[key])) {
+    if (Number.isSafeInteger(areaCache[key]) && areaCache[key] > 3600000000) {
       log("geocodeArea desde caché: " + name);
       return +areaCache[key];
     }
@@ -35,12 +35,25 @@ export const createQueryPreparer = ({ map, storage, areaStoreKey, log }) => {
       if (error.name === "AbortError") throw error;
       throw Error("Respuesta inválida de Nominatim para: " + name);
     }
-    const item = Array.isArray(list) && list.find((entry) => entry.osm_type === "relation");
+    const item = Array.isArray(list) && list.find((entry) => entry.osm_type === "relation" && Number.isSafeInteger(Number(entry.osm_id)) && Number(entry.osm_id) > 0);
     if (!item) throw Error("Sin relación OSM utilizable como geocodeArea: " + name);
     const id = 3600000000 + Number(item.osm_id);
     areaCache[key] = id;
     storage.setItem(areaStoreKey, JSON.stringify(areaCache));
     log("Área resuelta: " + (item.display_name || name));
+    return id;
+  };
+  const relationId = async (name, signal) => {
+    const input = name.trim();
+    const direct = input.match(/^(?:(?:relation\s*[/\s:]\s*|R\s*))?(\d+)$/i);
+    if (direct) {
+      const id = Number(direct[1]);
+      if (!Number.isSafeInteger(id) || id < 1) throw Error("ID de relación OSM no válido: " + input);
+      log("Relación OSM por ID: " + id);
+      return id;
+    }
+    const id = await areaId(input, signal) - 3600000000;
+    if (!Number.isSafeInteger(id) || id < 1) throw Error("ID de relación OSM no válido para: " + input);
     return id;
   };
   const turboDate = (spec) => {
@@ -72,14 +85,16 @@ export const createQueryPreparer = ({ map, storage, areaStoreKey, log }) => {
     const bounds = mapBounds();
     const center = window.ol.proj.toLonLat(map.getView().getCenter());
     text = text.replaceAll("{{bbox}}", [bounds.south, bounds.west, bounds.north, bounds.east].join(",")).replaceAll("{{center}}", `${center[1]},${center[0]}`).replaceAll("{{zoom}}", String(map.getView().getZoom()));
-    for (const match of [...text.matchAll(/\{\{geocodeArea:([^}]+)\}\}/gi)]) text = text.replace(match[0], `area(${await areaId(match[1].trim(), signal)})`);
+    for (const match of [...text.matchAll(/\{\{\s*geocodeArea\s*:\s*([^{}]+?)\s*\}\}/gi)]) text = text.replace(match[0], `area(${3600000000 + await relationId(match[1], signal)})`);
     return stripComments(text);
   };
-  const prepPostpass = (input) => {
+  const prepPostpass = async (input, signal) => {
     let text = input.replace(/\{\{\s*data\s*:\s*sql(?:,[^{}]*)?\}\}\s*/gi, "");
     const bounds = mapBounds();
     const box = `ST_SetSRID(ST_MakeBox2D(ST_MakePoint(${bounds.west},${bounds.south}),ST_MakePoint(${bounds.east},${bounds.north})),4326)`;
-    return text.replaceAll("{{bbox}}", box).trim();
+    text = text.replaceAll("{{bbox}}", box);
+    for (const match of [...text.matchAll(/\{\{\s*geocodeArea\s*:\s*([^{}]+?)\s*\}\}/gi)]) text = text.replace(match[0], String(await relationId(match[1], signal)));
+    return text.trim();
   };
-  return { prep: (text, signal, engine) => engine === "postpass" ? prepPostpass(text) : prepOverpass(text, signal) };
+  return { prep: (text, signal, engine) => engine === "postpass" ? prepPostpass(text, signal) : prepOverpass(text, signal) };
 };
