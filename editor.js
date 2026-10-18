@@ -1,5 +1,5 @@
 export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onChange }) => {
-  const { EditorView, Compartment, Prec, basicSetup, StreamLanguage, HighlightStyle, syntaxHighlighting, autocompletion, linter, tags: t, sql, PostgreSQL, keywordCompletionSource, schemaCompletionSource } = deps;
+  const { EditorView, Compartment, Prec, basicSetup, StreamLanguage, HighlightStyle, defaultHighlightStyle, syntaxHighlighting, autocompletion, linter, tags: t, sql, PostgreSQL, keywordCompletionSource, schemaCompletionSource } = deps;
   const words = (s) => s.split(" ");
   const setOf = (s) => new Set(words(s));
   const opts = (a, type = "constant", detail) => [...a].map((label) => ({ label, type, detail }));
@@ -183,20 +183,26 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       [t.meta, "#dbc18e"]
     ].map(([tag, color]) => ({ tag, color }))
   );
-  const sqlColors = HighlightStyle.define([
-    { tag: t.keyword, color: "#a9dfff", fontWeight: "650" },
-    { tag: [t.controlKeyword, t.operatorKeyword, t.moduleKeyword, t.definitionKeyword], color: "#a9dfff", fontWeight: "650" },
-    { tag: [t.string, t.special(t.string), t.regexp, t.escape], color: "#ffd3a8" },
-    { tag: t.number, color: "#f4d391" },
-    { tag: [t.bool, t.null, t.atom, t.literal], color: "#c0e2ab" },
-    { tag: [t.name, t.variableName, t.propertyName, t.className], color: "#edf5ee" },
-    { tag: [t.standard(t.name), t.function(t.variableName), t.function(t.propertyName)], color: "#9ee5c3" },
-    { tag: [t.typeName, t.namespace], color: "#a8d6e5" },
-    { tag: [t.operator, t.punctuation, t.bracket], color: "#cce2d3" },
-    { tag: [t.macroName, t.meta, t.special(t.variableName)], color: "#f4db9b" },
-    { tag: t.comment, color: "#acc3b0", fontStyle: "italic" },
-    { tag: t.invalid, color: "#ffb6aa", textDecoration: "underline" }
-  ]);
+  const sqlPalette = {
+    "#708": "#b8e4ff",
+    "#219": "#dbdda5",
+    "#164": "#b6edc8",
+    "#a11": "#ffcfaa",
+    "#e40": "#ffd49e",
+    "#00f": "#a6ddff",
+    "#30a": "#c3e3ff",
+    "#085": "#a5e6d3",
+    "#167": "#afe5d3",
+    "#256": "#f7d89b",
+    "#00c": "#c0e2ff",
+    "#940": "#b4cab8",
+    "#7a757a": "#e8cd9d",
+    "#f00": "#ffb6aa"
+  };
+  const sqlColors = HighlightStyle.define(defaultHighlightStyle.specs.map((spec) => {
+    const original = spec.color?.toLowerCase();
+    return original && sqlPalette[original] ? { ...spec, color: sqlPalette[original], ...(original === "#708" ? { fontWeight: "700" } : {}) } : spec;
+  }));
   const sqlTheme = EditorView.theme({
     "&": { backgroundColor: "#192720", color: "#edf5ee", fontSize: "14px" },
     ".cm-content": { padding: "7px 0", lineHeight: "1.55", caretColor: "#f1fff3" },
