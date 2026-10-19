@@ -1,6 +1,6 @@
 const loadOl = async () => {
   if (window.ol?.layer?.WebGLVector) return window.ol;
-  for (const url of ["https://cdn.jsdelivr.net/npm/ol@10.10.0/dist/ol.js", "https://unpkg.com/ol@10.10.0/dist/ol.js"]) {
+  for (const url of ["https://cdn.jsdelivr.net/npm/ol@10.11.0/dist/ol.js", "https://unpkg.com/ol@10.11.0/dist/ol.js"]) {
     try {
       await new Promise((resolve, reject) => {
         const script = document.createElement("script");
