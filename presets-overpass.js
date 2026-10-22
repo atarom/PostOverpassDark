@@ -11,7 +11,7 @@ out center;`
     title: "Nodos huérfanos por ID",
     description: "Comprueba una lista concreta de nodos sin etiquetas y devuelve únicamente los que no pertenecen a ninguna vía ni relación.",
     query: `[out:xml][timeout:32][maxsize:16Mi];
-node(id:13748246304,13748246305)(if:count_tags()==0)->.n;
+node(id:13748246304)(if:count_tags()==0)->.n;
 way(bn.n)->.w;
 rel(bn.n)->.r;
 (.w;>;)->.wn;
