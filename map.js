@@ -146,6 +146,13 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     const extent = vectorSource.getExtent();
     if (extent.every(Number.isFinite)) map.getView().fit(extent, { padding: [28, 28, 28, 28], maxZoom: 17, duration: 300 });
   };
+  const zoomAll = document.createElement("button");
+  zoomAll.type = "button";
+  zoomAll.textContent = "⛶";
+  zoomAll.title = "Zoom a todo";
+  zoomAll.setAttribute("aria-label", "Mostrar todas las entidades cargadas");
+  zoomAll.addEventListener("click", () => fit(rendered));
+  map.getTargetElement().querySelector(".ol-zoom")?.append(zoomAll);
   const draw = (collection, { fitBounds = true, filters = options } = {}) => {
     closePopup();
     geo = collection;
