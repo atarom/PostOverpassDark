@@ -1,5 +1,5 @@
-const ENDPOINTS = ["https://maps.mail.ru/osm/tools/overpass/api/interpreter", "https://overpass-api.de/api/interpreter", "https://postpass.geofabrik.de/api/interpreter"];
-export const DEFAULT_ENDPOINT = ENDPOINTS[0];
+import { PUBLIC_SERVERS, DEFAULT_ENDPOINT } from "./servers.js";
+export { DEFAULT_ENDPOINT } from "./servers.js";
 export const DEFAULT_HEAT = Object.freeze({ intensity: 1, radius: 1, opacity: 0.88, weight: 1, palette: "default" });
 const PALETTES = ["default", "warm", "cool", "fire"];
 const HEAT_FIELDS = [["intensity", 20], ["radius", 20], ["opacity", 100], ["weight", 10]];
@@ -49,8 +49,9 @@ const encodeData = (state) => {
   const zoom = Math.round(Number(state.zoom) * 1000);
   if (!Number.isInteger(lon) || Math.abs(lon) > 180000000 || !Number.isInteger(lat) || Math.abs(lat) > 90000000 || !Number.isInteger(zoom) || zoom < 0 || zoom > 19000) throw Error("Centro o zoom del mapa no válido");
   if (typeof state.query !== "string" || !state.query.trim()) throw Error("Escribe una consulta antes de compartir");
-  const endpoint = ENDPOINTS.includes(state.endpoint) ? state.endpoint : DEFAULT_ENDPOINT;
-  const endpointIndex = ENDPOINTS.indexOf(endpoint);
+  const server = PUBLIC_SERVERS.find((item) => item.url === state.endpoint);
+  const endpoint = server?.url ?? DEFAULT_ENDPOINT;
+  const endpointIndex = PUBLIC_SERVERS.find((item) => item.url === endpoint)?.shareId ?? 255;
   let mask = 0;
   const heatValues = HEAT_FIELDS.map(([key, scale], index) => {
     const value = Math.round(Number(heat[key]) * scale);
@@ -67,8 +68,8 @@ const encodeData = (state) => {
   writeSigned(bytes, lat);
   writeVar(bytes, zoom);
   if (flags & 4) {
-    bytes.push(endpointIndex < 0 ? 255 : endpointIndex);
-    if (endpointIndex < 0) {
+    bytes.push(endpointIndex);
+    if (endpointIndex === 255) {
       const url = encoder.encode(endpoint);
       writeVar(bytes, url.length);
       bytes.push(...url);
@@ -102,9 +103,9 @@ const decodeData = (bytes) => {
       endpoint = decoder.decode(bytes.subarray(pos.index, pos.index + length));
       pos.index += length;
     } else {
-      endpoint = ENDPOINTS[index];
-      if (!endpoint) throw Error("Servidor desconocido en el enlace");
+      endpoint = PUBLIC_SERVERS.find((server) => server.shareId === index)?.url ?? DEFAULT_ENDPOINT;
     }
+    if (!PUBLIC_SERVERS.some((server) => server.url === endpoint)) endpoint = DEFAULT_ENDPOINT;
   }
   const heat = { ...DEFAULT_HEAT };
   if (flags & 8) {

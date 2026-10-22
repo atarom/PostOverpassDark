@@ -1,3 +1,4 @@
+import { PUBLIC_SERVERS, DEFAULT_ENDPOINT } from "./servers.js";
 export const storage = {
   getItem(key) {
     try {
@@ -19,6 +20,14 @@ export const storage = {
 };
 const endpoint = document.getElementById("endpoint");
 if (endpoint) {
+  endpoint.replaceChildren(...PUBLIC_SERVERS.map((server) => {
+    const option = document.createElement("option");
+    option.textContent = server.label;
+    option.value = server.url;
+    option.dataset.engine = server.engine;
+    option.selected = server.url === DEFAULT_ENDPOINT;
+    return option;
+  }));
   const customKey = "postoverpassdark:custom-endpoint";
   const selectedKey = "postoverpassdark:endpoint";
   const emptyEndpoint = "custom://sin-configurar";
