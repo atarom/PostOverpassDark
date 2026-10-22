@@ -49,7 +49,7 @@ const encodeData = (state) => {
   const zoom = Math.round(Number(state.zoom) * 1000);
   if (!Number.isInteger(lon) || Math.abs(lon) > 180000000 || !Number.isInteger(lat) || Math.abs(lat) > 90000000 || !Number.isInteger(zoom) || zoom < 0 || zoom > 19000) throw Error("Centro o zoom del mapa no válido");
   if (typeof state.query !== "string" || !state.query.trim()) throw Error("Escribe una consulta antes de compartir");
-  const endpoint = state.endpoint || DEFAULT_ENDPOINT;
+  const endpoint = ENDPOINTS.includes(state.endpoint) ? state.endpoint : DEFAULT_ENDPOINT;
   const endpointIndex = ENDPOINTS.indexOf(endpoint);
   let mask = 0;
   const heatValues = HEAT_FIELDS.map(([key, scale], index) => {
