@@ -153,6 +153,69 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   zoomAll.setAttribute("aria-label", "Mostrar todas las entidades cargadas");
   zoomAll.addEventListener("click", () => fit(rendered));
   map.getTargetElement().querySelector(".ol-zoom")?.append(zoomAll);
+  const measureSource = new Vector({ wrapX: false });
+  const measureStyle = { "stroke-color": "#a0d2ae", "stroke-width": 3, "circle-radius": 5, "circle-fill-color": "#a0d2ae", "circle-stroke-color": "#0a1511", "circle-stroke-width": 2 };
+  map.addLayer(new ol.layer.Vector({ source: measureSource, style: measureStyle }));
+  const measureDraw = new ol.interaction.Draw({ source: measureSource, type: "LineString", style: measureStyle, stopClick: true });
+  measureDraw.setActive(false);
+  map.addInteraction(measureDraw);
+  const measureButton = document.createElement("button");
+  measureButton.type = "button";
+  measureButton.textContent = "📏";
+  measureButton.title = "Medir distancias: clic para añadir puntos y doble clic para terminar";
+  measureButton.setAttribute("aria-label", "Medir distancias");
+  measureButton.setAttribute("aria-pressed", "false");
+  map.getTargetElement().querySelector(".ol-zoom")?.append(measureButton);
+  let measuring = false;
+  let measureGeometry = null;
+  let measureTooltip = null;
+  const measureFormat = (geometry) => {
+    const meters = ol.sphere.getLength(geometry, { projection: map.getView().getProjection() });
+    return meters >= 1000 ? `${(meters / 1000).toLocaleString("es-ES", { maximumFractionDigits: 2 })} km` : `${meters.toLocaleString("es-ES", { maximumFractionDigits: 1 })} m`;
+  };
+  const updateMeasure = (event) => {
+    const geometry = event.target;
+    if (!measureTooltip) return;
+    measureTooltip.getElement().textContent = measureFormat(geometry);
+    measureTooltip.setPosition(geometry.getLastCoordinate());
+  };
+  measureDraw.on("drawstart", ({ feature }) => {
+    measureSource.clear();
+    if (measureTooltip) map.removeOverlay(measureTooltip);
+    const label = document.createElement("div");
+    Object.assign(label.style, { padding: "5px 8px", background: "#13221b", border: "1px solid #47634f", borderRadius: "5px", color: "#e1eae2", font: "700 12px system-ui", whiteSpace: "nowrap", pointerEvents: "none", boxShadow: "0 3px 12px #0008" });
+    measureTooltip = new Overlay({ element: label, offset: [0, -12], positioning: "bottom-center", stopEvent: false, insertFirst: false });
+    map.addOverlay(measureTooltip);
+    measureGeometry = feature.getGeometry();
+    measureGeometry.on("change", updateMeasure);
+    updateMeasure({ target: measureGeometry });
+  });
+  measureDraw.on("drawend", ({ feature }) => {
+    measureGeometry?.un("change", updateMeasure);
+    measureGeometry = null;
+    if (measureTooltip) {
+      updateMeasure({ target: feature.getGeometry() });
+      measureTooltip.getElement().style.background = "#203127";
+    }
+  });
+  const setMeasuring = (active) => {
+    measuring = active;
+    measureDraw.setActive(active);
+    measureButton.setAttribute("aria-pressed", String(active));
+    measureButton.style.background = active ? "#304e38" : "";
+    measureButton.style.color = active ? "#a0d2ae" : "";
+    map.getTargetElement().style.cursor = active ? "crosshair" : "";
+    if (active) closePopup();
+    else {
+      measureDraw.abortDrawing();
+      measureGeometry?.un("change", updateMeasure);
+      measureGeometry = null;
+      measureSource.clear();
+      if (measureTooltip) map.removeOverlay(measureTooltip);
+      measureTooltip = null;
+    }
+  };
+  measureButton.addEventListener("click", () => setMeasuring(!measuring));
   const draw = (collection, { fitBounds = true, filters = options } = {}) => {
     closePopup();
     geo = collection;
@@ -235,7 +298,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   palette.onchange = () => { heat.palette = COLORS[palette.value] ? palette.value : "default"; heatSave(); heatPaint(); };
   reset.onclick = () => { heat = { ...HEAT_DEFAULT }; heatSave(); heatUI(); heatPaint(); };
   map.on("singleclick", (event) => {
-    if (renderMode.value === "heat") return;
+    if (measuring || renderMode.value === "heat") return;
     const selected = map.forEachFeatureAtPixel(event.pixel, (feature, layer) => layer === vectorLayer ? feature : null, { hitTolerance: 3 });
     const index = selected?.get("podIndex");
     if (index == null || !geo?.features[index]) { closePopup(); return; }
@@ -249,7 +312,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     popup.setPosition(event.coordinate);
   });
   map.on("pointermove", (event) => {
-    if (event.dragging || renderMode.value === "heat") return;
+    if (event.dragging || measuring || renderMode.value === "heat") return;
     map.getTargetElement().style.cursor = map.hasFeatureAtPixel(event.pixel, { layerFilter: (layer) => layer === vectorLayer }) ? "pointer" : "";
   });
   const clear = () => { closePopup(); geo = null; rendered = []; heatReady = false; heatShared = false; lastPrepared = ""; vectorSource.clear(true); heatSource.clear(true); heatLayer.setSource(heatSource); };
