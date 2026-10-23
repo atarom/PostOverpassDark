@@ -52,6 +52,44 @@ const RED = ["case", ["all", ["==", ["var", "numericEnabled"], 1], BAD], 239, ["
 const GREEN = ["case", ["all", ["==", ["var", "numericEnabled"], 1], BAD], 132, ["get", "podG"]];
 const BLUE = ["case", ["all", ["==", ["var", "numericEnabled"], 1], BAD], 145, ["get", "podB"]];
 const styleColor = (alpha) => ["color", RED, GREEN, BLUE, alpha];
+const geometryInsideArea = (geometry, area) => {
+  const bounds = geometry.getExtent();
+  const limit = area.getExtent();
+  if (bounds[0] < limit[0] || bounds[1] < limit[1] || bounds[2] > limit[2] || bounds[3] > limit[3]) return false;
+  const ring = area.getCoordinates()[0];
+  const inside = (point) => area.intersectsCoordinate(point);
+  const segment = (a, b) => {
+    if (!inside(a) || !inside(b)) return false;
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const cuts = [0, 1];
+    for (let i = 1; i < ring.length; i++) {
+      const c = ring[i - 1], d = ring[i];
+      const ex = d[0] - c[0], ey = d[1] - c[1];
+      const det = dx * ey - dy * ex;
+      if (Math.abs(det) < 1e-12) continue;
+      const qx = c[0] - a[0], qy = c[1] - a[1];
+      const t = (qx * ey - qy * ex) / det;
+      const u = (qx * dy - qy * dx) / det;
+      if (t > 0 && t < 1 && u >= 0 && u <= 1) cuts.push(t);
+    }
+    cuts.sort((a, b) => a - b);
+    for (let i = 1; i < cuts.length; i++) {
+      if (cuts[i] - cuts[i - 1] < 1e-12) continue;
+      const t = (cuts[i] + cuts[i - 1]) / 2;
+      if (!inside([a[0] + t * dx, a[1] + t * dy])) return false;
+    }
+    return true;
+  };
+  const path = (points) => points.length > 0 && points.every((point, index) => inside(point) && (index === 0 || segment(points[index - 1], point)));
+  const type = geometry.getType();
+  if (type === "Point") return inside(geometry.getCoordinates());
+  if (type === "MultiPoint") return geometry.getCoordinates().length > 0 && geometry.getCoordinates().every(inside);
+  if (type === "LineString") return path(geometry.getCoordinates());
+  if (type === "MultiLineString" || type === "Polygon") return geometry.getCoordinates().length > 0 && geometry.getCoordinates().every(path);
+  if (type === "MultiPolygon") return geometry.getCoordinates().length > 0 && geometry.getCoordinates().every((polygon) => polygon.every(path));
+  if (type === "GeometryCollection") return geometry.getGeometries().length > 0 && geometry.getGeometries().every((part) => geometryInsideArea(part, area));
+  return false;
+};
 export const createMapController = ({ ol, storage, heatStoreKey, renderMode, heatElements }) => {
   const { config, radius, intensity, opacity, weight, palette, radiusValue, intensityValue, opacityValue, weightValue, reset } = heatElements;
   const { Map: OlMap, View, Feature, Overlay, format: { GeoJSON }, geom: { Point }, layer: { Tile, WebGLVector, Heatmap }, source: { OSM, Vector }, proj: { fromLonLat } } = ol;
@@ -215,7 +253,42 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
       measureTooltip = null;
     }
   };
-  measureButton.addEventListener("click", () => setMeasuring(!measuring));
+  measureButton.addEventListener("click", () => { if (!measuring && areaDrawing) setAreaDrawing(false); setMeasuring(!measuring); });
+  const areaSource = new Vector({ wrapX: false });
+  const areaStyle = { "stroke-color": "#f4db9b", "stroke-width": 2, "fill-color": "rgba(244,219,155,0.13)", "circle-radius": 5, "circle-fill-color": "#f4db9b", "circle-stroke-color": "#0a1511", "circle-stroke-width": 2 };
+  map.addLayer(new ol.layer.Vector({ source: areaSource, style: areaStyle }));
+  const areaDraw = new ol.interaction.Draw({ source: areaSource, type: "Polygon", style: areaStyle, stopClick: true });
+  areaDraw.setActive(false);
+  map.addInteraction(areaDraw);
+  const areaButton = document.createElement("button");
+  areaButton.type = "button";
+  areaButton.textContent = "⬡";
+  map.getTargetElement().querySelector(".ol-zoom")?.append(areaButton);
+  let areaGeometry = null;
+  let areaDrawing = false;
+  const areaControls = () => {
+    const selected = areaDrawing || Boolean(areaGeometry);
+    areaButton.setAttribute("aria-pressed", String(selected));
+    areaButton.setAttribute("aria-label", areaDrawing ? "Cancelar dibujo del área JOSM" : areaGeometry ? "Borrar área JOSM" : "Dibujar área para JOSM");
+    areaButton.title = areaDrawing ? "Cancelar dibujo" : areaGeometry ? "Borrar área JOSM" : "Área JOSM: clics para dibujar, doble clic para terminar";
+    areaButton.style.background = selected ? "#64532e" : "";
+    areaButton.style.color = selected ? "#f4db9b" : "";
+  };
+  const setAreaDrawing = (active) => {
+    areaDrawing = active;
+    areaDraw.setActive(active);
+    if (!active) areaDraw.abortDrawing();
+    if (active) { closePopup(); if (measuring) setMeasuring(false); }
+    map.getTargetElement().style.cursor = active ? "crosshair" : "";
+    areaControls();
+  };
+  areaDraw.on("drawstart", () => { areaSource.clear(); areaGeometry = null; });
+  areaDraw.on("drawend", ({ feature }) => { areaGeometry = feature.getGeometry(); queueMicrotask(() => setAreaDrawing(false)); });
+  areaButton.addEventListener("click", () => {
+    if (areaGeometry) { areaSource.clear(); areaGeometry = null; setAreaDrawing(false); }
+    else setAreaDrawing(!areaDrawing);
+  });
+  areaControls();
   const draw = (collection, { fitBounds = true, filters = options } = {}) => {
     closePopup();
     geo = collection;
@@ -298,7 +371,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   palette.onchange = () => { heat.palette = COLORS[palette.value] ? palette.value : "default"; heatSave(); heatPaint(); };
   reset.onclick = () => { heat = { ...HEAT_DEFAULT }; heatSave(); heatUI(); heatPaint(); };
   map.on("singleclick", (event) => {
-    if (measuring || renderMode.value === "heat") return;
+    if (measuring || areaDrawing || renderMode.value === "heat") return;
     const selected = map.forEachFeatureAtPixel(event.pixel, (feature, layer) => layer === vectorLayer ? feature : null, { hitTolerance: 3 });
     const index = selected?.get("podIndex");
     if (index == null || !geo?.features[index]) { closePopup(); return; }
@@ -312,21 +385,23 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     popup.setPosition(event.coordinate);
   });
   map.on("pointermove", (event) => {
-    if (event.dragging || measuring || renderMode.value === "heat") return;
+    if (event.dragging || measuring || areaDrawing || renderMode.value === "heat") return;
     map.getTargetElement().style.cursor = map.hasFeatureAtPixel(event.pixel, { layerFilter: (layer) => layer === vectorLayer }) ? "pointer" : "";
   });
   const getVisibleOsm = () => {
     if (!geo) return null;
+    if (areaDrawing) return [];
     const valueHidden = options.selectedValue !== null && options.selectedValue !== undefined && options.hideOtherValues;
     const regexHidden = options.regexEnabled && options.regexOnly && !valueHidden && (options.selectedValue === null || options.selectedValue === undefined);
     const numericHidden = Boolean(options.numericEnabled && options.numericKey && !options.numericShowErrors);
-    if (!(options.onlySelectedKey && options.selectedKey) && !valueHidden && !regexHidden && !numericHidden) return null;
+    if (!areaGeometry && !(options.onlySelectedKey && options.selectedKey) && !valueHidden && !regexHidden && !numericHidden) return null;
     const min = Number(options.numericMin) || 0;
     const max = Number(options.numericMax) || 0;
     const result = [];
     for (const feature of rendered) {
       if (feature.get("podKeep") !== 1) continue;
       if (numericHidden && (feature.get("podValid") !== 1 || feature.get("podValue") < min || feature.get("podValue") > max)) continue;
+      if (areaGeometry && !geometryInsideArea(feature.getGeometry(), areaGeometry)) continue;
       result.push(oid(geo.features[feature.get("podIndex")]));
     }
     return result;
