@@ -199,10 +199,11 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   map.addInteraction(measureDraw);
   const measureButton = document.createElement("button");
   measureButton.type = "button";
-  measureButton.textContent = "📏";
+  measureButton.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17 17 4l3 3L7 20 4 17Z M10 11l3 3 M13 8l2 2 M7 14l2 2"/></svg>';
   measureButton.title = "Medir distancias: clic para añadir puntos y doble clic para terminar";
   measureButton.setAttribute("aria-label", "Medir distancias");
   measureButton.setAttribute("aria-pressed", "false");
+  Object.assign(measureButton.style, { display: "grid", placeItems: "center", padding: "0" });
   map.getTargetElement().querySelector(".ol-zoom")?.append(measureButton);
   let measuring = false;
   let measureGeometry = null;
