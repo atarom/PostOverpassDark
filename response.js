@@ -52,7 +52,13 @@ export const responseError = (text, contentType, status, statusText) => {
   return !bad && !messages.length ? null : { status, title: messages[0] || cleanText(statusText) || `Error HTTP ${status}`, detail: messages.slice(1).join("\n"), raw };
 };
 export const errorStatusHtml = (value, fallback) => ["<strong>Error de consulta</strong>", value?.status >= 400 ? `<strong>HTTP ${esc(value.status)}</strong>` : "", `<strong>${esc(value?.title || fallback || "Error")}</strong>`, value?.detail ? esc(value.detail).replace(/\n/g, "<br>") : ""].filter(Boolean).join("<br>");
-const outputFormat = (query) => query.match(/\[\s*out\s*:\s*(xml|json|csv|custom|popup)\b/i)?.[1]?.toLowerCase() || "xml";
+const outputFormat = (query) => {
+  const source = String(query ?? "").replace(/^(?:\s|\/\/[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)*/, "");
+  const header = source.match(/^((?:\[(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\]"'])*\]\s*)+);/);
+  const directives = header?.[1].match(/\[(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\]"'])*\]/g) || [];
+  const format = directives.map((directive) => directive.match(/^\[\s*out\s*:\s*(xml|json|csv|custom|popup)\b/i)?.[1]).find(Boolean);
+  return format?.toLowerCase() || "xml";
+};
 export const parseResponse = (text, contentType, engine, query, postpassTextOnly = false) => {
   const postpass = engine === "postpass";
   const format = postpass ? "json" : outputFormat(query);
