@@ -315,8 +315,24 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     if (event.dragging || measuring || renderMode.value === "heat") return;
     map.getTargetElement().style.cursor = map.hasFeatureAtPixel(event.pixel, { layerFilter: (layer) => layer === vectorLayer }) ? "pointer" : "";
   });
+  const getVisibleOsm = () => {
+    if (!geo) return null;
+    const valueHidden = options.selectedValue !== null && options.selectedValue !== undefined && options.hideOtherValues;
+    const regexHidden = options.regexEnabled && options.regexOnly && !valueHidden && (options.selectedValue === null || options.selectedValue === undefined);
+    const numericHidden = Boolean(options.numericEnabled && options.numericKey && !options.numericShowErrors);
+    if (!(options.onlySelectedKey && options.selectedKey) && !valueHidden && !regexHidden && !numericHidden) return null;
+    const min = Number(options.numericMin) || 0;
+    const max = Number(options.numericMax) || 0;
+    const result = [];
+    for (const feature of rendered) {
+      if (feature.get("podKeep") !== 1) continue;
+      if (numericHidden && (feature.get("podValid") !== 1 || feature.get("podValue") < min || feature.get("podValue") > max)) continue;
+      result.push(oid(geo.features[feature.get("podIndex")]));
+    }
+    return result;
+  };
   const clear = () => { closePopup(); geo = null; rendered = []; heatReady = false; heatShared = false; lastPrepared = ""; vectorSource.clear(true); heatSource.clear(true); heatLayer.setSource(heatSource); };
   heatUI();
   render();
-  return { map, draw, clear, render, heatUI, getHeat, setHeat, hasGeo: () => Boolean(geo), applyFilters };
+  return { map, draw, clear, render, heatUI, getHeat, setHeat, hasGeo: () => Boolean(geo), applyFilters, getVisibleOsm };
 };

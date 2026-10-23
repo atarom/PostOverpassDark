@@ -57,7 +57,7 @@ export const josmBatches = (ids, maxLength = URL_LIMIT) => {
   if (batch.length) batches.push(batch);
   return batches;
 };
-export const createJosmExporter = ({ container, sendButton, message }) => {
+export const createJosmExporter = ({ container, sendButton, message, getVisibleOsm }) => {
   let ids = [];
   let active = null;
   let revision = 0;
@@ -100,6 +100,18 @@ export const createJosmExporter = ({ container, sendButton, message }) => {
   };
   const send = async () => {
     if (working || !ids.length) return;
+    let target = ids;
+    try {
+      const visible = getVisibleOsm?.();
+      if (visible !== null && visible !== undefined) target = identifiers(visible).ids;
+    } catch (error) {
+      notify(`No se pudieron obtener los elementos visibles: ${error?.message || String(error)}`, true);
+      return;
+    }
+    if (!target.length) {
+      notify("No hay elementos visibles con identificador OSM válido para enviar a JOSM.", true);
+      return;
+    }
     working = true;
     sync();
     const current = revision;
@@ -110,13 +122,13 @@ export const createJosmExporter = ({ container, sendButton, message }) => {
       const response = await checkResponse(await fetch(new URL("version", JOSM), { signal, cache: "no-store" }));
       const version = await response.json();
       if (version?.protocolversion?.major !== 1) throw Error("Versión incompatible del control remoto de JOSM");
-      const batches = josmBatches(ids);
+      const batches = josmBatches(target);
       for (let index = 0; index < batches.length; index++) {
         if (current !== revision) return;
         notify(`Enviando a JOSM ${index + 1}/${batches.length}…`);
         await checkResponse(await fetch(josmUrl(batches[index], index === 0), { signal, cache: "no-store" }));
       }
-      if (current === revision) notify(`${ids.length} ${ids.length === 1 ? "objeto solicitado" : "objetos solicitados"} a JOSM. JOSM los descargará desde la API OSM.`);
+      if (current === revision) notify(`${target.length} ${target.length === 1 ? "objeto solicitado" : "objetos solicitados"} a JOSM. JOSM los descargará desde la API OSM.`);
     } catch (error) {
       if (current === revision && error?.name !== "AbortError") {
         const advice = error instanceof TypeError ? " Comprueba que JOSM está abierto, Control remoto activado y el navegador permite conexiones locales." : "";
