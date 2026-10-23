@@ -39,7 +39,35 @@ export const analyzeCollection = (collection) => {
   const numericKeys = [...numeric].sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0], "es")).map(([key, stat]) => [key, stat.min, stat.max, stat.count]);
   return { keys, numericKeys };
 };
-const compilePatterns = (raw, insensitive) => raw.split(",").map((value) => value.trim()).filter(Boolean).flatMap((source) => {
+export const splitRegexPatterns = (raw) => {
+  const result = [];
+  let value = "";
+  let square = false;
+  let braces = 0;
+  let groups = 0;
+  let escaped = false;
+  for (const char of raw) {
+    if (escaped) { value += char; escaped = false; continue; }
+    if (char === "\\") { value += char; escaped = true; continue; }
+    if (char === "[" && !square) square = true;
+    else if (char === "]" && square) square = false;
+    else if (!square) {
+      if (char === "{") braces++;
+      else if (char === "}" && braces) braces--;
+      else if (char === "(") groups++;
+      else if (char === ")" && groups) groups--;
+    }
+    if (char === "," && !square && !braces && !groups) {
+      if (value.trim()) result.push(value.trim());
+      value = "";
+      continue;
+    }
+    value += char;
+  }
+  if (value.trim()) result.push(value.trim());
+  return result;
+};
+const compilePatterns = (raw, insensitive) => splitRegexPatterns(raw).flatMap((source) => {
   try {
     return [{ source, regex: new RegExp(source, insensitive ? "i" : "") }];
   } catch {
@@ -142,7 +170,12 @@ export const createAnalysis = ({ elements, onChange }) => {
     const min = item?.[1] ?? 0;
     const max = item?.[2] ?? 1000;
     const spread = Math.max(Math.abs(max - min), 0.01);
-    const step = spread <= 1 ? 0.001 : spread <= 10 ? 0.01 : spread <= 100 ? 0.1 : 1;
+    const baseStep = spread <= 1 ? 0.001 : spread <= 10 ? 0.01 : spread <= 100 ? 0.1 : 1;
+    const decimals = (value) => {
+      const [number, exponent] = String(value).toLowerCase().split("e");
+      return Math.max(0, (number.split(".")[1]?.length || 0) - (Number(exponent) || 0));
+    };
+    const step = Math.min(baseStep, 10 ** -Math.min(15, Math.max(decimals(min), decimals(max))));
     for (const input of [numericMin, numericMax]) {
       input.min = String(min);
       input.max = String(max);

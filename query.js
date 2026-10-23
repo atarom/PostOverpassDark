@@ -81,7 +81,7 @@ export const createQueryPreparer = ({ map, storage, areaStoreKey, log }) => {
   };
   const prepOverpass = async (input, signal) => {
     const vars = new Map();
-    let text = input.replace(/\{\{\s*([A-Za-z_][\w-]*)\s*=\s*([^{}]+?)\s*\}\}/g, (_, key, value) => (vars.set(key, value.trim()), "")).replace(/\{\{style:[\s\S]*?\}\}/gi, "").replace(/\{\{date:([^}]+)\}\}/gi, (_, spec) => turboDate(spec)).replace(/\{\{\s*([A-Za-z_][\w-]*)\s*\}\}/g, (match, key) => vars.has(key) ? vars.get(key) : match);
+    let text = stripComments(input).replace(/\{\{\s*([A-Za-z_][\w-]*)\s*=\s*([^{}]+?)\s*\}\}/g, (_, key, value) => (vars.set(key, value.trim()), "")).replace(/\{\{style:[\s\S]*?\}\}/gi, "").replace(/\{\{date:([^}]+)\}\}/gi, (_, spec) => turboDate(spec)).replace(/\{\{\s*([A-Za-z_][\w-]*)\s*\}\}/g, (match, key) => vars.has(key) ? vars.get(key) : match);
     const bounds = mapBounds();
     const center = window.ol.proj.toLonLat(map.getView().getCenter());
     text = text.replaceAll("{{bbox}}", [bounds.south, bounds.west, bounds.north, bounds.east].join(",")).replaceAll("{{center}}", `${center[1]},${center[0]}`).replaceAll("{{zoom}}", String(map.getView().getZoom()));

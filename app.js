@@ -584,7 +584,7 @@ const initializeApp = (deps) => {
       else ui.overlayClose();
       return;
     }
-    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !document.querySelector("dialog[open]")) {
       event.preventDefault();
       event.stopPropagation();
       run();

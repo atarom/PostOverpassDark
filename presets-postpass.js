@@ -98,7 +98,9 @@ SELECT
     'angle_deg', round(p.angle::numeric, 1),
     'tag', prms.tag_key || COALESCE('=' || prms.tag_value, '')
   ) AS tags,
-  p.geom
+  p.geom,
+  l.osm_type,
+  l.osm_id
 FROM postpass_line l,
 params prms,
 LATERAL (
@@ -110,10 +112,9 @@ LATERAL (
     degrees(abs(st_angle(dp.prev, dp.geom, dp.nxt))) AS angle
   FROM (
     SELECT
-      (dp).path[1] AS i,
-      lag((dp).geom) OVER () AS prev,
+      lag((dp).geom) OVER (PARTITION BY CASE WHEN array_length((dp).path, 1) = 1 THEN 0 ELSE (dp).path[1] END ORDER BY (dp).path) AS prev,
       (dp).geom AS geom,
-      lead((dp).geom) OVER () AS nxt
+      lead((dp).geom) OVER (PARTITION BY CASE WHEN array_length((dp).path, 1) = 1 THEN 0 ELSE (dp).path[1] END ORDER BY (dp).path) AS nxt
     FROM (
       SELECT st_dumppoints(l.geom) AS dp
     ) AS pts

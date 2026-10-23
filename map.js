@@ -1,5 +1,5 @@
 import { esc, val } from "./utils.js";
-import { featureTags, matchesTagValue } from "./analysis.js";
+import { featureTags, matchesTagValue, splitRegexPatterns } from "./analysis.js";
 const TYPES = { N: "node", W: "way", R: "relation", node: "node", way: "way", relation: "relation" };
 const COLORS = { default: ["#355f8d", "#3f8f9c", "#79b88d", "#d6b56d", "#e58b68", "#ef5d72"], warm: ["#72543b", "#a26c43", "#d1924f", "#e6b95f", "#ef8262", "#ef4e5d"], cool: ["#324a7a", "#326b98", "#3f98a7", "#63b7a8", "#88d0b4", "#d3f0c0"], fire: ["#3a173d", "#7d2450", "#bd3a45", "#e96d3e", "#f5b747", "#fff2a1"] };
 const HEAT_DEFAULT = { intensity: 1, radius: 1, opacity: 0.88, weight: 1, palette: "default" };
@@ -12,7 +12,7 @@ const hexRgb = (value) => {
   const match = /^#([\da-f]{6})$/i.exec(value || "");
   return match ? [0, 2, 4].map((i) => parseInt(match[1].slice(i, i + 2), 16)) : [141, 182, 232];
 };
-const compilePatterns = (raw, insensitive) => raw.split(",").map((v) => v.trim()).filter(Boolean).flatMap((value) => {
+const compilePatterns = (raw, insensitive) => splitRegexPatterns(raw).flatMap((value) => {
   try { return [{ value, regex: new RegExp(value, insensitive ? "i" : "") }]; } catch { return []; }
 });
 const entries = (obj) => obj && typeof obj === "object" && !Array.isArray(obj) ? Object.entries(obj).filter(([, value]) => value != null) : [];
