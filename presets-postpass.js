@@ -1,8 +1,8 @@
 export const POSTPASS_PRESETS = [
   {
     title: "Elementos con automatic en el mapa",
-    description: "Busca nodos, vías y relaciones con la etiqueta automatic dentro del área visible del mapa.",
-    query: `SELECT osm_id, osm_type, tags, geom
+    description: "Busca nodos, vías y relaciones con la etiqueta automatic dentro del área visible del mapa y dibuja sus POS.",
+    query: `SELECT osm_id, osm_type, tags, ST_PointOnSurface(geom) AS geom
 FROM postpass_pointlinepolygon
 WHERE tags ? 'automatic'
 AND geom && {{bbox}}`
