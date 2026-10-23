@@ -166,7 +166,9 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
     { tag: t.invalid, color: "#ffb6aa", textDecoration: "underline" }
   ]);
   const sqlTheme = EditorView.theme({
-    "&": { backgroundColor: "#0e1713", color: "#d7e6d9", fontSize: "14px" },
+    "&": { backgroundColor: "#0e1713", color: "#d7e6d9", fontSize: "14px", position: "relative" },
+    "&.cm-focused": { outline: "none" },
+    "&.cm-focused::after": { content: '""', position: "absolute", inset: "0", border: "1px solid #6d9d78", pointerEvents: "none", zIndex: "5" },
     ".cm-content": { padding: "7px 0", lineHeight: "1.55", caretColor: "#f1fff3" },
     ".cm-line": { padding: "0 8px" },
     ".cm-gutters": { backgroundColor: "#0b1410", color: "#849c88", borderRight: "1px solid #2b4436" },
