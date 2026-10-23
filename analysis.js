@@ -39,67 +39,7 @@ export const analyzeCollection = (collection) => {
   const numericKeys = [...numeric].sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0], "es")).map(([key, stat]) => [key, stat.min, stat.max, stat.count]);
   return { keys, numericKeys };
 };
-export const splitRegexPatterns = (raw) => {
-  const result = [];
-  let value = "";
-  let square = false;
-  let braces = 0;
-  let groups = 0;
-  let literalBraces = 0;
-  let literalGroups = 0;
-  let literalSquare = 0;
-  const literalPairs = new Set();
-  const literalOpen = { "{": [], "(": [], "[": [] };
-  const literalClose = { "}": "{", ")": "(", "]": "[" };
-  let insideClass = false;
-  for (let index = 0; index < raw.length; index++) {
-    if (raw[index] === "\\" && index + 1 < raw.length) {
-      index++;
-      if (insideClass) continue;
-      const char = raw[index];
-      if (literalOpen[char]) literalOpen[char].push(index);
-      else if (literalClose[char] && literalOpen[literalClose[char]].length) {
-        literalPairs.add(literalOpen[literalClose[char]].pop());
-        literalPairs.add(index);
-      }
-    } else if (raw[index] === "[" && !insideClass) insideClass = true;
-    else if (raw[index] === "]" && insideClass) insideClass = false;
-  }
-  let escaped = false;
-  for (let index = 0; index < raw.length; index++) {
-    const char = raw[index];
-    if (escaped) {
-      if (!square && literalPairs.has(index)) {
-        if (char === "{") literalBraces++;
-        else if (char === "}" && literalBraces) literalBraces--;
-        else if (char === "(") literalGroups++;
-        else if (char === ")" && literalGroups) literalGroups--;
-        else if (char === "[") literalSquare++;
-        else if (char === "]" && literalSquare) literalSquare--;
-      }
-      value += char;
-      escaped = false;
-      continue;
-    }
-    if (char === "\\") { value += char; escaped = true; continue; }
-    if (char === "[" && !square) square = true;
-    else if (char === "]" && square) square = false;
-    else if (!square) {
-      if (char === "{") braces++;
-      else if (char === "}" && braces) braces--;
-      else if (char === "(") groups++;
-      else if (char === ")" && groups) groups--;
-    }
-    if (char === "," && !square && !braces && !groups && !literalBraces && !literalGroups && !literalSquare) {
-      if (value.trim()) result.push(value.trim());
-      value = "";
-      continue;
-    }
-    value += char;
-  }
-  if (value.trim()) result.push(value.trim());
-  return result;
-};
+export const splitRegexPatterns = (raw) => String(raw).split(/\r\n?|\n/).map((value) => value.trim()).filter(Boolean);
 const compilePatterns = (raw, insensitive) => splitRegexPatterns(raw).flatMap((source) => {
   try {
     return [{ source, regex: new RegExp(source, insensitive ? "i" : "") }];
@@ -108,7 +48,15 @@ const compilePatterns = (raw, insensitive) => splitRegexPatterns(raw).flatMap((s
   }
 });
 export const createAnalysis = ({ elements, onChange }) => {
-  const { key, onlyKey, countMode, values, valueTools, valueSelectedColor, valueOtherColor, valueHideOthers, summary, numericEnable, numericKey, numericErrors, numericMin, numericMax, numericMinValue, numericMaxValue, regexEnable, regexText, regexInsensitive, regexOnly, regexColors, reset } = elements;
+  const { key, onlyKey, countMode, values, valueTools, valueSelectedColor, valueOtherColor, valueHideOthers, summary, numericEnable, numericKey, numericErrors, numericMin, numericMax, numericMinValue, numericMaxValue, regexEnable, regexText: regexInput, regexInsensitive, regexOnly, regexColors, reset } = elements;
+  const regexText = document.createElement("textarea");
+  regexText.id = regexInput.id;
+  regexText.rows = 3;
+  regexText.placeholder = "^Pantà\n^Embassament";
+  regexText.setAttribute("aria-label", "Una expresión regular por línea");
+  regexText.style.cssText = "display:block;width:100%;min-height:72px;max-height:180px;padding:9px 10px;resize:vertical;overflow:auto;border:1px solid var(--b);border-radius:var(--r);background:var(--p2);color:var(--t);font:12px/1.4 var(--mono)";
+  regexInput.previousElementSibling.textContent = "Una regex por línea";
+  regexInput.replaceWith(regexText);
   const valuesLabel = values.previousElementSibling;
   valuesLabel.textContent = "Valores únicos";
   valuesLabel.classList.add("analysis-box");
