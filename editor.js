@@ -171,6 +171,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
     ".cm-line": { padding: "0 8px" },
     ".cm-gutters": { backgroundColor: "#0b1410", color: "#849c88", borderRight: "1px solid #2b4436" },
     ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "#193023" },
+    "&:has(.cm-selectionLayer .cm-selectionBackground) .cm-activeLine": { backgroundColor: "transparent" },
     ".cm-matchingBracket": { backgroundColor: "#35664b", color: "#e7f8e5", outline: "1px solid #639e7b" },
     ".cm-cursor": { borderLeftColor: "#f1fff3" },
     ".cm-selectionBackground": { backgroundColor: "#244e65" },
