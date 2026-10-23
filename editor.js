@@ -173,8 +173,9 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
     ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "#193023" },
     ".cm-matchingBracket": { backgroundColor: "#35664b", color: "#e7f8e5", outline: "1px solid #639e7b" },
     ".cm-cursor": { borderLeftColor: "#f1fff3" },
-    ".cm-selectionBackground": { backgroundColor: "#315440" },
-    "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": { backgroundColor: "#446b50" }
+    ".cm-selectionBackground": { backgroundColor: "#244e65" },
+    "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": { backgroundColor: "#326f91" },
+    ".cm-content ::selection": { backgroundColor: "transparent", color: "#ffffff" }
   }, { dark: true });
   const queryFilter = [
     ...words(
