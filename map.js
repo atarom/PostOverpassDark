@@ -50,7 +50,7 @@ const popupHtml = (feature) => {
   const shortId = short + id;
   const body = section("Tags OSM", "tag", entries(tags)) + section("Relaciones", "rel", relations) + section("Metadatos", "meta", meta);
   const links = osm ? [["osm", "Ver en OSM", osm], ["id", "Editar con iD", `https://www.openstreetmap.org/edit?editor=id&${type}=${id}`], ["rapid", "Editar con Rapid", `https://rapideditor.org/edit#id=${shortId}`], ["level0", "Editar con Level0", `https://level0.osmz.ru/?url=${encodeURIComponent(osm)}`], ["josm", "Editar con JOSM", `http://127.0.0.1:8111/load_object?objects=${shortId}`]] : [];
-  const actions = links.map(([icon, title, url]) => `<button type="button" class="pop-action" style="width:40px;height:38px;flex:0 0 40px" data-url="${esc(url)}" title="${esc(title)}" aria-label="${esc(title)}">${POPUP_ICONS[icon]}</button>`).join("");
+  const actions = links.map(([icon, title, url]) => `<button type="button" class="pop-action" style="width:auto;height:38px;flex:1 1 0;min-width:0" data-url="${esc(url)}" title="${esc(title)}" aria-label="${esc(title)}">${POPUP_ICONS[icon]}</button>`).join("");
   return `<div class="pp"><div class="ph"><div class="pt">${esc(name)}</div></div><div class="tags">${body || '<div class="tr"><div class="tk">info</div><div class="tv">Sin información visible</div></div>'}</div>${actions ? `<div class="acts">${actions}</div>` : ""}</div>`;
 };
 const PASS = ["all", ["==", ["get", "podValid"], 1], ["between", ["get", "podValue"], ["var", "minEle"], ["var", "maxEle"]]];
