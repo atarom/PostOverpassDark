@@ -49,14 +49,42 @@ const compilePatterns = (raw, insensitive) => splitRegexPatterns(raw).flatMap((s
 });
 export const createAnalysis = ({ elements, onChange }) => {
   const { key, onlyKey, countMode, values, valueTools, valueSelectedColor, valueOtherColor, valueHideOthers, summary, numericEnable, numericKey, numericErrors, numericMin, numericMax, numericMinValue, numericMaxValue, regexEnable, regexText: regexInput, regexInsensitive, regexOnly, regexColors, reset } = elements;
-  const regexText = document.createElement("textarea");
-  regexText.id = regexInput.id;
-  regexText.rows = 3;
-  regexText.placeholder = "^Pantà\n^Embassament";
-  regexText.setAttribute("aria-label", "Una expresión regular por línea");
-  regexText.style.cssText = "display:block;width:100%;min-height:72px;max-height:180px;padding:9px 10px;resize:vertical;overflow:auto;border:1px solid var(--b);border-radius:var(--r);background:var(--p2);color:var(--t);font:12px/1.4 var(--mono)";
-  regexInput.previousElementSibling.textContent = "Una regex por línea";
-  regexInput.replaceWith(regexText);
+  const regexText = regexInput;
+  regexText.type = "hidden";
+  const regexTitle = regexText.previousElementSibling;
+  regexTitle.textContent = "Regex y colores";
+  regexTitle.removeAttribute("for");
+  const regexHead = document.createElement("div");
+  regexHead.className = "pod-regex-head";
+  regexHead.innerHTML = "<span>Expresión regular</span><span>Color</span>";
+  regexColors.before(regexHead);
+  const regexAdd = document.createElement("button");
+  regexAdd.type = "button";
+  regexAdd.className = "pod-regex-add";
+  regexAdd.textContent = "+ Añadir regex";
+  regexColors.after(regexAdd);
+  if (!document.getElementById("pod-regex-rules-style")) {
+    const sheet = document.createElement("style");
+    sheet.id = "pod-regex-rules-style";
+    sheet.textContent = `.pod-regex-head,.pod-regex-rule{display:grid;grid-template-columns:minmax(0,1fr) 62px;gap:9px;align-items:center}
+.pod-regex-head{padding:0 9px 3px;color:var(--m);font:800 10px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.05em}
+.regex-colors{display:grid;gap:7px;margin-top:6px}
+.pod-regex-rule{min-width:0;padding:8px;border:1px solid var(--b);border-radius:6px;background:var(--p3)}
+.pod-regex-rule:focus-within{border-color:var(--b2)}
+.pod-regex-main{display:grid;grid-template-columns:minmax(0,1fr) 28px;column-gap:5px;align-items:center;min-width:0}
+.pod-regex-input{width:100%;min-width:0;height:34px;padding:6px 8px;outline:0;border:1px solid var(--b);border-radius:4px;background:var(--p2);color:var(--t);font:12px/1.3 var(--mono)}
+.pod-regex-input:focus-visible{border-color:var(--a);outline:1px solid var(--a);outline-offset:0}
+.pod-regex-input[aria-invalid=true]{border-color:var(--d)}
+.pod-regex-count{grid-column:1/-1;min-height:14px;padding-top:4px;color:var(--m);font:10px/1.3 var(--sans)}
+.pod-regex-count.is-error{color:var(--d)}
+.pod-regex-delete{display:grid;place-items:center;width:28px;height:32px;padding:0;border:0;border-radius:4px;background:transparent;color:var(--m);font:20px/1 var(--sans)}
+.pod-regex-delete:hover{background:#49302f!important;color:#ffd2c5}
+.analysis-body label.pod-regex-picker{display:flex;justify-content:center;align-items:center;min-width:0;margin:0}
+.pod-regex-picker input[type=color]{width:44px;height:35px;padding:3px;border:1px solid var(--b2);border-radius:5px;background:var(--p2);cursor:pointer}
+.pod-regex-add{width:100%;min-height:34px;margin-top:8px;padding:6px 9px;border:1px dashed var(--b2);border-radius:5px;background:#16271e;color:var(--a);font:700 11px var(--sans)}
+.pod-regex-add:hover{background:#223a2b!important;border-color:var(--a)}`;
+    document.head.append(sheet);
+  }
   const valuesLabel = values.previousElementSibling;
   valuesLabel.textContent = "Valores únicos";
   valuesLabel.classList.add("analysis-box");
@@ -67,9 +95,8 @@ export const createAnalysis = ({ elements, onChange }) => {
   let timer;
   let frame;
   const colorFor = (source, used) => {
-    if (colors[source]) return colors[source];
-    const color = PALETTE.find((item) => !used.has(item)) || PALETTE[Object.keys(colors).length % PALETTE.length];
-    colors[source] = color;
+    const color = colors[source] || PALETTE.find((item) => !used.has(item)) || PALETTE[used.size % PALETTE.length];
+    if (source) colors[source] = color;
     used.add(color);
     return color;
   };
@@ -125,26 +152,117 @@ export const createAnalysis = ({ elements, onChange }) => {
     }
     return count;
   };
+  const updateRegexCounts = () => {
+    const seen = new Set();
+    for (const row of regexColors.children) {
+      const input = row.querySelector(".pod-regex-input");
+      const label = row.querySelector(".pod-regex-count");
+      const source = input.value.trim();
+      let error = "";
+      let count = 0;
+      if (source) {
+        try {
+          const regex = new RegExp(source, regexInsensitive.checked ? "i" : "");
+          count = regexCount({ regex });
+          if (seen.has(source)) error = "Regex duplicada";
+          seen.add(source);
+        } catch { error = "Expresión no válida"; }
+      }
+      input.setAttribute("aria-invalid", String(Boolean(error)));
+      label.classList.toggle("is-error", Boolean(error));
+      label.textContent = error || (source ? `${count.toLocaleString("es-ES")} coincidencia${count === 1 ? "" : "s"}` : "Escribe una regex");
+    }
+  };
+  const syncRegexRules = () => {
+    const next = {};
+    const sources = [];
+    for (const row of regexColors.children) {
+      const source = row.querySelector(".pod-regex-input").value.trim();
+      if (!source) continue;
+      sources.push(source);
+      if (!Object.hasOwn(next, source)) next[source] = row.querySelector("input[type=color]").value;
+    }
+    colors = next;
+    regexText.value = sources.join("\n");
+  };
+  const addRegexRule = (source = "", used = new Set(Object.values(colors)), before = null) => {
+    const row = document.createElement("div");
+    row.className = "pod-regex-rule";
+    const main = document.createElement("div");
+    main.className = "pod-regex-main";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "pod-regex-input";
+    input.value = source;
+    input.placeholder = "^Carrer.*";
+    input.spellcheck = false;
+    input.setAttribute("aria-label", "Expresión regular");
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "pod-regex-delete";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", "Eliminar expresión regular");
+    const count = document.createElement("span");
+    count.className = "pod-regex-count";
+    main.append(input, remove, count);
+    const picker = document.createElement("label");
+    picker.className = "pod-regex-picker";
+    const color = document.createElement("input");
+    color.type = "color";
+    color.value = colorFor(source, used);
+    color.setAttribute("aria-label", "Color de la expresión regular");
+    picker.append(color);
+    row.append(main, picker);
+    regexColors.insertBefore(row, before);
+    input.oninput = () => { syncRegexRules(); delayedRegex(); };
+    input.onpaste = (event) => {
+      const pasted = event.clipboardData?.getData("text/plain") || "";
+      if (!/[\r\n]/.test(pasted)) return;
+      event.preventDefault();
+      const lines = splitRegexPatterns(pasted);
+      if (!lines.length) return;
+      const start = input.selectionStart ?? input.value.length;
+      const end = input.selectionEnd ?? start;
+      input.value = input.value.slice(0, start) + lines[0] + input.value.slice(end);
+      const sibling = row.nextElementSibling;
+      for (const line of lines.slice(1)) {
+        const used = new Set([...regexColors.querySelectorAll("input[type=color]")].map((item) => item.value));
+        addRegexRule(line, used, sibling);
+      }
+      syncRegexRules();
+      updateRegexCounts();
+      emit();
+    };
+    input.onkeydown = (event) => {
+      if (event.key !== "Enter" || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      event.preventDefault();
+      const added = addRegexRule("", new Set([...regexColors.querySelectorAll("input[type=color]")].map((item) => item.value)), row.nextElementSibling);
+      updateRegexCounts();
+      added.focus();
+    };
+    remove.onclick = () => {
+      const focus = row.nextElementSibling || row.previousElementSibling;
+      row.remove();
+      if (!regexColors.children.length) addRegexRule();
+      syncRegexRules();
+      updateRegexCounts();
+      emit();
+      (focus || regexColors.firstElementChild)?.querySelector(".pod-regex-input").focus();
+    };
+    color.oninput = () => {
+      const source = input.value.trim();
+      for (const other of regexColors.children) if (other !== row && other.querySelector(".pod-regex-input").value.trim() === source) other.querySelector("input[type=color]").value = color.value;
+      syncRegexRules();
+      emit();
+    };
+    return input;
+  };
   const renderRegex = () => {
-    const patterns = compilePatterns(regexText.value, regexInsensitive.checked);
+    const sources = splitRegexPatterns(regexText.value);
     const used = new Set(Object.values(colors));
     regexColors.replaceChildren();
-    for (const pattern of patterns.sort((a, b) => regexCount(b) - regexCount(a))) {
-      const item = document.createElement("label");
-      item.className = "rxchip";
-      const input = document.createElement("input");
-      input.type = "color";
-      input.value = colorFor(pattern.source, used);
-      input.setAttribute("aria-label", `Color para ${pattern.source}`);
-      input.oninput = () => {
-        colors[pattern.source] = input.value;
-        emit();
-      };
-      const text = document.createElement("span");
-      text.textContent = `${pattern.source} (${regexCount(pattern)})`;
-      item.append(input, text);
-      regexColors.append(item);
-    }
+    for (const source of sources.length ? sources : [""]) addRegexRule(source, used);
+    updateRegexCounts();
   };
   const numericRange = () => {
     const item = info.numericKeys.find(([name]) => name === numericKey.value);
@@ -187,11 +305,12 @@ export const createAnalysis = ({ elements, onChange }) => {
   const delayedRegex = () => {
     clearTimeout(timer);
     timer = setTimeout(() => {
-      renderRegex();
+      updateRegexCounts();
       emit();
     }, 250);
   };
   const resetControls = () => {
+    clearTimeout(timer);
     onlyKey.checked = false;
     selectedValue = null;
     valueSelectedColor.value = "#4abde1";
@@ -251,7 +370,11 @@ export const createAnalysis = ({ elements, onChange }) => {
     emit();
   };
   regexOnly.onchange = emit;
-  regexText.oninput = delayedRegex;
+  regexAdd.onclick = () => {
+    const used = new Set([...regexColors.querySelectorAll("input[type=color]")].map((item) => item.value));
+    addRegexRule("", used).focus();
+    updateRegexCounts();
+  };
   reset.onclick = resetControls;
   const setData = (next, silent = false) => {
     collection = next?.type === "FeatureCollection" && Array.isArray(next.features) ? next : { type: "FeatureCollection", features: [] };
@@ -289,7 +412,7 @@ export const createAnalysis = ({ elements, onChange }) => {
     numericKey.replaceChildren();
     values.textContent = "Sin datos.";
     summary.textContent = "Ejecuta una consulta para analizar sus tags.";
-    regexColors.replaceChildren();
+    renderRegex();
     numericEnable.checked = false;
     regexEnable.checked = false;
     numericMin.disabled = true;
