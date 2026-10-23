@@ -16,9 +16,10 @@ const postpassSegments = (input) => {
     add(i, true);
     const begin = i;
     if (kind === "quote") {
+      const escapeString = char === "'" && /[Ee]/.test(input[begin - 1] || "") && (begin < 2 || !/[\w$]/.test(input[begin - 2]));
       i++;
       while (i < input.length) {
-        if (input[i] === "\\" && i + 1 < input.length) { i += 2; continue; }
+        if (escapeString && input[i] === "\\" && i + 1 < input.length) { i += 2; continue; }
         if (input[i] === char) {
           i++;
           if (input[i] === char) { i++; continue; }

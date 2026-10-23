@@ -48,10 +48,28 @@ export const splitRegexPatterns = (raw) => {
   let literalBraces = 0;
   let literalGroups = 0;
   let literalSquare = 0;
+  const literalPairs = new Set();
+  const literalOpen = { "{": [], "(": [], "[": [] };
+  const literalClose = { "}": "{", ")": "(", "]": "[" };
+  let insideClass = false;
+  for (let index = 0; index < raw.length; index++) {
+    if (raw[index] === "\\" && index + 1 < raw.length) {
+      index++;
+      if (insideClass) continue;
+      const char = raw[index];
+      if (literalOpen[char]) literalOpen[char].push(index);
+      else if (literalClose[char] && literalOpen[literalClose[char]].length) {
+        literalPairs.add(literalOpen[literalClose[char]].pop());
+        literalPairs.add(index);
+      }
+    } else if (raw[index] === "[" && !insideClass) insideClass = true;
+    else if (raw[index] === "]" && insideClass) insideClass = false;
+  }
   let escaped = false;
-  for (const char of raw) {
+  for (let index = 0; index < raw.length; index++) {
+    const char = raw[index];
     if (escaped) {
-      if (!square) {
+      if (!square && literalPairs.has(index)) {
         if (char === "{") literalBraces++;
         else if (char === "}" && literalBraces) literalBraces--;
         else if (char === "(") literalGroups++;
