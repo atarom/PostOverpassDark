@@ -1,7 +1,7 @@
 import { loadDependencies } from "./deps.js";
 import { storage } from "./storage.js";
 import { createEditor } from "./editor.js";
-import { createQueryPreparer } from "./query.js";
+import { createQueryPreparer, isPostpassTextOnly } from "./query.js";
 import { parseResponse, responseError, errorStatusHtml, OSM_TYPES } from "./response.js";
 import { createMapController } from "./map.js";
 import { createUI } from "./ui.js";
@@ -463,7 +463,7 @@ const initializeApp = (deps) => {
     josm.reset();
     const queryText = editor.getQuery();
     const runEngine = editor.getEngine();
-    const postpassTextOnly = runEngine === "postpass" && /\{\{\s*data\s*:\s*sql\s*,[^{}]*\bgeojson\s*=\s*false\b[^{}]*\}\}/i.test(queryText);
+    const postpassTextOnly = runEngine === "postpass" && isPostpassTextOnly(queryText);
     const url = endpoint.value;
     const start = performance.now();
     const active = new AbortController();

@@ -1,4 +1,53 @@
 import { abortError } from "./utils.js";
+const postpassSegments = (input) => {
+  const parts = [];
+  let start = 0;
+  let i = 0;
+  const add = (end, code) => {
+    if (end > start) parts.push({ text: input.slice(start, end), code });
+    start = end;
+  };
+  while (i < input.length) {
+    const char = input[i];
+    const next = input[i + 1];
+    const dollar = char === "$" ? input.slice(i).match(/^\$(?:[A-Za-z_][A-Za-z_0-9]*)?\$/)?.[0] : null;
+    const kind = char === "'" || char === '"' ? "quote" : char === "-" && next === "-" ? "line" : char === "/" && next === "*" ? "block" : dollar ? "dollar" : "";
+    if (!kind) { i++; continue; }
+    add(i, true);
+    const begin = i;
+    if (kind === "quote") {
+      i++;
+      while (i < input.length) {
+        if (input[i] === "\\" && i + 1 < input.length) { i += 2; continue; }
+        if (input[i] === char) {
+          i++;
+          if (input[i] === char) { i++; continue; }
+          break;
+        }
+        i++;
+      }
+    } else if (kind === "line") {
+      const end = input.indexOf("\n", i + 2);
+      i = end < 0 ? input.length : end;
+    } else if (kind === "block") {
+      let depth = 1;
+      i += 2;
+      while (i < input.length && depth) {
+        if (input.startsWith("/*", i)) { depth++; i += 2; }
+        else if (input.startsWith("*/", i)) { depth--; i += 2; }
+        else i++;
+      }
+    } else {
+      const end = input.indexOf(dollar, i + dollar.length);
+      i = end < 0 ? input.length : end + dollar.length;
+    }
+    start = begin;
+    add(i, false);
+  }
+  add(input.length, true);
+  return parts;
+};
+export const isPostpassTextOnly = (input) => postpassSegments(input).some((part) => part.code && /\{\{\s*data\s*:\s*sql\s*,[^{}]*\bgeojson\s*=\s*false\b[^{}]*\}\}/i.test(part.text));
 export const createQueryPreparer = ({ map, storage, areaStoreKey, log }) => {
   let areaCache = {};
   try {
@@ -89,12 +138,15 @@ export const createQueryPreparer = ({ map, storage, areaStoreKey, log }) => {
     return stripComments(text);
   };
   const prepPostpass = async (input, signal) => {
-    let text = input.replace(/\{\{\s*data\s*:\s*sql(?:,[^{}]*)?\}\}\s*/gi, "");
     const bounds = mapBounds();
     const box = `ST_SetSRID(ST_MakeBox2D(ST_MakePoint(${bounds.west},${bounds.south}),ST_MakePoint(${bounds.east},${bounds.north})),4326)`;
-    text = text.replaceAll("{{bbox}}", box);
-    for (const match of [...text.matchAll(/\{\{\s*geocodeArea\s*:\s*([^{}]+?)\s*\}\}/gi)]) text = text.replace(match[0], String(await relationId(match[1], signal)));
-    return text.trim();
+    const parts = postpassSegments(input);
+    for (const part of parts) {
+      if (!part.code) continue;
+      part.text = part.text.replace(/\{\{\s*data\s*:\s*sql(?:,[^{}]*)?\}\}\s*/gi, "").replaceAll("{{bbox}}", box);
+      for (const match of [...part.text.matchAll(/\{\{\s*geocodeArea\s*:\s*([^{}]+?)\s*\}\}/gi)]) part.text = part.text.replace(match[0], String(await relationId(match[1], signal)));
+    }
+    return parts.map((part) => part.text).join("").trim();
   };
   return { prep: (text, signal, engine) => engine === "postpass" ? prepPostpass(text, signal) : prepOverpass(text, signal) };
 };

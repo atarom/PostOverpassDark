@@ -45,9 +45,24 @@ export const splitRegexPatterns = (raw) => {
   let square = false;
   let braces = 0;
   let groups = 0;
+  let literalBraces = 0;
+  let literalGroups = 0;
+  let literalSquare = 0;
   let escaped = false;
   for (const char of raw) {
-    if (escaped) { value += char; escaped = false; continue; }
+    if (escaped) {
+      if (!square) {
+        if (char === "{") literalBraces++;
+        else if (char === "}" && literalBraces) literalBraces--;
+        else if (char === "(") literalGroups++;
+        else if (char === ")" && literalGroups) literalGroups--;
+        else if (char === "[") literalSquare++;
+        else if (char === "]" && literalSquare) literalSquare--;
+      }
+      value += char;
+      escaped = false;
+      continue;
+    }
     if (char === "\\") { value += char; escaped = true; continue; }
     if (char === "[" && !square) square = true;
     else if (char === "]" && square) square = false;
@@ -57,7 +72,7 @@ export const splitRegexPatterns = (raw) => {
       else if (char === "(") groups++;
       else if (char === ")" && groups) groups--;
     }
-    if (char === "," && !square && !braces && !groups) {
+    if (char === "," && !square && !braces && !groups && !literalBraces && !literalGroups && !literalSquare) {
       if (value.trim()) result.push(value.trim());
       value = "";
       continue;
