@@ -52,7 +52,7 @@ export const createAnalysis = ({ elements, onChange }) => {
   const regexText = regexInput;
   regexText.type = "hidden";
   const regexTitle = regexText.previousElementSibling;
-  regexTitle.textContent = "Regex y colores";
+  regexTitle.textContent = "Regex";
   regexTitle.removeAttribute("for");
   const regexHead = document.createElement("div");
   regexHead.className = "pod-regex-head";
