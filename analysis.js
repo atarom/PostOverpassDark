@@ -50,10 +50,6 @@ const compilePatterns = (raw, insensitive) => splitRegexPatterns(raw).flatMap((s
 export const createAnalysis = ({ elements, onChange }) => {
   const { key, onlyKey, countMode, values, valueTools, valueSelectedColor, valueOtherColor, valueHideOthers, summary, numericEnable, numericKey, numericErrors, numericMin, numericMax, numericMinValue, numericMaxValue, regexEnable, regexText: regexInput, regexInsensitive, regexOnly, regexColors, reset } = elements;
   const regexText = regexInput;
-  regexText.type = "hidden";
-  const regexTitle = regexText.previousElementSibling;
-  regexTitle.textContent = "Regex";
-  regexTitle.removeAttribute("for");
   const regexHead = document.createElement("div");
   regexHead.className = "pod-regex-head";
   regexHead.innerHTML = "<span>Expresión regular</span><span>Color</span>";
