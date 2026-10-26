@@ -191,6 +191,15 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
     type: "function",
     detail: "Filtro de consulta"
   }));
+  queryFilter.push({
+    label: "older:",
+    type: "function",
+    detail: "Anterior a una fecha (filtro if)",
+    apply: (view, completion, from, to) => {
+      const filter = 'if:date(timestamp()) < date("")';
+      view.dispatch({ changes: { from, to, insert: filter }, selection: { anchor: from + filter.length - 2 } });
+    }
+  });
   const COMP = {
     base: [
       ...opts(KW, "keyword", "Overpass QL"),
@@ -224,14 +233,25 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
   };
   const relDates = ["1day", "1month", "1year"],
     isoNow = () => new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
-    dateOpts = () => [
-      { label: `"${isoNow()}"`, type: "constant", detail: "Fecha actual UTC" },
-      ...relDates.map((x) => ({
-        label: `"{{date:${x}}}"`,
-        type: "constant",
-        detail: "Fecha relativa"
-      }))
-    ];
+    shortDate = (input) => {
+      const match = String(input).trim().replace(/^"|"$/g, "").match(/^(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?$/);
+      if (!match) return null;
+      const date = `${match[1]}-${match[2] || "01"}-${match[3] || "01"}`;
+      const parsed = new Date(`${date}T00:00:00Z`);
+      return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date ? null : `${date}T00:00:00Z`;
+    },
+    dateOpts = (input = "", quoted = false) => {
+      const expanded = shortDate(input);
+      const wrap = (value) => quoted ? value : `"${value}"`;
+      return [
+        ...(expanded ? [{ label: String(input).trim(), apply: !quoted && String(input).trim().startsWith('"') ? (view, completion, from, to) => {
+          const end = view.state.sliceDoc(to, to + 1) === '"' ? to + 1 : to;
+          view.dispatch({ changes: { from, to: end, insert: wrap(expanded) }, selection: { anchor: from + wrap(expanded).length } });
+        } : wrap(expanded), type: "constant", detail: `Completar: ${expanded}` }] : []),
+        { label: wrap(isoNow()), type: "constant", detail: "Fecha actual UTC" },
+        ...relDates.map((x) => ({ label: wrap(`{{date:${x}}}`), type: "constant", detail: "Fecha relativa" }))
+      ];
+    };
   const macroApply = (value) => (view, completion, from, to) => {
     const close = view.state.sliceDoc(to, to + 2) === "}}" ? "" : "}}";
     view.dispatch({
@@ -318,7 +338,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       }),
       tail = (rx, options, validFor = ident) => {
         const m = text.match(rx);
-        return m && res(ctx.pos - m[1].length, options, validFor);
+        return m && res(ctx.pos - m[1].length, typeof options === "function" ? options(m[1]) : options, validFor);
       };
     const selector = String.raw`\b(?:node|way|relation|rel|nw|nr|wr|nwr)(?:\.[A-Za-z_][\w-]*)*(?:\[[^\]]*\]|\([^)]*\))*`;
     const rules = [
@@ -326,7 +346,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       [/\[\s*out\s*:\s*([A-Za-z_]*)$/i, COMP.format],
       [/\[\s*maxsize\s*:\s*([0-9A-Za-z]*)$/i, COMP.maxsize, /^[0-9A-Za-z]*$/],
       [/\[\s*timeout\s*:\s*(\d*)$/i, COMP.timeout, /^\d*$/],
-      [/\[\s*(?:date|diff|adiff)\s*:\s*([^\]]*)$/i, dateOpts(), /^[^\]]*$/],
+      [/\[\s*(?:date|diff|adiff)\s*:\s*([^\]]*)$/i, dateOpts, /^[^\]]*$/],
       [
         /\[\s*bbox\s*:\s*([^\]]*)$/i,
         [{ label: "{{bbox}}", type: "constant", detail: "BBox actual" }],
@@ -350,9 +370,10 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       ],
       [
         /\b(?:retro|newer|changed)\s*(?:\(|:)\s*([^)]*)$/i,
-        dateOpts(),
+        dateOpts,
         /^[^)]*$/
       ],
+      [/\bif\s*:\s*date\s*\(\s*timestamp\s*\(\s*\)\s*\)\s*<\s*date\s*\(\s*"([^"]*)$/i, (input) => dateOpts(input, true), /^[^"]*$/],
       [/\bway_link\s*:\s*([^)]*)$/i, COMP.wayLink, /^[0-9,\-]*$/],
       [/\baround(?:\.[A-Za-z_][\w-]*)?\s*:\s*([^,)]*)$/i, COMP.radius, /^\d*$/],
       [
