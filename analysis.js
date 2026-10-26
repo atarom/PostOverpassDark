@@ -8,7 +8,7 @@ export const featureTags = (feature) => {
   return Object.fromEntries(Object.entries(properties).filter(([key, value]) => value != null && !key.startsWith("@") && !RESERVED.has(key)));
 };
 const textValue = (value) => typeof value === "string" ? value.trim() : value == null ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
-const numericValue = (value) => {
+export const numericValue = (value) => {
   const text = textValue(value).replace(",", ".");
   if (!text) return NaN;
   const number = Number(text);
@@ -40,7 +40,7 @@ export const analyzeCollection = (collection) => {
   return { keys, numericKeys };
 };
 export const splitRegexPatterns = (raw) => String(raw).split(/\r\n?|\n/).map((value) => value.trim()).filter(Boolean);
-const compilePatterns = (raw, insensitive) => splitRegexPatterns(raw).flatMap((source) => {
+export const compilePatterns = (raw, insensitive) => splitRegexPatterns(raw).flatMap((source) => {
   try {
     return [{ source, regex: new RegExp(source, insensitive ? "i" : "") }];
   } catch {
@@ -59,28 +59,6 @@ export const createAnalysis = ({ elements, onChange }) => {
   regexAdd.className = "pod-regex-add";
   regexAdd.textContent = "+ Añadir regex";
   regexColors.after(regexAdd);
-  if (!document.getElementById("pod-regex-rules-style")) {
-    const sheet = document.createElement("style");
-    sheet.id = "pod-regex-rules-style";
-    sheet.textContent = `.pod-regex-head,.pod-regex-rule{display:grid;grid-template-columns:minmax(0,1fr) 62px;gap:9px;align-items:center}
-.pod-regex-head{padding:0 9px 3px;color:var(--m);font:800 10px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.05em}
-.regex-colors{display:grid;gap:7px;margin-top:6px}
-.pod-regex-rule{min-width:0;padding:8px;border:1px solid var(--b);border-radius:6px;background:var(--p3)}
-.pod-regex-rule:focus-within{border-color:var(--b2)}
-.pod-regex-main{display:grid;grid-template-columns:minmax(0,1fr) 28px;column-gap:5px;align-items:center;min-width:0}
-.pod-regex-input{width:100%;min-width:0;height:34px;padding:6px 8px;outline:0;border:1px solid var(--b);border-radius:4px;background:var(--p2);color:var(--t);font:12px/1.3 var(--mono)}
-.pod-regex-input:focus-visible{border-color:var(--a);outline:1px solid var(--a);outline-offset:0}
-.pod-regex-input[aria-invalid=true]{border-color:var(--d)}
-.pod-regex-count{grid-column:1/-1;min-height:14px;padding-top:4px;color:var(--m);font:10px/1.3 var(--sans)}
-.pod-regex-count.is-error{color:var(--d)}
-.pod-regex-delete{display:grid;place-items:center;width:28px;height:32px;padding:0;border:0;border-radius:4px;background:transparent;color:var(--m);font:20px/1 var(--sans)}
-.pod-regex-delete:hover{background:#49302f!important;color:#ffd2c5}
-.analysis-body label.pod-regex-picker{display:flex;justify-content:center;align-items:center;min-width:0;margin:0}
-.pod-regex-picker input[type=color]{width:44px;height:35px;padding:3px;border:1px solid var(--b2);border-radius:5px;background:var(--p2);cursor:pointer}
-.pod-regex-add{width:100%;min-height:34px;margin-top:8px;padding:6px 9px;border:1px dashed var(--b2);border-radius:5px;background:#16271e;color:var(--a);font:700 11px var(--sans)}
-.pod-regex-add:hover{background:#223a2b!important;border-color:var(--a)}`;
-    document.head.append(sheet);
-  }
   const valuesLabel = values.previousElementSibling;
   valuesLabel.textContent = "Valores únicos";
   valuesLabel.classList.add("analysis-box");

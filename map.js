@@ -1,20 +1,11 @@
-import { esc, val } from "./utils.js";
-import { featureTags, matchesTagValue, splitRegexPatterns } from "./analysis.js";
+import { esc, val, DEFAULT_HEAT } from "./utils.js";
+import { featureTags, matchesTagValue, numericValue, compilePatterns } from "./analysis.js";
 const TYPES = { N: "node", W: "way", R: "relation", node: "node", way: "way", relation: "relation" };
 const COLORS = { default: ["#355f8d", "#3f8f9c", "#79b88d", "#d6b56d", "#e58b68", "#ef5d72"], warm: ["#72543b", "#a26c43", "#d1924f", "#e6b95f", "#ef8262", "#ef4e5d"], cool: ["#324a7a", "#326b98", "#3f98a7", "#63b7a8", "#88d0b4", "#d3f0c0"], fire: ["#3a173d", "#7d2450", "#bd3a45", "#e96d3e", "#f5b747", "#fff2a1"] };
-const HEAT_DEFAULT = { intensity: 1, radius: 1, opacity: 0.88, weight: 1, palette: "default" };
-const numeric = (value) => {
-  const str = String(value ?? "").trim().replace(",", ".");
-  const num = str ? Number(str) : NaN;
-  return Number.isFinite(num) ? num : NaN;
-};
 const hexRgb = (value) => {
   const match = /^#([\da-f]{6})$/i.exec(value || "");
   return match ? [0, 2, 4].map((i) => parseInt(match[1].slice(i, i + 2), 16)) : [141, 182, 232];
 };
-const compilePatterns = (raw, insensitive) => splitRegexPatterns(raw).flatMap((value) => {
-  try { return [{ value, regex: new RegExp(value, insensitive ? "i" : "") }]; } catch { return []; }
-});
 const entries = (obj) => obj && typeof obj === "object" && !Array.isArray(obj) ? Object.entries(obj).filter(([, value]) => value != null) : [];
 const rows = (items) => items.sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `<div class="tr"><div class="tk">${esc(key)}</div><div class="tv">${esc(val(value))}</div></div>`).join("");
 const section = (title, cls, items) => items.length ? `<section class="ps ${cls}"><div class="psh">${title}</div>${rows(items)}</section>` : "";
@@ -102,7 +93,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   const { config, radius, intensity, opacity, weight, palette, radiusValue, intensityValue, opacityValue, weightValue, reset } = heatElements;
   const { Map: OlMap, View, Feature, Overlay, format: { GeoJSON }, geom: { Point }, layer: { Tile, WebGLVector, Heatmap }, source: { OSM, Vector }, proj: { fromLonLat } } = ol;
   const valid = (value, min, max, fallback) => Number.isFinite(+value) && +value >= min && +value <= max ? +value : fallback;
-  let heat = { ...HEAT_DEFAULT };
+  let heat = { ...DEFAULT_HEAT };
   try {
     const saved = JSON.parse(storage.getItem(heatStoreKey) || "{}");
     heat = { intensity: valid(saved.intensity, 0.25, 3, 1), radius: valid(saved.radius, 0.25, 3, 1), opacity: valid(saved.opacity, 0, 1, 0.88), weight: valid(saved.weight, 0.1, 5, 1), palette: COLORS[saved.palette] ? saved.palette : "default" };
@@ -138,6 +129,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   let geo = null;
   let rendered = [];
   let lastPrepared = "";
+  let regexPatterns = [];
   let options = {};
   let heatReady = false;
   let heatShared = false;
@@ -150,7 +142,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     if (opts.regexEnabled && selected === null) {
       const value = tags[opts.selectedKey] == null ? "" : String(tags[opts.selectedKey]).trim();
       const match = value ? patterns.find((entry) => entry.regex.test(value)) : null;
-      if (match) color = opts.regexColors?.[match.value] || "";
+      if (match) color = opts.regexColors?.[match.source] || "";
       else if (opts.regexOnly) return { keep: 0, color: "" };
     }
     if (selected !== null) color = selected ? opts.selectedValueColor || "#4abde1" : opts.otherValueColor || "#708b7a";
@@ -160,12 +152,12 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     const signature = JSON.stringify([opts.selectedKey, opts.onlySelectedKey, opts.regexEnabled, opts.regexText, opts.regexInsensitive, opts.regexOnly, opts.regexColors, opts.numericKey, opts.selectedValue, opts.countMode, opts.selectedValueColor, opts.otherValueColor, opts.hideOtherValues]);
     if (!force && signature === lastPrepared) return;
     lastPrepared = signature;
-    const patterns = opts.regexEnabled ? compilePatterns(opts.regexText || "", opts.regexInsensitive) : [];
+    regexPatterns = opts.regexEnabled ? compilePatterns(opts.regexText || "", opts.regexInsensitive) : [];
     for (let i = 0; i < rendered.length; i++) {
       const original = geo.features[rendered[i].get("podIndex")];
       const tags = featureTags(original);
-      const attrs = basePass(original, opts, patterns);
-      const n = numeric(tags[opts.numericKey]);
+      const attrs = basePass(original, opts, regexPatterns);
+      const n = numericValue(tags[opts.numericKey]);
       const [podR, podG, podB] = hexRgb(attrs.color);
       rendered[i].setProperties({ podKeep: attrs.keep, podValue: Number.isFinite(n) ? n : 0, podValid: Number.isFinite(n) ? 1 : 0, podR, podG, podB }, true);
     }
@@ -378,15 +370,15 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   };
   [[intensity, intensityValue, "intensity"], [radius, radiusValue, "radius"], [opacity, opacityValue, "opacity"], [weight, weightValue, "weight"]].forEach(([input, output, key]) => input.addEventListener("input", () => { heat[key] = +input.value; output.value = input.value; heatSave(); heatPaint(); }));
   palette.onchange = () => { heat.palette = COLORS[palette.value] ? palette.value : "default"; heatSave(); heatPaint(); };
-  reset.onclick = () => { heat = { ...HEAT_DEFAULT }; heatSave(); heatUI(); heatPaint(); };
+  reset.onclick = () => { heat = { ...DEFAULT_HEAT }; heatSave(); heatUI(); heatPaint(); };
   map.on("singleclick", (event) => {
     if (measuring || areaDrawing || renderMode.value === "heat") return;
     const selected = map.forEachFeatureAtPixel(event.pixel, (feature, layer) => layer === vectorLayer ? feature : null, { hitTolerance: 3 });
     const index = selected?.get("podIndex");
     if (index == null || !geo?.features[index]) { closePopup(); return; }
     const raw = geo.features[index];
-    const base = basePass(raw, options, options.regexEnabled ? compilePatterns(options.regexText || "", options.regexInsensitive) : []);
-    const num = numeric(featureTags(raw)[options.numericKey]);
+    const base = basePass(raw, options, regexPatterns);
+    const num = numericValue(featureTags(raw)[options.numericKey]);
     const pass = !options.numericEnabled || !options.numericKey || options.numericShowErrors || Number.isFinite(num) && num >= Number(options.numericMin) && num <= Number(options.numericMax);
     if (!base.keep || !pass) { closePopup(); return; }
     popupContent.innerHTML = popupHtml(raw);
@@ -415,7 +407,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     }
     return result;
   };
-  const clear = () => { closePopup(); geo = null; rendered = []; heatReady = false; heatShared = false; lastPrepared = ""; vectorSource.clear(true); heatSource.clear(true); heatLayer.setSource(heatSource); };
+  const clear = () => { closePopup(); geo = null; rendered = []; heatReady = false; heatShared = false; lastPrepared = ""; regexPatterns = []; vectorSource.clear(true); heatSource.clear(true); heatLayer.setSource(heatSource); };
   heatUI();
   render();
   return { map, draw, clear, render, heatUI, getHeat, setHeat, hasGeo: () => Boolean(geo), applyFilters, getVisibleOsm };
