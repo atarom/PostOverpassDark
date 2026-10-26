@@ -129,18 +129,19 @@ export const createQueryPreparer = ({ map, storage, areaStoreKey, log }) => {
     const [east, north] = window.ol.proj.toLonLat([extent[2], extent[3]]);
     return { west, south, east, north };
   };
+  const coord = (value) => Number(value.toFixed(7));
   const prepOverpass = async (input, signal) => {
     const vars = new Map();
     let text = stripComments(input).replace(/\{\{\s*([A-Za-z_][\w-]*)\s*=\s*([^{}]+?)\s*\}\}/g, (_, key, value) => (vars.set(key, value.trim()), "")).replace(/\{\{style:[\s\S]*?\}\}/gi, "").replace(/\{\{date:([^}]+)\}\}/gi, (_, spec) => turboDate(spec)).replace(/\{\{\s*([A-Za-z_][\w-]*)\s*\}\}/g, (match, key) => vars.has(key) ? vars.get(key) : match);
     const bounds = mapBounds();
     const center = window.ol.proj.toLonLat(map.getView().getCenter());
-    text = text.replaceAll("{{bbox}}", [bounds.south, bounds.west, bounds.north, bounds.east].join(",")).replaceAll("{{center}}", `${center[1]},${center[0]}`).replaceAll("{{zoom}}", String(map.getView().getZoom()));
+    text = text.replaceAll("{{bbox}}", [bounds.south, bounds.west, bounds.north, bounds.east].map(coord).join(",")).replaceAll("{{center}}", `${coord(center[1])},${coord(center[0])}`).replaceAll("{{zoom}}", String(map.getView().getZoom()));
     for (const match of [...text.matchAll(/\{\{\s*geocodeArea\s*:\s*([^{}]+?)\s*\}\}/gi)]) text = text.replace(match[0], `area(${3600000000 + await relationId(match[1], signal)})`);
     return stripComments(text);
   };
   const prepPostpass = async (input, signal) => {
     const bounds = mapBounds();
-    const box = `ST_SetSRID(ST_MakeBox2D(ST_MakePoint(${bounds.west},${bounds.south}),ST_MakePoint(${bounds.east},${bounds.north})),4326)`;
+    const box = `ST_SetSRID(ST_MakeBox2D(ST_MakePoint(${coord(bounds.west)},${coord(bounds.south)}),ST_MakePoint(${coord(bounds.east)},${coord(bounds.north)})),4326)`;
     const parts = postpassSegments(input);
     for (const part of parts) {
       if (!part.code) continue;
