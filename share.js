@@ -190,3 +190,138 @@ export const decodeShare = async (value) => {
   return decodeData(bytes);
 };
 export const sharedFragment = () => location.hash.startsWith("#s=") ? location.hash.slice(3) : null;
+const setupShareComparison = () => {
+  const dialog = document.getElementById("shareDialog");
+  const trigger = document.getElementById("shareMax");
+  const result = document.getElementById("shareMaxResult");
+  const direct = document.getElementById("shareInfoDirect");
+  const native = document.getElementById("shareInfoCompressed");
+  const url = document.getElementById("shareUrl");
+  if (!dialog || !trigger || !result || !direct || !native || !url) return;
+  const style = document.createElement("style");
+  style.textContent = `#shareMax{display:none!important}
+#shareDialog .share-head{position:sticky;top:-18px;z-index:3;padding:5px 0;background:var(--p)}
+.share-comparison{margin-top:14px;padding:14px;border:1px solid var(--b2);border-radius:var(--r);background:var(--p3)}
+.share-comparison-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.share-comparison-title{margin:0;color:var(--t);font-size:14px;font-weight:800}
+.share-comparison-status{max-width:148px;color:var(--a);font-size:11px;font-weight:700;line-height:1.35;text-align:right}
+.share-comparison-help{margin:5px 0 0;color:var(--m);font-size:11px;line-height:1.45}
+.share-comparison-bars{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:end;gap:9px;margin-top:13px}
+.share-comparison-method{display:flex;min-width:0;flex-direction:column;align-items:center;gap:5px;text-align:center}
+.share-comparison-value{min-height:15px;color:var(--t);font:700 12px var(--mono);overflow-wrap:anywhere}
+.share-comparison-track{display:flex;align-items:flex-end;justify-content:center;width:100%;height:116px;border-bottom:1px solid var(--b2);background:repeating-linear-gradient(to top,transparent 0,transparent 28px,#32483a55 29px,transparent 30px)}
+.share-comparison-bar{width:min(62px,76%);min-height:5px;border-radius:3px 3px 0 0;background:#587863}
+.share-comparison-method.is-best .share-comparison-bar{background:var(--a)}
+.share-comparison-method.is-waiting .share-comparison-bar{background:var(--b)}
+.share-comparison-name{color:var(--t);font-size:12px;font-weight:800}
+.share-comparison-delta{min-height:15px;color:var(--m);font-size:11px;line-height:1.3}
+.share-comparison-method.is-best .share-comparison-value,.share-comparison-method.is-best .share-comparison-delta{color:var(--a)}
+.share-comparison .share-max-result{margin-top:11px;padding-top:10px;border-top:1px solid var(--b);line-height:1.45}
+@media(max-width:480px){#shareDialog .share-head{top:-12px}.share-comparison{padding:10px}.share-comparison-bars{gap:5px}.share-comparison-value{font-size:10px}.share-comparison-status{max-width:110px}}`;
+  document.head.append(style);
+  const section = document.createElement("section");
+  section.className = "share-comparison";
+  section.setAttribute("aria-labelledby", "shareComparisonTitle");
+  const header = document.createElement("div");
+  header.className = "share-comparison-head";
+  const title = document.createElement("h3");
+  title.id = "shareComparisonTitle";
+  title.className = "share-comparison-title";
+  title.textContent = "Comparativa de compresión";
+  const status = document.createElement("span");
+  status.className = "share-comparison-status";
+  status.setAttribute("role", "status");
+  header.append(title, status);
+  const help = document.createElement("p");
+  help.className = "share-comparison-help";
+  help.textContent = "Mayor ahorro primero · caracteres del enlace codificado";
+  const bars = document.createElement("div");
+  bars.className = "share-comparison-bars";
+  bars.setAttribute("role", "list");
+  bars.setAttribute("aria-label", "Métodos ordenados por ahorro");
+  section.append(header, help, bars, result);
+  trigger.before(section);
+  const facts = document.getElementById("shareInfoMethod")?.closest("dl");
+  let zopfliInfo = null;
+  if (facts) {
+    const row = document.createElement("div");
+    const label = document.createElement("dt");
+    const value = document.createElement("dd");
+    label.textContent = "Zopfli DEFLATE raw";
+    value.textContent = "Pendiente";
+    row.append(label, value);
+    facts.append(row);
+    zopfliInfo = value;
+  }
+  const numbers = new Intl.NumberFormat("es-ES");
+  const readChars = (text) => {
+    const match = text.match(/^\s*([\d.,]+)\s+caracteres/i);
+    return match ? Number(match[1].replace(/\D/g, "")) : null;
+  };
+  let autoLaunched = false;
+  let nativeChars = null;
+  const render = () => {
+    const ready = Boolean(url.value);
+    const plain = ready ? readChars(direct.textContent) : null;
+    const compressed = ready ? nativeChars : null;
+    const output = ready ? result.textContent.trim() : "";
+    const current = url.value ? new URL(url.value).hash.slice(3) : "";
+    const completed = /^Zopfli(?: ahorra|:)/.test(output);
+    const failed = /^Zopfli no disponible:/.test(output);
+    const zopfli = completed ? output.startsWith("Zopfli:") ? Number(output.match(/^Zopfli:\s*([\d.,]+)/)?.[1].replace(/\D/g, "")) : current.length : null;
+    const methods = [{ name: "Directo", chars: plain, state: plain === null ? "Pendiente" : "Referencia" }, { name: "DEFLATE", chars: compressed, state: compressed === null ? /Falló|No disponible/.test(native.textContent) ? "No disponible" : "Pendiente" : "Nativo" }, { name: "Zopfli", chars: Number.isFinite(zopfli) && zopfli > 0 ? zopfli : null, state: failed ? "No disponible" : "Calculando…" }];
+    const ordered = [...methods].sort((a, b) => (a.chars ?? Infinity) - (b.chars ?? Infinity));
+    const available = ordered.filter((method) => method.chars !== null);
+    const best = available[0];
+    const savings = (chars) => plain > 0 ? (plain - chars) / plain * 100 : 0;
+    const maximum = Math.max(0, ...available.map((method) => savings(method.chars)));
+    bars.replaceChildren(...ordered.map((method) => {
+      const item = document.createElement("div");
+      item.className = "share-comparison-method" + (method === best ? " is-best" : "") + (method.chars === null ? " is-waiting" : "");
+      item.setAttribute("role", "listitem");
+      const value = document.createElement("strong");
+      value.className = "share-comparison-value";
+      value.textContent = method.chars === null ? method.state : `${numbers.format(method.chars)} car.`;
+      const track = document.createElement("div");
+      track.className = "share-comparison-track";
+      const bar = document.createElement("div");
+      bar.className = "share-comparison-bar";
+      const saved = method.chars === null ? 0 : savings(method.chars);
+      bar.style.height = `${saved > 0 && maximum > 0 ? Math.round(8 + saved / maximum * 102) : 5}px`;
+      track.append(bar);
+      const name = document.createElement("span");
+      name.className = "share-comparison-name";
+      name.textContent = method.name;
+      const delta = document.createElement("small");
+      delta.className = "share-comparison-delta";
+      delta.textContent = method.chars === null ? method.state : saved > 0 ? `${saved.toFixed(1)} % menos` : saved < 0 ? `${Math.abs(saved).toFixed(1)} % más` : "Referencia";
+      item.setAttribute("aria-label", `${method.name}: ${method.chars === null ? method.state : `${numbers.format(method.chars)} caracteres, ${delta.textContent}`}`);
+      item.append(value, track, name, delta);
+      return item;
+    }));
+    status.textContent = plain === null ? "Preparando enlace…" : failed ? "Zopfli no disponible" : completed ? `Mejor: ${best.name}` : "Probando Zopfli…";
+    if (zopfliInfo) zopfliInfo.textContent = methods[2].chars === null ? methods[2].state : `${numbers.format(methods[2].chars)} caracteres`;
+  };
+  const update = () => {
+    if (!dialog.open) return;
+    if (!url.value) {
+      autoLaunched = false;
+      nativeChars = null;
+    } else if (!autoLaunched) nativeChars = readChars(native.textContent);
+    render();
+    if (url.value && !trigger.disabled && !autoLaunched) {
+      autoLaunched = true;
+      if (typeof DecompressionStream === "function") trigger.click();
+      else result.textContent = "Zopfli no disponible: el navegador no puede abrir enlaces comprimidos.";
+    }
+  };
+  new MutationObserver(update).observe(trigger, { attributes: true, attributeFilter: ["disabled"] });
+  for (const element of [direct, native, result]) new MutationObserver(update).observe(element, { childList: true, characterData: true, subtree: true });
+  new MutationObserver(update).observe(dialog, { attributes: true, attributeFilter: ["open"] });
+  dialog.addEventListener("close", () => { autoLaunched = false; });
+  render();
+};
+if (typeof document !== "undefined") {
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setupShareComparison, { once: true });
+  else setupShareComparison();
+}
