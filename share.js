@@ -212,7 +212,7 @@ const setupShareComparison = () => {
 .share-comparison-track{display:flex;align-items:flex-end;justify-content:center;width:100%;height:116px;border-bottom:1px solid var(--b2);background:repeating-linear-gradient(to top,transparent 0,transparent 28px,#32483a55 29px,transparent 30px)}
 .share-comparison-bar{width:min(62px,76%);min-height:5px;border-radius:3px 3px 0 0;background:#587863}
 .share-comparison-method.is-best .share-comparison-bar{background:var(--a)}
-.share-comparison-method.is-waiting .share-comparison-bar{background:var(--b)}
+.share-comparison-method.is-waiting .share-comparison-bar{min-height:0;background:transparent}
 .share-comparison-name{color:var(--t);font-size:12px;font-weight:800}
 .share-comparison-delta{min-height:15px;color:var(--m);font-size:11px;line-height:1.3}
 .share-comparison-method.is-best .share-comparison-value,.share-comparison-method.is-best .share-comparison-delta{color:var(--a)}
@@ -234,11 +234,11 @@ const setupShareComparison = () => {
   header.append(title, status);
   const help = document.createElement("p");
   help.className = "share-comparison-help";
-  help.textContent = "Mayor ahorro primero · caracteres del enlace codificado";
+  help.textContent = "Menor tamaño primero · barras proporcionales al enlace codificado";
   const bars = document.createElement("div");
   bars.className = "share-comparison-bars";
   bars.setAttribute("role", "list");
-  bars.setAttribute("aria-label", "Métodos ordenados por ahorro");
+  bars.setAttribute("aria-label", "Métodos ordenados por longitud del enlace");
   section.append(header, help, bars, result);
   trigger.before(section);
   const facts = document.getElementById("shareInfoMethod")?.closest("dl");
@@ -274,7 +274,7 @@ const setupShareComparison = () => {
     const available = ordered.filter((method) => method.chars !== null);
     const best = available[0];
     const savings = (chars) => plain > 0 ? (plain - chars) / plain * 100 : 0;
-    const maximum = Math.max(0, ...available.map((method) => savings(method.chars)));
+    const maximum = Math.max(1, ...available.map((method) => method.chars));
     bars.replaceChildren(...ordered.map((method) => {
       const item = document.createElement("div");
       item.className = "share-comparison-method" + (method === best ? " is-best" : "") + (method.chars === null ? " is-waiting" : "");
@@ -287,14 +287,14 @@ const setupShareComparison = () => {
       const bar = document.createElement("div");
       bar.className = "share-comparison-bar";
       const saved = method.chars === null ? 0 : savings(method.chars);
-      bar.style.height = `${saved > 0 && maximum > 0 ? Math.round(8 + saved / maximum * 102) : 5}px`;
+      bar.style.height = `${method.chars === null ? 0 : Math.round(method.chars / maximum * 110)}px`;
       track.append(bar);
       const name = document.createElement("span");
       name.className = "share-comparison-name";
       name.textContent = method.name;
       const delta = document.createElement("small");
       delta.className = "share-comparison-delta";
-      delta.textContent = method.chars === null ? method.state : saved > 0 ? `${saved.toFixed(1)} % menos` : saved < 0 ? `${Math.abs(saved).toFixed(1)} % más` : "Referencia";
+      delta.textContent = method.chars === null ? method.state : saved > 0 ? `−${numbers.format(plain - method.chars)} car. (−${saved.toFixed(1)} %)` : saved < 0 ? `+${numbers.format(method.chars - plain)} car. (+${Math.abs(saved).toFixed(1)} %)` : "Referencia";
       item.setAttribute("aria-label", `${method.name}: ${method.chars === null ? method.state : `${numbers.format(method.chars)} caracteres, ${delta.textContent}`}`);
       item.append(value, track, name, delta);
       return item;
