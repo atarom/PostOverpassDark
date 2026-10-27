@@ -15,12 +15,12 @@ export const numericValue = (value) => {
   return Number.isFinite(number) ? number : NaN;
 };
 const own = (value, key) => Boolean(key) && Object.prototype.hasOwnProperty.call(value, key);
-export const tagValueParts = (value, mode = "value") => {
+const tagValueParts = (value, mode = "value") => {
   const raw = textValue(value);
   return mode === "word" ? raw.normalize("NFC").toLocaleLowerCase("es").normalize("NFC").match(/\p{L}[\p{L}\p{M}\p{N}]*/gu) || [] : mode === "semicolon" ? raw.split(";").map((item) => item.trim()).filter(Boolean) : [raw];
 };
 export const matchesTagValue = (tags, key, selectedValue, mode = "value") => own(tags, key) && tagValueParts(tags[key], mode).includes(selectedValue);
-export const analyzeCollection = (collection) => {
+const analyzeCollection = (collection) => {
   const counts = new Map();
   const numeric = new Map();
   for (const feature of collection?.features || []) {
@@ -39,7 +39,7 @@ export const analyzeCollection = (collection) => {
   const numericKeys = [...numeric].sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0], "es")).map(([key, stat]) => [key, stat.min, stat.max, stat.count]);
   return { keys, numericKeys };
 };
-export const splitRegexPatterns = (raw) => String(raw).split(/\r\n?|\n/).map((value) => value.trim()).filter(Boolean);
+const splitRegexPatterns = (raw) => String(raw).split(/\r\n?|\n/).map((value) => value.trim()).filter(Boolean);
 export const compilePatterns = (raw, insensitive) => splitRegexPatterns(raw).flatMap((source) => {
   try {
     return [{ source, regex: new RegExp(source, insensitive ? "i" : "") }];
