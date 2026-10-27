@@ -7,7 +7,7 @@ import { createMapController } from "./map.js";
 import { createUI } from "./ui.js";
 import { createAnalysis } from "./analysis.js";
 import { createJosmExporter } from "./josm-export.js";
-import { encodeShare, encodeShareDetailed, encodeShareZopfli, decodeShare, sharedFragment, createShareComparison } from "./share.js";
+import { encodeShare, encodeShareDetailed, encodeShareZopfli, encodeShareBrotli, decodeShare, sharedFragment, createShareComparison } from "./share.js";
 import { $, esc, json, abortError } from "./utils.js";
 import { OVERPASS_PRESETS } from "./presets-overpass.js";
 import { POSTPASS_PRESETS } from "./presets-postpass.js";
@@ -161,7 +161,6 @@ const initializeApp = (deps) => {
   const comparison = createShareComparison();
   const shareInfo = Object.fromEntries(["Endpoint", "Center", "Zoom", "Mode", "Heat", "Auto", "Query", "Method", "Bytes", "Direct", "Compressed", "Reason"].map((name) => [name, $("shareInfo" + name)]));
   let shareRevision = 0;
-  let shareData = null;
   let maximumController = null;
   const stopMaximum = () => {
     maximumController?.abort();
@@ -201,7 +200,6 @@ const initializeApp = (deps) => {
     const revision = ++shareRevision;
     stopMaximum();
     comparison.reset();
-    shareData = null;
     shareCopy.disabled = true;
     shareUrl.value = "";
     shareStatus("Preparando enlace…");
@@ -236,7 +234,6 @@ const initializeApp = (deps) => {
         shareInfo.Reason.textContent = info.compressionStatus === "failed" ? "No se pudo comprimir con DEFLATE raw; se conserva el formato directo." : "Este navegador no admite DEFLATE raw para estos enlaces; se utiliza el formato directo.";
       }
       setLinkStatus(url.href);
-      shareData = state;
       comparison.setNative(info);
       void runMaximum(revision, state);
     } catch (error) {
@@ -246,49 +243,43 @@ const initializeApp = (deps) => {
   const runMaximum = async (revision, state) => {
     if (!shareUrl.value) return;
     stopMaximum();
-    const iterations = comparison.iterations();
-    comparison.setRunning();
-    if (typeof DecompressionStream !== "function") {
-      shareMaxResult.textContent = "Zopfli no disponible: el navegador no puede abrir enlaces comprimidos.";
-      comparison.setFailure();
-      return;
-    }
-    const currentUrl = shareUrl.value;
-    const currentEncoded = new URL(currentUrl).hash.slice(3);
     const controller = new AbortController();
     maximumController = controller;
-    shareMaxResult.textContent = `Probando Zopfli (${iterations} iteraciones)…`;
-    try {
-      const start = performance.now();
-      const result = await encodeShareZopfli(state, controller.signal, iterations);
-      if (revision !== shareRevision || !shareDialog.open || controller.signal.aborted) return;
-      const elapsed = ((performance.now() - start) / 1000).toFixed(1);
-      const saved = currentEncoded.length - result.encoded.length;
-      if (saved > 0) {
-        const url = new URL(currentUrl);
-        url.hash = `s=${result.encoded}`;
-        shareUrl.value = url.href;
-        shareInfo.Method.textContent = "Zopfli DEFLATE raw + Base64URL (b)";
-        shareInfo.Compressed.textContent = `${result.encoded.length.toLocaleString("es-ES")} caracteres (${fmt(result.compressedBytes)} bytes comprimidos)`;
-        shareInfo.Reason.textContent = `Zopfli reduce el enlace ${fmt(saved)} caracteres más que el mejor método automático.`;
-        setLinkStatus(url.href);
-        shareMaxResult.textContent = `Zopfli (${iterations} iteraciones) ahorra ${fmt(saved)} caracteres adicionales (${(saved / currentEncoded.length * 100).toFixed(1)} %) en ${elapsed} s. Enlace actualizado.`;
-      } else {
-        shareMaxResult.textContent = `Zopfli (${iterations} iteraciones): ${result.encoded.length.toLocaleString("es-ES")} caracteres en ${elapsed} s. No mejora los ${fmt(currentEncoded.length)} del enlace actual; se conserva el más corto.`;
+    const results = {};
+    const names = ["Zopfli", "Brotli"];
+    const isCurrent = () => revision === shareRevision && shareDialog.open && !controller.signal.aborted;
+    shareMaxResult.textContent = "Probando Zopfli (15 iteraciones) y Brotli (calidad 11)…";
+    const run = async (name, encode, prefix) => {
+      try {
+        if (name === "Zopfli" && typeof DecompressionStream !== "function") throw Error("El navegador no admite DEFLATE raw");
+        const start = performance.now();
+        const result = await encode(state, controller.signal);
+        if (!isCurrent()) return;
+        const elapsed = ((performance.now() - start) / 1000).toFixed(1);
+        const currentUrl = shareUrl.value;
+        const currentEncoded = new URL(currentUrl).hash.slice(3);
+        const saved = currentEncoded.length - result.encoded.length;
+        comparison.setResult(name, result.encoded.length);
+        if (saved > 0) {
+          const url = new URL(currentUrl);
+          url.hash = `s=${result.encoded}`;
+          shareUrl.value = url.href;
+          shareInfo.Method.textContent = `${name} ${name === "Zopfli" ? "DEFLATE raw" : "calidad 11"} + Base64URL (${prefix})`;
+          shareInfo.Compressed.textContent = `${fmt(result.encoded.length)} caracteres (${fmt(result.compressedBytes)} bytes comprimidos)`;
+          shareInfo.Reason.textContent = `${name} reduce el enlace ${fmt(saved)} caracteres más que el mejor método anterior.`;
+          setLinkStatus(url.href);
+        }
+        results[name] = `${name}: ${fmt(result.encoded.length)} caracteres (${elapsed} s)`;
+      } catch (error) {
+        if (!isCurrent()) return;
+        comparison.setFailure(name);
+        results[name] = `${name} no disponible: ${error.message || error}`;
       }
-      comparison.setZopfli(result.encoded.length, iterations);
-    } catch (error) {
-      if (revision === shareRevision && !controller.signal.aborted && shareDialog.open) {
-        shareMaxResult.textContent = `Zopfli no disponible: ${error.message || error}. Se conserva el enlace original.`;
-        comparison.setFailure();
-      }
-    } finally {
-      if (maximumController === controller) {
-        maximumController = null;
-      }
-    }
+      if (isCurrent()) shareMaxResult.textContent = names.filter((item) => results[item]).map((item) => results[item]).join(" · ");
+    };
+    await Promise.all([run("Zopfli", encodeShareZopfli, "b"), run("Brotli", encodeShareBrotli, "c")]);
+    if (maximumController === controller) maximumController = null;
   };
-  comparison.retry.onclick = () => { if (shareData && shareDialog.open) void runMaximum(shareRevision, shareData); };
   $("shareBtn").onclick = () => {
     $("shareDetails").open = false;
     shareAuto.checked = true;

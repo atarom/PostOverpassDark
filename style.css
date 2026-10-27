@@ -193,13 +193,6 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
 .share-check input{width:16px;height:16px}
 #shareUrl{width:100%;font:12px var(--mono)}
 #shareCopy{margin-top:12px}
-.share-zopfli-config{margin-top:12px;padding:10px;border:1px solid var(--b);border-radius:6px;background:var(--p2)}
-.share-zopfli-config label{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 8px;color:var(--t);font-size:11px;letter-spacing:.02em}
-.share-zopfli-config output{font:700 13px var(--mono);color:var(--a)}
-.share-zopfli-actions{display:grid;grid-template-columns:minmax(0,1fr) 90px;align-items:center;gap:12px}
-.share-zopfli-actions input{width:100%;min-width:0;min-height:30px;margin:0;accent-color:var(--a);cursor:pointer}
-.share-zopfli-actions button{min-height:34px;padding:6px 10px;font-size:12px}
-.share-zopfli-config small{display:block;margin-top:6px;color:var(--m);font-size:11px;line-height:1.4}
 .share-max-result{margin-top:8px;font-size:12px;color:var(--m);line-height:1.5;overflow-wrap:anywhere}
 .share-max-result:empty{display:none}
 .share-details{margin-top:12px}
@@ -289,7 +282,7 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
 .share-comparison-title{margin:0;color:var(--t);font-size:14px;font-weight:800}
 .share-comparison-status{max-width:148px;color:var(--a);font-size:11px;font-weight:700;line-height:1.35;text-align:right}
 .share-comparison-help{margin:5px 0 0;color:var(--m);font-size:11px;line-height:1.45}
-.share-comparison-bars{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:end;gap:9px;margin-top:13px}
+.share-comparison-bars{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:end;gap:7px;margin-top:13px}
 .share-comparison-method{display:flex;min-width:0;flex-direction:column;align-items:center;gap:5px;text-align:center}
 .share-comparison-value{min-height:15px;color:var(--t);font:700 12px var(--mono);overflow-wrap:anywhere}
 .share-comparison-track{display:flex;align-items:flex-end;justify-content:center;width:100%;height:116px;border-bottom:1px solid var(--b2);background:repeating-linear-gradient(to top,transparent 0,transparent 28px,#32483a55 29px,transparent 30px)}
@@ -300,4 +293,4 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
 .share-comparison-delta{min-height:15px;color:var(--m);font-size:11px;line-height:1.3}
 .share-comparison-method.is-best .share-comparison-value,.share-comparison-method.is-best .share-comparison-delta{color:var(--a)}
 .share-comparison .share-max-result{margin-top:11px;padding-top:10px;border-top:1px solid var(--b);line-height:1.45}
-@media(max-width:480px){#shareDialog .share-head{top:-12px}.share-comparison{padding:10px}.share-comparison-bars{gap:5px}.share-comparison-value{font-size:10px}.share-comparison-status{max-width:110px}}
+@media(max-width:480px){#shareDialog .share-head{top:-12px}.share-comparison{padding:10px}.share-comparison-bars{gap:4px}.share-comparison-name{font-size:11px}.share-comparison-delta{font-size:10px}.share-comparison-value{font-size:10px}.share-comparison-status{max-width:110px}}

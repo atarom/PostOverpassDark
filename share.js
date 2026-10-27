@@ -148,12 +148,11 @@ export const encodeShareDetailed = async (state) => {
   return { encoded, info: { rawBytes: bytes.length, directChars, compressedBytes, compressedChars, compressionStatus, method: encoded[0] === "b" ? "deflate-raw" : "direct" } };
 };
 export const encodeShare = async (state) => (await encodeShareDetailed(state)).encoded;
-export const encodeShareZopfli = (state, signal, iterations = 15) => new Promise((resolve, reject) => {
-  if (!Number.isInteger(iterations) || iterations < 1 || iterations > 100) return reject(Error("Las iteraciones deben estar entre 1 y 100"));
+const encodeWorker = (state, signal, file, prefix, options) => new Promise((resolve, reject) => {
   if (signal?.aborted) return reject(new DOMException("Compresión cancelada", "AbortError"));
-  if (typeof Worker !== "function") return reject(Error("Este navegador no permite ejecutar Zopfli en segundo plano"));
+  if (typeof Worker !== "function") return reject(Error("Este navegador no permite ejecutar compresores en segundo plano"));
   const data = encodeData(state);
-  const worker = new Worker(new URL("./zopfli-worker.js", import.meta.url));
+  const worker = new Worker(new URL(file, import.meta.url), options);
   let finished = false;
   let timeout;
   const cleanup = () => {
@@ -166,34 +165,41 @@ export const encodeShareZopfli = (state, signal, iterations = 15) => new Promise
     finished = true;
     cleanup();
     if (error) reject(error);
-    else resolve({ encoded: `b${toBase64(bytes)}`, compressedBytes: bytes.length });
+    else resolve({ encoded: `${prefix}${toBase64(bytes)}`, compressedBytes: bytes.length });
   };
   const cancel = () => finish(new DOMException("Compresión cancelada", "AbortError"));
-  worker.onerror = (event) => { event.preventDefault(); finish(Error("No se pudo cargar el compresor Zopfli")); };
+  worker.onerror = (event) => { event.preventDefault(); finish(Error("No se pudo cargar el compresor")); };
   worker.onmessage = (event) => {
     if (event.data?.error) finish(Error(event.data.error));
     else if (event.data instanceof Uint8Array) finish(null, event.data);
-    else finish(Error("Respuesta inválida del compresor Zopfli"));
+    else finish(Error("Respuesta inválida del compresor"));
   };
   signal?.addEventListener("abort", cancel, { once: true });
-  timeout = setTimeout(() => finish(Error("Zopfli ha superado el límite de 60 segundos")), 60000);
-  worker.postMessage({ data, iterations }, [data.buffer]);
+  timeout = setTimeout(() => finish(Error("Se ha superado el límite de 60 segundos")), 60000);
+  worker.postMessage(data, [data.buffer]);
 });
+export const encodeShareZopfli = (state, signal) => encodeWorker(state, signal, "./zopfli-worker.js", "b");
+export const encodeShareBrotli = (state, signal) => encodeWorker(state, signal, "./brotli-worker.js", "c", { type: "module" });
+const decodeBrotli = async (bytes) => {
+  const { default: ready } = await import("https://cdn.jsdelivr.net/npm/brotli-wasm@3.0.1/index.web.js");
+  return (await ready).decompress(bytes);
+};
 export const decodeShare = async (value) => {
-  const match = String(value).match(/^([ab])([A-Za-z0-9_-]+)$/);
+  const match = String(value).match(/^([abc])([A-Za-z0-9_-]+)$/);
   if (!match) throw Error("Formato de enlace compartido desconocido");
   let bytes = fromBase64(match[2]);
   if (match[1] === "b") {
     if (typeof DecompressionStream !== "function") throw Error("Este navegador no permite descomprimir el enlace");
     bytes = await transform(bytes, new DecompressionStream("deflate-raw"));
+  } else if (match[1] === "c") {
+    try { bytes = await decodeBrotli(bytes); } catch { throw Error("No se pudo descomprimir el enlace Brotli"); }
   }
   return decodeData(bytes);
 };
 export const sharedFragment = () => location.hash.startsWith("#s=") ? location.hash.slice(3) : null;
 export const createShareComparison = () => {
-  const dialog = document.getElementById("shareDialog");
   const result = document.getElementById("shareMaxResult");
-  if (!dialog || !result) throw Error("No se pudo iniciar la comparativa de compresión");
+  if (!document.getElementById("shareDialog") || !result) throw Error("No se pudo iniciar la comparativa de compresión");
   const section = document.createElement("section");
   section.className = "share-comparison";
   section.setAttribute("aria-labelledby", "shareComparisonTitle");
@@ -209,61 +215,32 @@ export const createShareComparison = () => {
   header.append(title, status);
   const help = document.createElement("p");
   help.className = "share-comparison-help";
-  help.textContent = "Menor tamaño primero · barras proporcionales al enlace codificado";
-  const tuning = document.createElement("div");
-  tuning.className = "share-zopfli-config";
-  const tuningLabel = document.createElement("label");
-  tuningLabel.htmlFor = "shareZopfliIterations";
-  tuningLabel.textContent = "Iteraciones Zopfli";
-  const iterationValue = document.createElement("output");
-  iterationValue.setAttribute("for", "shareZopfliIterations");
-  iterationValue.textContent = "15";
-  tuningLabel.append(iterationValue);
-  const controls = document.createElement("div");
-  controls.className = "share-zopfli-actions";
-  const iterationInput = document.createElement("input");
-  iterationInput.id = "shareZopfliIterations";
-  iterationInput.type = "range";
-  iterationInput.min = "1";
-  iterationInput.max = "100";
-  iterationInput.step = "1";
-  iterationInput.value = "15";
-  iterationInput.addEventListener("input", () => { iterationValue.textContent = iterationInput.value; });
-  const retry = document.createElement("button");
-  retry.type = "button";
-  retry.textContent = "Probar";
-  retry.disabled = true;
-  controls.append(iterationInput, retry);
-  const hint = document.createElement("small");
-  hint.textContent = "Más iteraciones requieren más tiempo. Límite de 60 segundos por prueba.";
-  tuning.append(tuningLabel, controls, hint);
+  help.textContent = "Menor tamaño primero · Zopfli 15 · Brotli calidad 11";
   const bars = document.createElement("div");
   bars.className = "share-comparison-bars";
   bars.setAttribute("role", "list");
   bars.setAttribute("aria-label", "Métodos ordenados por longitud del enlace");
   result.before(section);
-  section.append(header, help, tuning, bars, result);
+  section.append(header, help, bars, result);
   const facts = document.getElementById("shareInfoMethod")?.closest("dl");
-  let zopfliInfo = null;
-  if (facts) {
+  const extra = {};
+  if (facts) for (const name of ["Zopfli 15", "Brotli 11"]) {
     const row = document.createElement("div");
     const label = document.createElement("dt");
     const value = document.createElement("dd");
-    label.textContent = "Zopfli DEFLATE raw";
+    label.textContent = name;
     value.textContent = "Pendiente";
     row.append(label, value);
     facts.append(row);
-    zopfliInfo = value;
+    extra[name] = value;
   }
   const numbers = new Intl.NumberFormat("es-ES");
   let plain = null;
   let compressed = null;
   let nativeStatus = "unavailable";
-  let zopfli = null;
-  let zopfliStatus = "pending";
-  let bestIterations = null;
+  const advanced = { "Zopfli": { chars: null, state: "pending" }, "Brotli": { chars: null, state: "pending" } };
   const render = () => {
-    const methods = [{ name: "Directo", chars: plain, state: plain === null ? "Pendiente" : "Referencia" }, { name: "DEFLATE", chars: compressed, state: compressed === null ? nativeStatus === "failed" ? "Falló" : "No disponible" : "Nativo" }, { name: "Zopfli", chars: zopfli, state: zopfliStatus === "failed" ? "No disponible" : zopfliStatus === "pending" ? "Calculando…" : "Completado" }];
+    const methods = [{ name: "Directo", chars: plain, state: plain === null ? "Pendiente" : "Referencia" }, { name: "DEFLATE", chars: compressed, state: compressed === null ? nativeStatus === "failed" ? "Falló" : "No disponible" : "Nativo" }, ...Object.entries(advanced).map(([name, value]) => ({ name, chars: value.chars, state: value.state === "failed" ? "No disponible" : value.state === "pending" ? "Calculando…" : "Completado" }))];
     const ordered = [...methods].sort((a, b) => (a.chars ?? Infinity) - (b.chars ?? Infinity));
     const available = ordered.filter((method) => method.chars !== null);
     const best = available[0];
@@ -279,8 +256,8 @@ export const createShareComparison = () => {
       const track = document.createElement("div");
       track.className = "share-comparison-track";
       const bar = document.createElement("div");
-      bar.className = "share-comparison-bar";
       const saved = method.chars === null ? 0 : savings(method.chars);
+      bar.className = "share-comparison-bar";
       bar.style.height = `${method.chars === null ? 0 : Math.round(method.chars / maximum * 110)}px`;
       track.append(bar);
       const name = document.createElement("span");
@@ -293,14 +270,17 @@ export const createShareComparison = () => {
       item.append(value, track, name, delta);
       return item;
     }));
-    status.textContent = plain === null ? "Preparando enlace…" : zopfliStatus === "failed" ? `Mejor: ${best.name} · Zopfli no disponible` : zopfliStatus === "completed" ? `Mejor: ${best.name}` : "Probando Zopfli…";
-    if (zopfliInfo) zopfliInfo.textContent = methods[2].chars === null ? methods[2].state : `${numbers.format(methods[2].chars)} caracteres · ${bestIterations} iteraciones`;
+    const waiting = Object.values(advanced).some((value) => value.state === "pending");
+    status.textContent = plain === null ? "Preparando enlace…" : waiting ? "Comparando métodos…" : `Mejor: ${best.name}`;
+    for (const name of ["Zopfli", "Brotli"]) if (extra[name === "Zopfli" ? "Zopfli 15" : "Brotli 11"]) {
+      const value = advanced[name];
+      extra[name === "Zopfli" ? "Zopfli 15" : "Brotli 11"].textContent = value.chars === null ? value.state === "failed" ? "No disponible" : "Calculando…" : `${numbers.format(value.chars)} caracteres`;
+    }
   };
-  const reset = () => { plain = null; compressed = null; nativeStatus = "unavailable"; zopfli = null; zopfliStatus = "pending"; bestIterations = null; retry.disabled = true; result.textContent = ""; render(); };
-  const setNative = (info) => { plain = info.directChars; compressed = info.compressedChars; nativeStatus = info.compressionStatus; retry.disabled = false; render(); };
-  const setRunning = () => { zopfliStatus = "pending"; render(); };
-  const setZopfli = (chars, iterations) => { if (zopfli === null || chars < zopfli) { zopfli = chars; bestIterations = iterations; } zopfliStatus = "completed"; render(); };
-  const setFailure = () => { zopfliStatus = zopfli === null ? "failed" : "completed"; render(); };
+  const reset = () => { plain = null; compressed = null; nativeStatus = "unavailable"; for (const value of Object.values(advanced)) { value.chars = null; value.state = "pending"; } result.textContent = ""; render(); };
+  const setNative = (info) => { plain = info.directChars; compressed = info.compressedChars; nativeStatus = info.compressionStatus; render(); };
+  const setResult = (name, chars) => { advanced[name].chars = chars; advanced[name].state = "completed"; render(); };
+  const setFailure = (name) => { for (const value of Object.values(advanced)) if (!name || advanced[name] === value) value.state = "failed"; render(); };
   render();
-  return { reset, setNative, setRunning, setZopfli, setFailure, retry, iterations: () => Number(iterationInput.value) };
+  return { reset, setNative, setResult, setFailure };
 };
