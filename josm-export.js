@@ -18,11 +18,11 @@ const identifiers = (entries) => {
   }
   return { ids: [...found], omitted };
 };
-export const osmIdentifiers = (geo) => identifiers((geo?.features || []).map((feature) => {
+const osmIdentifiers = (geo) => identifiers((geo?.features || []).map((feature) => {
   const properties = feature?.properties || {};
   return { type: properties.osm_type ?? properties.type, id: properties.osm_id ?? properties.id };
 }));
-export const overpassIdentifiers = (raw) => {
+const overpassIdentifiers = (raw) => {
   const source = String(raw ?? "").trim();
   if (!source) return { ids: [], omitted: 0 };
   if (source.startsWith("<")) {
@@ -36,14 +36,14 @@ export const overpassIdentifiers = (raw) => {
   if (!Array.isArray(json?.elements)) throw Error("JSON de Overpass sin elementos OSM");
   return identifiers(json.elements);
 };
-export const josmUrl = (ids, first = true) => {
+const josmUrl = (ids, first = true) => {
   const url = new URL("load_object", JOSM);
   url.searchParams.set("objects", ids.join(","));
   url.searchParams.set("relation_members", "true");
   url.searchParams.set("new_layer", first ? "true" : "false");
   return url.toString();
 };
-export const josmBatches = (ids, maxLength = URL_LIMIT) => {
+const josmBatches = (ids, maxLength = URL_LIMIT) => {
   const batches = [];
   let batch = [];
   for (const id of ids) {
