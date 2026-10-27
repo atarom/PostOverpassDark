@@ -161,6 +161,7 @@ const initializeApp = (deps) => {
   const comparison = createShareComparison();
   const shareInfo = Object.fromEntries(["Endpoint", "Center", "Zoom", "Mode", "Heat", "Auto", "Query", "Method", "Bytes", "Direct", "Compressed", "Reason"].map((name) => [name, $("shareInfo" + name)]));
   let shareRevision = 0;
+  let shareData = null;
   let maximumController = null;
   const stopMaximum = () => {
     maximumController?.abort();
@@ -200,6 +201,7 @@ const initializeApp = (deps) => {
     const revision = ++shareRevision;
     stopMaximum();
     comparison.reset();
+    shareData = null;
     shareCopy.disabled = true;
     shareUrl.value = "";
     shareStatus("Preparando enlace…");
@@ -234,6 +236,7 @@ const initializeApp = (deps) => {
         shareInfo.Reason.textContent = info.compressionStatus === "failed" ? "No se pudo comprimir con DEFLATE raw; se conserva el formato directo." : "Este navegador no admite DEFLATE raw para estos enlaces; se utiliza el formato directo.";
       }
       setLinkStatus(url.href);
+      shareData = state;
       comparison.setNative(info);
       void runMaximum(revision, state);
     } catch (error) {
@@ -242,6 +245,9 @@ const initializeApp = (deps) => {
   };
   const runMaximum = async (revision, state) => {
     if (!shareUrl.value) return;
+    stopMaximum();
+    const iterations = comparison.iterations();
+    comparison.setRunning();
     if (typeof DecompressionStream !== "function") {
       shareMaxResult.textContent = "Zopfli no disponible: el navegador no puede abrir enlaces comprimidos.";
       comparison.setFailure();
@@ -251,10 +257,10 @@ const initializeApp = (deps) => {
     const currentEncoded = new URL(currentUrl).hash.slice(3);
     const controller = new AbortController();
     maximumController = controller;
-    shareMaxResult.textContent = "Probando Zopfli (15 iteraciones)…";
+    shareMaxResult.textContent = `Probando Zopfli (${iterations} iteraciones)…`;
     try {
       const start = performance.now();
-      const result = await encodeShareZopfli(state, controller.signal);
+      const result = await encodeShareZopfli(state, controller.signal, iterations);
       if (revision !== shareRevision || !shareDialog.open || controller.signal.aborted) return;
       const elapsed = ((performance.now() - start) / 1000).toFixed(1);
       const saved = currentEncoded.length - result.encoded.length;
@@ -266,11 +272,11 @@ const initializeApp = (deps) => {
         shareInfo.Compressed.textContent = `${result.encoded.length.toLocaleString("es-ES")} caracteres (${fmt(result.compressedBytes)} bytes comprimidos)`;
         shareInfo.Reason.textContent = `Zopfli reduce el enlace ${fmt(saved)} caracteres más que el mejor método automático.`;
         setLinkStatus(url.href);
-        shareMaxResult.textContent = `Zopfli ahorra ${fmt(saved)} caracteres adicionales (${(saved / currentEncoded.length * 100).toFixed(1)} %) en ${elapsed} s. Enlace actualizado.`;
+        shareMaxResult.textContent = `Zopfli (${iterations} iteraciones) ahorra ${fmt(saved)} caracteres adicionales (${(saved / currentEncoded.length * 100).toFixed(1)} %) en ${elapsed} s. Enlace actualizado.`;
       } else {
-        shareMaxResult.textContent = `Zopfli: ${result.encoded.length.toLocaleString("es-ES")} caracteres en ${elapsed} s. No mejora los ${fmt(currentEncoded.length)} del enlace actual; se conserva el más corto.`;
+        shareMaxResult.textContent = `Zopfli (${iterations} iteraciones): ${result.encoded.length.toLocaleString("es-ES")} caracteres en ${elapsed} s. No mejora los ${fmt(currentEncoded.length)} del enlace actual; se conserva el más corto.`;
       }
-      comparison.setZopfli(result.encoded.length);
+      comparison.setZopfli(result.encoded.length, iterations);
     } catch (error) {
       if (revision === shareRevision && !controller.signal.aborted && shareDialog.open) {
         shareMaxResult.textContent = `Zopfli no disponible: ${error.message || error}. Se conserva el enlace original.`;
@@ -282,6 +288,7 @@ const initializeApp = (deps) => {
       }
     }
   };
+  comparison.retry.onclick = () => { if (shareData && shareDialog.open) void runMaximum(shareRevision, shareData); };
   $("shareBtn").onclick = () => {
     $("shareDetails").open = false;
     shareAuto.checked = true;

@@ -148,7 +148,8 @@ export const encodeShareDetailed = async (state) => {
   return { encoded, info: { rawBytes: bytes.length, directChars, compressedBytes, compressedChars, compressionStatus, method: encoded[0] === "b" ? "deflate-raw" : "direct" } };
 };
 export const encodeShare = async (state) => (await encodeShareDetailed(state)).encoded;
-export const encodeShareZopfli = (state, signal) => new Promise((resolve, reject) => {
+export const encodeShareZopfli = (state, signal, iterations = 15) => new Promise((resolve, reject) => {
+  if (!Number.isInteger(iterations) || iterations < 1 || iterations > 100) return reject(Error("Las iteraciones deben estar entre 1 y 100"));
   if (signal?.aborted) return reject(new DOMException("Compresión cancelada", "AbortError"));
   if (typeof Worker !== "function") return reject(Error("Este navegador no permite ejecutar Zopfli en segundo plano"));
   const data = encodeData(state);
@@ -176,7 +177,7 @@ export const encodeShareZopfli = (state, signal) => new Promise((resolve, reject
   };
   signal?.addEventListener("abort", cancel, { once: true });
   timeout = setTimeout(() => finish(Error("Zopfli ha superado el límite de 60 segundos")), 60000);
-  worker.postMessage(data, [data.buffer]);
+  worker.postMessage({ data, iterations }, [data.buffer]);
 });
 export const decodeShare = async (value) => {
   const match = String(value).match(/^([ab])([A-Za-z0-9_-]+)$/);
@@ -209,12 +210,39 @@ export const createShareComparison = () => {
   const help = document.createElement("p");
   help.className = "share-comparison-help";
   help.textContent = "Menor tamaño primero · barras proporcionales al enlace codificado";
+  const tuning = document.createElement("div");
+  tuning.className = "share-zopfli-config";
+  const tuningLabel = document.createElement("label");
+  tuningLabel.htmlFor = "shareZopfliIterations";
+  tuningLabel.textContent = "Iteraciones Zopfli";
+  const iterationValue = document.createElement("output");
+  iterationValue.setAttribute("for", "shareZopfliIterations");
+  iterationValue.textContent = "15";
+  tuningLabel.append(iterationValue);
+  const controls = document.createElement("div");
+  controls.className = "share-zopfli-actions";
+  const iterationInput = document.createElement("input");
+  iterationInput.id = "shareZopfliIterations";
+  iterationInput.type = "range";
+  iterationInput.min = "1";
+  iterationInput.max = "100";
+  iterationInput.step = "1";
+  iterationInput.value = "15";
+  iterationInput.addEventListener("input", () => { iterationValue.textContent = iterationInput.value; });
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.textContent = "Probar";
+  retry.disabled = true;
+  controls.append(iterationInput, retry);
+  const hint = document.createElement("small");
+  hint.textContent = "Más iteraciones requieren más tiempo. Límite de 60 segundos por prueba.";
+  tuning.append(tuningLabel, controls, hint);
   const bars = document.createElement("div");
   bars.className = "share-comparison-bars";
   bars.setAttribute("role", "list");
   bars.setAttribute("aria-label", "Métodos ordenados por longitud del enlace");
   result.before(section);
-  section.append(header, help, bars, result);
+  section.append(header, help, tuning, bars, result);
   const facts = document.getElementById("shareInfoMethod")?.closest("dl");
   let zopfliInfo = null;
   if (facts) {
@@ -233,6 +261,7 @@ export const createShareComparison = () => {
   let nativeStatus = "unavailable";
   let zopfli = null;
   let zopfliStatus = "pending";
+  let bestIterations = null;
   const render = () => {
     const methods = [{ name: "Directo", chars: plain, state: plain === null ? "Pendiente" : "Referencia" }, { name: "DEFLATE", chars: compressed, state: compressed === null ? nativeStatus === "failed" ? "Falló" : "No disponible" : "Nativo" }, { name: "Zopfli", chars: zopfli, state: zopfliStatus === "failed" ? "No disponible" : zopfliStatus === "pending" ? "Calculando…" : "Completado" }];
     const ordered = [...methods].sort((a, b) => (a.chars ?? Infinity) - (b.chars ?? Infinity));
@@ -265,12 +294,13 @@ export const createShareComparison = () => {
       return item;
     }));
     status.textContent = plain === null ? "Preparando enlace…" : zopfliStatus === "failed" ? `Mejor: ${best.name} · Zopfli no disponible` : zopfliStatus === "completed" ? `Mejor: ${best.name}` : "Probando Zopfli…";
-    if (zopfliInfo) zopfliInfo.textContent = methods[2].chars === null ? methods[2].state : `${numbers.format(methods[2].chars)} caracteres`;
+    if (zopfliInfo) zopfliInfo.textContent = methods[2].chars === null ? methods[2].state : `${numbers.format(methods[2].chars)} caracteres · ${bestIterations} iteraciones`;
   };
-  const reset = () => { plain = null; compressed = null; nativeStatus = "unavailable"; zopfli = null; zopfliStatus = "pending"; result.textContent = ""; render(); };
-  const setNative = (info) => { plain = info.directChars; compressed = info.compressedChars; nativeStatus = info.compressionStatus; render(); };
-  const setZopfli = (chars) => { zopfli = chars; zopfliStatus = "completed"; render(); };
-  const setFailure = () => { zopfliStatus = "failed"; render(); };
+  const reset = () => { plain = null; compressed = null; nativeStatus = "unavailable"; zopfli = null; zopfliStatus = "pending"; bestIterations = null; retry.disabled = true; result.textContent = ""; render(); };
+  const setNative = (info) => { plain = info.directChars; compressed = info.compressedChars; nativeStatus = info.compressionStatus; retry.disabled = false; render(); };
+  const setRunning = () => { zopfliStatus = "pending"; render(); };
+  const setZopfli = (chars, iterations) => { if (zopfli === null || chars < zopfli) { zopfli = chars; bestIterations = iterations; } zopfliStatus = "completed"; render(); };
+  const setFailure = () => { zopfliStatus = zopfli === null ? "failed" : "completed"; render(); };
   render();
-  return { reset, setNative, setZopfli, setFailure };
+  return { reset, setNative, setRunning, setZopfli, setFailure, retry, iterations: () => Number(iterationInput.value) };
 };
