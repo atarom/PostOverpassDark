@@ -259,17 +259,19 @@ const initializeApp = (deps) => {
         const currentUrl = shareUrl.value;
         const currentEncoded = new URL(currentUrl).hash.slice(3);
         const saved = currentEncoded.length - result.encoded.length;
-        comparison.setResult(name, result.encoded.length);
+        const optimizedIds = name === "Brotli" && result.encoded[0] === "d";
+        const methodName = optimizedIds ? "Brotli + IDs" : name;
+        comparison.setResult(name, result.encoded.length, methodName);
         if (saved > 0) {
           const url = new URL(currentUrl);
           url.hash = `s=${result.encoded}`;
           shareUrl.value = url.href;
-          shareInfo.Method.textContent = `${name} ${name === "Zopfli" ? "DEFLATE raw" : "calidad 11"} + Base64URL (${prefix})`;
+          shareInfo.Method.textContent = optimizedIds ? "Brotli 11 + Delta/Varint + Base64URL (d)" : `${name} ${name === "Zopfli" ? "DEFLATE raw" : "calidad 11"} + Base64URL (${prefix})`;
           shareInfo.Compressed.textContent = `${fmt(result.encoded.length)} caracteres (${fmt(result.compressedBytes)} bytes comprimidos)`;
-          shareInfo.Reason.textContent = `${name} reduce el enlace ${fmt(saved)} caracteres más que el mejor método anterior.`;
+          shareInfo.Reason.textContent = `${methodName} reduce el enlace ${fmt(saved)} caracteres más que el mejor método anterior.`;
           setLinkStatus(url.href);
         }
-        results[name] = `${name}: ${fmt(result.encoded.length)} caracteres (${elapsed} s)`;
+        results[name] = `${methodName}: ${fmt(result.encoded.length)} caracteres (${elapsed} s)`;
       } catch (error) {
         if (!isCurrent()) return;
         comparison.setFailure(name);

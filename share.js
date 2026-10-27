@@ -1,5 +1,6 @@
 import { PUBLIC_SERVERS, DEFAULT_ENDPOINT } from "./servers.js";
 import { DEFAULT_HEAT } from "./utils.js";
+import { decodeIdLists } from "./ids-codec.js";
 const PALETTES = ["default", "warm", "cool", "fire"];
 const HEAT_FIELDS = [["intensity", 20], ["radius", 20], ["opacity", 100], ["weight", 10]];
 const encoder = new TextEncoder();
@@ -160,23 +161,24 @@ const encodeWorker = (state, signal, file, prefix, options) => new Promise((reso
     signal?.removeEventListener("abort", cancel);
     worker.terminate();
   };
-  const finish = (error, bytes) => {
+  const finish = (error, bytes, method = prefix) => {
     if (finished) return;
     finished = true;
     cleanup();
     if (error) reject(error);
-    else resolve({ encoded: `${prefix}${toBase64(bytes)}`, compressedBytes: bytes.length });
+    else resolve({ encoded: `${method}${toBase64(bytes)}`, compressedBytes: bytes.length });
   };
   const cancel = () => finish(new DOMException("Compresión cancelada", "AbortError"));
   worker.onerror = (event) => { event.preventDefault(); finish(Error("No se pudo cargar el compresor")); };
   worker.onmessage = (event) => {
     if (event.data?.error) finish(Error(event.data.error));
     else if (event.data instanceof Uint8Array) finish(null, event.data);
+    else if (prefix === "c" && ["c", "d"].includes(event.data?.prefix) && event.data.bytes instanceof Uint8Array) finish(null, event.data.bytes, event.data.prefix);
     else finish(Error("Respuesta inválida del compresor"));
   };
   signal?.addEventListener("abort", cancel, { once: true });
   timeout = setTimeout(() => finish(Error("Se ha superado el límite de 60 segundos")), 60000);
-  worker.postMessage(data, [data.buffer]);
+  worker.postMessage(prefix === "c" ? { data, query: state.query } : data, [data.buffer]);
 });
 export const encodeShareZopfli = (state, signal) => encodeWorker(state, signal, "./zopfli-worker.js", "b");
 export const encodeShareBrotli = (state, signal) => encodeWorker(state, signal, "./brotli-worker.js", "c", { type: "module" });
@@ -185,14 +187,15 @@ const decodeBrotli = async (bytes) => {
   return (await ready).decompress(bytes);
 };
 export const decodeShare = async (value) => {
-  const match = String(value).match(/^([abc])([A-Za-z0-9_-]+)$/);
+  const match = String(value).match(/^([abcd])([A-Za-z0-9_-]+)$/);
   if (!match) throw Error("Formato de enlace compartido desconocido");
   let bytes = fromBase64(match[2]);
   if (match[1] === "b") {
     if (typeof DecompressionStream !== "function") throw Error("Este navegador no permite descomprimir el enlace");
     bytes = await transform(bytes, new DecompressionStream("deflate-raw"));
-  } else if (match[1] === "c") {
+  } else if (match[1] === "c" || match[1] === "d") {
     try { bytes = await decodeBrotli(bytes); } catch { throw Error("No se pudo descomprimir el enlace Brotli"); }
+    if (match[1] === "d") bytes = decodeIdLists(bytes);
   }
   return decodeData(bytes);
 };
@@ -215,7 +218,7 @@ export const createShareComparison = () => {
   header.append(title, status);
   const help = document.createElement("p");
   help.className = "share-comparison-help";
-  help.textContent = "Menor tamaño primero · Zopfli 15 · Brotli calidad 11";
+  help.textContent = "Menor tamaño primero · Zopfli 15 · Brotli 11 (IDs optimizados si conviene)";
   const bars = document.createElement("div");
   bars.className = "share-comparison-bars";
   bars.setAttribute("role", "list");
@@ -240,7 +243,7 @@ export const createShareComparison = () => {
   let nativeStatus = "unavailable";
   const advanced = { "Zopfli": { chars: null, state: "pending" }, "Brotli": { chars: null, state: "pending" } };
   const render = () => {
-    const methods = [{ name: "Directo", chars: plain, state: plain === null ? "Pendiente" : "Referencia" }, { name: "DEFLATE", chars: compressed, state: compressed === null ? nativeStatus === "failed" ? "Falló" : "No disponible" : "Nativo" }, ...Object.entries(advanced).map(([name, value]) => ({ name, chars: value.chars, state: value.state === "failed" ? "No disponible" : value.state === "pending" ? "Calculando…" : "Completado" }))];
+    const methods = [{ name: "Directo", chars: plain, state: plain === null ? "Pendiente" : "Referencia" }, { name: "DEFLATE", chars: compressed, state: compressed === null ? nativeStatus === "failed" ? "Falló" : "No disponible" : "Nativo" }, ...Object.entries(advanced).map(([name, value]) => ({ name: value.label || name, chars: value.chars, state: value.state === "failed" ? "No disponible" : value.state === "pending" ? "Calculando…" : "Completado" }))];
     const ordered = [...methods].sort((a, b) => (a.chars ?? Infinity) - (b.chars ?? Infinity));
     const available = ordered.filter((method) => method.chars !== null);
     const best = available[0];
@@ -274,12 +277,12 @@ export const createShareComparison = () => {
     status.textContent = plain === null ? "Preparando enlace…" : waiting ? "Comparando métodos…" : `Mejor: ${best.name}`;
     for (const name of ["Zopfli", "Brotli"]) if (extra[name === "Zopfli" ? "Zopfli 15" : "Brotli 11"]) {
       const value = advanced[name];
-      extra[name === "Zopfli" ? "Zopfli 15" : "Brotli 11"].textContent = value.chars === null ? value.state === "failed" ? "No disponible" : "Calculando…" : `${numbers.format(value.chars)} caracteres`;
+      extra[name === "Zopfli" ? "Zopfli 15" : "Brotli 11"].textContent = value.chars === null ? value.state === "failed" ? "No disponible" : "Calculando…" : `${numbers.format(value.chars)} caracteres${value.label === "Brotli + IDs" ? " · Delta/Varint" : ""}`;
     }
   };
-  const reset = () => { plain = null; compressed = null; nativeStatus = "unavailable"; for (const value of Object.values(advanced)) { value.chars = null; value.state = "pending"; } result.textContent = ""; render(); };
+  const reset = () => { plain = null; compressed = null; nativeStatus = "unavailable"; for (const value of Object.values(advanced)) { value.chars = null; value.state = "pending"; value.label = null; } result.textContent = ""; render(); };
   const setNative = (info) => { plain = info.directChars; compressed = info.compressedChars; nativeStatus = info.compressionStatus; render(); };
-  const setResult = (name, chars) => { advanced[name].chars = chars; advanced[name].state = "completed"; render(); };
+  const setResult = (name, chars, label = name) => { advanced[name].chars = chars; advanced[name].label = label; advanced[name].state = "completed"; render(); };
   const setFailure = (name) => { for (const value of Object.values(advanced)) if (!name || advanced[name] === value) value.state = "failed"; render(); };
   render();
   return { reset, setNative, setResult, setFailure };
