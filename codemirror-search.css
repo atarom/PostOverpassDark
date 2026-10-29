@@ -1,0 +1,23 @@
+.cm-editor .cm-panels:has(.cm-search){max-height:min(42dvh,260px);overflow-y:auto;border-top:1px solid var(--b)!important;background:var(--pop)!important;color:var(--t)!important;scrollbar-color:var(--b2) var(--p3)}
+.cm-editor .cm-panel.cm-search{display:flex!important;flex-wrap:wrap;align-items:center;gap:7px;padding:9px 40px 10px 10px!important;background:var(--pop)!important;color:var(--t)!important;font:12px/1.4 var(--sans)!important}
+.cm-editor .cm-panel.cm-search::before,.cm-editor .cm-panel.cm-search::after{content:"";display:block;flex:0 0 100%;height:0}
+.cm-editor .cm-panel.cm-search::before{order:1}
+.cm-editor .cm-panel.cm-search::after{order:3}
+.cm-editor .cm-panel.cm-search > input[name="search"],.cm-editor .cm-panel.cm-search > input[name="replace"]{flex:1 1 125px;min-width:90px;width:auto!important;height:32px;margin:0!important;padding:5px 9px!important;border:1px solid var(--b)!important;border-radius:5px!important;outline:0!important;background:var(--p3)!important;background-image:none!important;color:var(--t)!important;font:12px var(--mono)!important;box-shadow:none!important}
+.cm-editor .cm-panel.cm-search > input::placeholder{color:var(--m)!important;opacity:.8}
+.cm-editor .cm-panel.cm-search > input[name="search"]:focus-visible,.cm-editor .cm-panel.cm-search > input[name="replace"]:focus-visible{border-color:var(--a)!important;outline:1px solid var(--a)!important;outline-offset:0!important}
+.cm-editor .cm-panel.cm-search > button{flex:0 0 auto;width:auto!important;min-height:32px;margin:0!important;padding:5px 9px!important;border:1px solid var(--b)!important;border-radius:5px!important;background:var(--p2)!important;background-image:none!important;box-shadow:none!important;color:var(--t)!important;font:700 11px var(--sans)!important;line-height:1.2!important;text-shadow:none!important;white-space:nowrap;cursor:pointer}
+.cm-editor .cm-panel.cm-search > button:hover{border-color:var(--b2)!important;background:var(--ph)!important;color:var(--ah)!important}
+.cm-editor .cm-panel.cm-search > button:active{transform:none;background:#304e38!important}
+.cm-editor .cm-panel.cm-search > button:focus-visible{outline:2px solid var(--a)!important;outline-offset:1px!important}
+.cm-editor .cm-panel.cm-search > label{order:2;display:inline-flex!important;flex:0 0 auto;align-items:center;gap:5px;min-height:26px;margin:0 6px 0 0!important;padding:0!important;color:var(--m)!important;font:600 11px var(--sans)!important;letter-spacing:0!important;text-transform:none!important;white-space:nowrap;cursor:pointer}
+.cm-editor .cm-panel.cm-search > label:hover{color:var(--t)!important}
+.cm-editor .cm-panel.cm-search input[type="checkbox"]{flex:0 0 auto;width:15px!important;height:15px!important;margin:0!important;padding:0!important;accent-color:var(--a);cursor:pointer}
+.cm-editor .cm-panel.cm-search > br{display:none}
+.cm-editor .cm-panel.cm-search > input[name="replace"],.cm-editor .cm-panel.cm-search > button[name="replace"],.cm-editor .cm-panel.cm-search > button[name="replaceAll"]{order:4}
+.cm-editor .cm-panel.cm-search > button[name="close"]{position:absolute!important;top:8px!important;right:8px!important;display:grid;place-items:center;width:26px!important;min-width:26px!important;height:26px!important;min-height:26px!important;padding:0!important;border:1px solid var(--b)!important;border-radius:5px!important;background:var(--p2)!important;color:var(--m)!important;font:20px/1 var(--sans)!important}
+.cm-editor .cm-panel.cm-search > button[name="close"]:hover{border-color:var(--a)!important;background:var(--ph)!important;color:var(--ah)!important}
+.cm-editor .cm-searchMatch{background:#84ca8f40!important;outline:1px solid #84ca8f66;outline-offset:-1px}
+.cm-editor .cm-searchMatch-selected{background:#a0d2ae88!important;outline:1px solid var(--a)}
+@media (max-height:600px){.cm-editor .cm-panels:has(.cm-search){max-height:38dvh}.cm-editor .cm-panel.cm-search{gap:5px;padding-top:6px!important;padding-bottom:6px!important}}
+@media (max-width:420px){.cm-editor .cm-panel.cm-search{gap:5px;padding-right:36px!important;padding-left:7px!important}.cm-editor .cm-panel.cm-search > button{padding-right:7px!important;padding-left:7px!important}.cm-editor .cm-panel.cm-search > label{margin-right:2px!important}}

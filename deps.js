@@ -1,3 +1,7 @@
+const searchStylesheet = document.createElement("link");
+searchStylesheet.rel = "stylesheet";
+searchStylesheet.href = new URL("./codemirror-search.css", import.meta.url).href;
+document.head.append(searchStylesheet);
 const loadOl = async () => {
   if (window.ol?.layer?.WebGLVector) return window.ol;
   for (const url of ["https://cdn.jsdelivr.net/npm/ol@10.11.0/dist/ol.js", "https://unpkg.com/ol@10.11.0/dist/ol.js"]) {
