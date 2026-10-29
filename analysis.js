@@ -1,3 +1,4 @@
+import { createVirtualValues } from "./virtual-values.js";
 import { createNumericHistogram } from "./numeric-histogram.js";
 const PALETTE = ["#e6194b","#3cb44b","#ffe119","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe","#008080","#e6beff","#9a6324","#fffac8","#800000","#aaffc3","#808000","#ffd8b1","#000075","#808080","#ffffff","#000000"];
 const RESERVED = new Set(["id","type","relations","meta","osm_id","osm_type","osm_url"]);
@@ -86,63 +87,51 @@ export const createAnalysis = ({ elements, onChange }) => {
     }
     return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "es"));
   };
+  const virtualValues = createVirtualValues({ root: values, onSelect: (next) => {
+    selectedValue = next;
+    if (selectedValue !== null) regexEnable.checked = false;
+    valueTools.hidden = selectedValue === null;
+    emit();
+  } });
   const renderValues = () => {
     const counts = valueCounts();
     valuesLabel.textContent = countMode.value === "word" ? "Palabras únicas" : "Valores únicos";
-    const scroll = values.scrollTop;
-    values.replaceChildren();
-    for (const [value, count] of counts) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "analysis-value";
-      button.setAttribute("aria-pressed", String(value === selectedValue));
-      button.title = value === selectedValue ? "Quitar selección" : `Seleccionar ${value || "(vacío)"}`;
-      const amount = document.createElement("span");
-      amount.className = "analysis-value-count";
-      amount.textContent = count.toLocaleString("es-ES");
-      const text = document.createElement("span");
-      text.className = "analysis-value-text";
-      text.textContent = value || "(vacío)";
-      button.append(amount, text);
-      button.onclick = () => {
-        selectedValue = selectedValue === value ? null : value;
-        if (selectedValue !== null) regexEnable.checked = false;
-        valueTools.hidden = selectedValue === null;
-        for (const item of values.querySelectorAll(".analysis-value")) item.setAttribute("aria-pressed", String(item === button && selectedValue !== null));
-        emit();
-      };
-      values.append(button);
-    }
-    if (!counts.length) values.textContent = countMode.value === "word" ? "Sin palabras." : "Sin valores.";
-    values.scrollTop = scroll;
+    virtualValues.setData(counts, selectedValue, countMode.value === "word" ? "Sin palabras." : "Sin valores.");
     valueTools.hidden = selectedValue === null;
     summary.textContent = `${collection.features.length.toLocaleString("es-ES")} entidades · ${info.keys.length.toLocaleString("es-ES")} keys · ${counts.length.toLocaleString("es-ES")} ${countMode.value === "word" ? "palabras" : "valores"}`;
   };
-  const regexCount = (pattern) => {
-    const selected = key.value;
-    let count = 0;
-    for (const feature of collection.features || []) {
-      const value = textValue(featureTags(feature)[selected]);
-      if (value && pattern.regex.test(value)) count++;
-    }
-    return count;
-  };
+  let regexCache = null;
   const updateRegexCounts = () => {
     const seen = new Set();
+    const rows = [];
+    const patterns = new Map();
     for (const row of regexColors.children) {
       const input = row.querySelector(".pod-regex-input");
       const label = row.querySelector(".pod-regex-count");
       const source = input.value.trim();
       let error = "";
-      let count = 0;
       if (source) {
-        try {
-          const regex = new RegExp(source, regexInsensitive.checked ? "i" : "");
-          count = regexCount({ regex });
-          if (seen.has(source)) error = "Regex duplicada";
-          seen.add(source);
-        } catch { error = "Expresión no válida"; }
+        if (!patterns.has(source)) {
+          try { patterns.set(source, { regex: new RegExp(source, regexInsensitive.checked ? "i" : ""), count: 0 }); }
+          catch { patterns.set(source, null); }
+        }
+        if (!patterns.get(source)) error = "Expresión no válida";
+        else if (seen.has(source)) error = "Regex duplicada";
+        seen.add(source);
       }
+      rows.push({ input, label, source, error });
+    }
+    const signature = JSON.stringify([key.value, regexInsensitive.checked, ...patterns.keys()]);
+    if (!regexCache || regexCache.collection !== collection || regexCache.signature !== signature) {
+      if ([...patterns.values()].some(Boolean)) for (const feature of collection.features || []) {
+        const value = textValue(featureTags(feature)[key.value]);
+        if (!value) continue;
+        for (const pattern of patterns.values()) if (pattern?.regex.test(value)) pattern.count++;
+      }
+      regexCache = { collection, signature, counts: new Map([...patterns].map(([source, pattern]) => [source, pattern?.count || 0])) };
+    }
+    for (const { input, label, source, error } of rows) {
+      const count = regexCache.counts.get(source) || 0;
       input.setAttribute("aria-invalid", String(Boolean(error)));
       label.classList.toggle("is-error", Boolean(error));
       label.textContent = error || (source ? `${count.toLocaleString("es-ES")} coincidencia${count === 1 ? "" : "s"}` : "Escribe una regex");
@@ -360,6 +349,7 @@ export const createAnalysis = ({ elements, onChange }) => {
   const setData = (next, silent = false) => {
     collection = next?.type === "FeatureCollection" && Array.isArray(next.features) ? next : { type: "FeatureCollection", features: [] };
     info = analyzeCollection(collection);
+    regexCache = null;
     const oldKey = key.value;
     key.replaceChildren(...info.keys.map(([name, count]) => {
       const option = document.createElement("option");
@@ -388,11 +378,12 @@ export const createAnalysis = ({ elements, onChange }) => {
     cancelAnimationFrame(frame);
     collection = { type: "FeatureCollection", features: [] };
     info = { keys: [], numericKeys: [] };
+    regexCache = null;
     selectedValue = null;
     valueTools.hidden = true;
     key.replaceChildren();
     numericKey.replaceChildren();
-    values.textContent = "Sin datos.";
+    virtualValues.setData([], null, "Sin datos.");
     summary.textContent = "Ejecuta una consulta para analizar sus tags.";
     renderRegex();
     numericEnable.checked = false;

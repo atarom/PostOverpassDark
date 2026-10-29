@@ -25,7 +25,7 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
 .pri{border-color:#83b78c;background:#85b68a;color:#0c2114}
 .pri:hover{background:var(--ah)}
 .action-bar{display:flex;align-items:center;gap:6px}
-.tabs{display:grid;grid-template-columns:repeat(3, 1fr)}
+.tabs{display:grid;grid-template-columns:repeat(3, 1fr);flex:none;border-bottom:1px solid var(--b);background:#0e1713}
 .heatcfg[hidden], .ov[hidden]{display:none!important}
 .heatcfg{margin-top:12px;padding-top:12px;border-top:1px solid var(--b)}
 .hc-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;color:var(--t);font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:0.04em}
@@ -71,7 +71,6 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
 .panel-resizer:hover::after, .panel-resizer:focus-visible::after, .side.is-panel-resizing .panel-resizer::after{background:var(--ah)}
 .panel-resizer:focus-visible{outline:2px solid var(--a);outline-offset:-1px}
 .side.is-panel-resizing{user-select:none}
-.tabs{flex:none;border-bottom:1px solid var(--b);background:#0e1713}
 .tab{border:0;border-radius:0;padding:10px 6px;background:#0e1713}
 .tab.on{background:#192b22;color:var(--t);box-shadow:inset 0 -2px var(--a)}
 .tp{display:none;min-height:0;overflow:hidden}
@@ -99,6 +98,7 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
 @media (pointer: coarse){
   .analysis-value{min-height:44px}
 }
+.analysis-value-spacer{height:0;pointer-events:none}
 .analysis-value-count{color:var(--a);font-variant-numeric:tabular-nums;text-align:right}
 .analysis-value-text{min-width:0;overflow-wrap:anywhere}
 .analysis-value-tools{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;margin:0 0 10px;padding:8px;border:1px solid var(--b);border-radius:var(--r);background:var(--p3)}
@@ -152,38 +152,6 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
 ::-webkit-scrollbar-track{background:#0a1410}
 ::-webkit-scrollbar-thumb{border:2px solid #0a1410;border-radius:10px;background:#47634f}
 ::-webkit-scrollbar-thumb:hover{background:#69876c}
-@media (max-width: 850px){
-  .panel-resizer{display:none}
-  #statusPanel.on{flex:0 0 auto}
-  .sidebar-resizer{display:none}
-  .app{grid-template-columns:1fr;grid-template-rows:minmax(0, 48%) minmax(0, 52%)}
-  .side{height:auto;border:0;border-bottom:1px solid var(--b)}
-  .app:has(#analysisPanel.on){grid-template-rows:minmax(0, 62%) minmax(0, 38%)}
-  .pan{padding:8px 10px}
-  .edit{min-height:70px}
-  #statusPanel.on{max-height:120px}
-  #dataPanel.on, #analysisPanel.on{flex-basis:min(160px, 35dvh)}
-  .analysis-values{min-height:64px}
-  .pod-ol-popup{min-width:min(280px, 88vw);max-width:88vw}
-  .tr{grid-template-columns:minmax(80px, 38%) minmax(0, 1fr)}
-  .cm-tooltip-autocomplete > ul > li{min-width:180px}
-  .cm-tooltip-lint{max-width:88vw!important}
-}
-@media (max-height: 600px){
-  .pan{padding:7px 10px}
-  .tab{padding:7px 4px}
-  .edit{min-height:60px}
-  .analysis-head{margin-bottom:6px}
-}
-@media (max-width: 850px) and (max-height: 600px){
-  #statusPanel.on{max-height:90px}
-  #dataPanel.on, #analysisPanel.on{flex-basis:min(125px, 32dvh)}
-}
-@media (max-width: 850px) and (max-height: 600px) and (orientation: landscape){
-  .app, .app:has(#analysisPanel.on){grid-template-columns:minmax(320px, 46%) minmax(0, 1fr);grid-template-rows:1fr}
-  .side{height:100%;border-right:1px solid var(--b);border-bottom:0}
-  #analysisPanel.on{flex-basis:min(125px, 32dvh)}
-}
 .share-dialog{width:min(480px, calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:18px;overflow:auto;border:1px solid var(--b2);border-radius:var(--r);color:var(--t);background:var(--p);box-shadow:0 12px 48px #0009}
 .share-dialog::backdrop{background:#000a}
 .share-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:15px}
@@ -237,12 +205,6 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
 .action-bar .cfg-toggle[aria-expanded="true"]{border-color:var(--a);background:#304e38;color:var(--ah)}
 .cfg-panel{position:absolute;z-index:7;top:100%;right:14px;left:14px;max-height:min(48dvh, 420px);padding:12px;overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--b);border-radius:var(--r);background:var(--p3)}
 .cfg-panel[hidden]{display:none}
-@media (max-width: 850px){
-  .cfg-panel{right:10px;left:10px;max-height:min(32dvh, calc(48dvh - 105px))}
-}
-@media (max-width: 850px) and (max-height: 600px) and (orientation: landscape){
-  .cfg-panel{max-height:min(42dvh, calc(100dvh - 110px))}
-}
 .action-bar .preset-toggle{flex:0 0 76px;width:76px;margin-left:auto;font-size:11px;font-weight:800}
 .action-bar .preset-toggle[aria-expanded="true"]{border-color:var(--a);background:#304e38;color:var(--ah)}
 .preset-panel{position:absolute;z-index:7;top:100%;right:14px;left:14px;max-height:min(56dvh, 430px);overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--b2);border-radius:var(--r);background:var(--p3)}
@@ -253,12 +215,6 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
 .preset-item[aria-pressed="true"]{background:#1b3024}
 .preset-item-title{color:var(--t);font-size:13px;font-weight:800;line-height:1.3}
 .preset-item-description{color:var(--m);font-size:12px;font-weight:400;line-height:1.4;overflow-wrap:anywhere}
-@media (max-width: 850px){
-  .preset-panel{right:10px;left:10px;max-height:min(42dvh, 330px)}
-}
-@media (max-width: 850px) and (max-height: 600px) and (orientation: landscape){
-  .preset-panel{max-height:min(52dvh, 230px)}
-}
 .pod-regex-head,.pod-regex-rule{display:grid;grid-template-columns:minmax(0,1fr) 62px;gap:9px;align-items:center}
 .pod-regex-head{padding:0 9px 3px;color:var(--m);font:800 10px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.05em}
 .regex-colors{display:grid;gap:7px;margin-top:6px}
@@ -293,4 +249,42 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
 .share-comparison-delta{min-height:15px;color:var(--m);font-size:11px;line-height:1.3}
 .share-comparison-method.is-best .share-comparison-value,.share-comparison-method.is-best .share-comparison-delta{color:var(--a)}
 .share-comparison .share-max-result{margin-top:11px;padding-top:10px;border-top:1px solid var(--b);line-height:1.45}
-@media(max-width:480px){#shareDialog .share-head{top:-12px}.share-comparison{padding:10px}.share-comparison-bars{gap:4px}.share-comparison-name{font-size:11px}.share-comparison-delta{font-size:10px}.share-comparison-value{font-size:10px}.share-comparison-status{max-width:110px}}
+@media (max-width: 850px){
+  .panel-resizer{display:none}
+  #statusPanel.on{flex:0 0 auto}
+  .sidebar-resizer{display:none}
+  .app{grid-template-columns:1fr;grid-template-rows:minmax(0, 48%) minmax(0, 52%)}
+  .side{height:auto;border:0;border-bottom:1px solid var(--b)}
+  .app:has(#analysisPanel.on){grid-template-rows:minmax(0, 62%) minmax(0, 38%)}
+  .pan{padding:8px 10px}
+  .edit{min-height:70px}
+  #statusPanel.on{max-height:120px}
+  #dataPanel.on, #analysisPanel.on{flex-basis:min(160px, 35dvh)}
+  .analysis-values{min-height:64px}
+  .pod-ol-popup{min-width:min(280px, 88vw);max-width:88vw}
+  .tr{grid-template-columns:minmax(80px, 38%) minmax(0, 1fr)}
+  .cm-tooltip-autocomplete > ul > li{min-width:180px}
+  .cm-tooltip-lint{max-width:88vw!important}
+  .cfg-panel{right:10px;left:10px;max-height:min(32dvh, calc(48dvh - 105px))}
+  .preset-panel{right:10px;left:10px;max-height:min(42dvh, 330px)}
+}
+@media (max-height: 600px){
+  .pan{padding:7px 10px}
+  .tab{padding:7px 4px}
+  .edit{min-height:60px}
+  .analysis-head{margin-bottom:6px}
+}
+@media (max-width: 850px) and (max-height: 600px){
+  #statusPanel.on{max-height:90px}
+  #dataPanel.on, #analysisPanel.on{flex-basis:min(125px, 32dvh)}
+}
+@media (max-width: 850px) and (max-height: 600px) and (orientation: landscape){
+  .app, .app:has(#analysisPanel.on){grid-template-columns:minmax(320px, 46%) minmax(0, 1fr);grid-template-rows:1fr}
+  .side{height:100%;border-right:1px solid var(--b);border-bottom:0}
+  #analysisPanel.on{flex-basis:min(125px, 32dvh)}
+  .cfg-panel{max-height:min(42dvh, calc(100dvh - 110px))}
+  .preset-panel{max-height:min(52dvh, 230px)}
+}
+@media (max-width:480px){
+  #shareDialog .share-head{top:-12px}.share-comparison{padding:10px}.share-comparison-bars{gap:4px}.share-comparison-name{font-size:11px}.share-comparison-delta{font-size:10px}.share-comparison-value{font-size:10px}.share-comparison-status{max-width:110px}
+}

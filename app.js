@@ -8,7 +8,7 @@ import { createUI } from "./ui.js";
 import { createAnalysis } from "./analysis.js";
 import { createJosmExporter } from "./josm-export.js";
 import { encodeShare, encodeShareDetailed, encodeShareZopfli, encodeShareBrotli, decodeShare, sharedFragment, createShareComparison } from "./share.js";
-import { $, esc, json, abortError } from "./utils.js";
+import { $, esc, abortError } from "./utils.js";
 import { OVERPASS_PRESETS } from "./presets-overpass.js";
 import { POSTPASS_PRESETS } from "./presets-postpass.js";
 const STORE = { endpoint: "postoverpassdark:endpoint", wrap: "postoverpassdark:wrap", mode: "postoverpassdark:render", heat: "postoverpassdark:heat", areas: "postoverpassdark:geocode-areas", sidebar: "postoverpassdark:sidebar-width" };
@@ -429,7 +429,7 @@ const initializeApp = (deps) => {
     josm.reset();
     const time = elapsed(start);
     analysis.clear();
-    ui.data.geojson = "";
+    ui.setGeojson(null);
     dataView.value = "raw";
     ui.setStatus(`<strong>Respuesta textual recibida</strong><br>Formato: ${esc(result.format.toUpperCase())} · Tiempo: ${time}`, "ok");
     ui.show();
@@ -439,7 +439,7 @@ const initializeApp = (deps) => {
   };
   const geoResult = (result, start, postpass) => {
     josm.setData(postpass ? result.geo : result.raw, postpass ? "postpass" : "overpass");
-    ui.data.geojson = json(result.geo);
+    ui.setGeojson(result.geo);
     analysis.setData(result.geo, true);
     ui.log(`${postpass ? "GeoJSON recibido" : "Conversión GeoJSON completada"}\nDibujando ${result.geo.features.length} entidades GeoJSON…`);
     mapController.draw(result.geo, { filters: analysis.options() });

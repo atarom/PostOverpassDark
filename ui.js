@@ -1,8 +1,9 @@
-import { $, esc } from "./utils.js";
+import { $, esc, json } from "./utils.js";
 export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLog, copyButton }) => {
   const data = { query: "", raw: "", geojson: "" };
   let overlayTimer;
   let previousFocus = null;
+  let geoData = null;
   const log = (message) => {
     overlayLog.textContent += message + "\n";
     overlayLog.scrollTop = overlayLog.scrollHeight;
@@ -29,8 +30,17 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
     status.className = "status " + cls;
     status.innerHTML = html;
   };
-  const show = () => dataOutput.textContent = data[dataView.value] || "Sin datos.";
+  const show = () => {
+    if (dataView.value === "geojson" && geoData) {
+      try { data.geojson = json(geoData); }
+      catch (error) { data.geojson = "Error al generar GeoJSON: " + (error.message || String(error)); }
+      geoData = null;
+    }
+    dataOutput.textContent = data[dataView.value] || "Sin datos.";
+  };
+  const setGeojson = (value) => { geoData = value; data.geojson = ""; };
   const resetData = () => {
+    geoData = null;
     Object.keys(data).forEach((key) => data[key] = "");
   };
   const tab = (name) => {
@@ -61,5 +71,5 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
       tab("status");
     }
   };
-  return { data, log, overlayClose, overlayOpen, overlayDone, setStatus, show, resetData, tab, copy };
+  return { data, log, overlayClose, overlayOpen, overlayDone, setStatus, show, setGeojson, resetData, tab, copy };
 };
