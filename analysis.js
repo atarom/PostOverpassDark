@@ -1,3 +1,4 @@
+import { createNumericHistogram } from "./numeric-histogram.js";
 const PALETTE = ["#e6194b","#3cb44b","#ffe119","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe","#008080","#e6beff","#9a6324","#fffac8","#800000","#aaffc3","#808000","#ffd8b1","#000075","#808080","#ffffff","#000000"];
 const RESERVED = new Set(["id","type","relations","meta","osm_id","osm_type","osm_url"]);
 const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
@@ -238,6 +239,7 @@ export const createAnalysis = ({ elements, onChange }) => {
     for (const source of sources.length ? sources : [""]) addRegexRule(source, used);
     updateRegexCounts();
   };
+  const histogram = createNumericHistogram({ anchor: numericKey, minInput: numericMin, maxInput: numericMax, getCollection: () => collection, getValue: (feature, name) => numericValue(featureTags(feature)[name]), onRange: () => { numericMinValue.value = numericMin.value; numericMaxValue.value = numericMax.value; emitFrame(); } });
   const numericRange = () => {
     const item = info.numericKeys.find(([name]) => name === numericKey.value);
     const min = item?.[1] ?? 0;
@@ -274,6 +276,7 @@ export const createAnalysis = ({ elements, onChange }) => {
   };
   const numericChanged = () => {
     numericRange();
+    histogram.refresh();
     emit();
   };
   const delayedRegex = () => {
@@ -299,6 +302,7 @@ export const createAnalysis = ({ elements, onChange }) => {
     regexText.value = "";
     colors = {};
     numericRange();
+    histogram.refresh();
     renderValues();
     renderRegex();
     emit();
@@ -315,6 +319,7 @@ export const createAnalysis = ({ elements, onChange }) => {
   valueHideOthers.onchange = emit;
   numericEnable.onchange = () => {
     for (const input of [numericMin, numericMax]) input.disabled = !numericEnable.checked || !numericKey.value;
+    histogram.refresh();
     emit();
   };
   numericKey.onchange = numericChanged;
@@ -323,12 +328,14 @@ export const createAnalysis = ({ elements, onChange }) => {
     if (+numericMin.value > +numericMax.value) numericMax.value = numericMin.value;
     numericMinValue.value = numericMin.value;
     numericMaxValue.value = numericMax.value;
+    histogram.redraw();
     emitFrame();
   };
   numericMax.oninput = () => {
     if (+numericMax.value < +numericMin.value) numericMin.value = numericMax.value;
     numericMinValue.value = numericMin.value;
     numericMaxValue.value = numericMax.value;
+    histogram.redraw();
     emitFrame();
   };
   regexEnable.onchange = () => {
@@ -371,6 +378,7 @@ export const createAnalysis = ({ elements, onChange }) => {
     if (info.numericKeys.some(([name]) => name === oldNumeric)) numericKey.value = oldNumeric;
     selectedValue = null;
     numericRange();
+    histogram.refresh();
     renderValues();
     renderRegex();
     if (!silent) emit();
@@ -391,6 +399,7 @@ export const createAnalysis = ({ elements, onChange }) => {
     regexEnable.checked = false;
     numericMin.disabled = true;
     numericMax.disabled = true;
+    histogram.clear();
   };
   clear();
   return { setData, clear, options };
