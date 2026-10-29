@@ -44,9 +44,11 @@ const popupHtml = (feature) => {
   const actions = links.map(([icon, title, url]) => `<button type="button" class="pop-action" style="width:auto;height:38px;flex:1 1 0;min-width:0" data-url="${esc(url)}" title="${esc(title)}" aria-label="${esc(title)}">${POPUP_ICONS[icon]}</button>`).join("");
   return `<div class="pp"><div class="ph"><div class="pt">${esc(name)}</div></div><div class="tags">${body || '<div class="tr"><div class="tk">info</div><div class="tv">Sin información visible</div></div>'}</div>${actions ? `<div class="acts">${actions}</div>` : ""}</div>`;
 };
-const PASS = ["all", ["==", ["get", "podValid"], 1], ["between", ["get", "podValue"], ["var", "minEle"], ["var", "maxEle"]]];
-const BAD = ["any", ["==", ["get", "podValid"], 0], ["<", ["get", "podValue"], ["var", "minEle"]], [">", ["get", "podValue"], ["var", "maxEle"]]];
-const FILTER = ["all", ["==", ["get", "podKeep"], 1], ["any", ["==", ["var", "numericEnabled"], 0], ["==", ["var", "showErrors"], 1], PASS]];
+const MISSING_NUMBER = -1e20;
+const PASS = ["all", ["!=", ["get", "podValue"], MISSING_NUMBER], ["between", ["get", "podValue"], ["var", "minEle"], ["var", "maxEle"]]];
+const BAD = ["any", ["==", ["get", "podValue"], MISSING_NUMBER], ["<", ["get", "podValue"], ["var", "minEle"]], [">", ["get", "podValue"], ["var", "maxEle"]]];
+const GEOMETRY_PASS = ["any", ["==", ["var", "geometryEnabled"], 0], ["all", ["!=", ["get", "podGeomValue"], -1], ["between", ["get", "podGeomValue"], ["var", "minGeom"], ["var", "maxGeom"]]]];
+const FILTER = ["all", ["==", ["get", "podKeep"], 1], ["any", ["==", ["var", "numericEnabled"], 0], ["==", ["var", "showErrors"], 1], PASS], GEOMETRY_PASS];
 const RED = ["case", ["all", ["==", ["var", "numericEnabled"], 1], BAD], 239, ["get", "podR"]];
 const GREEN = ["case", ["all", ["==", ["var", "numericEnabled"], 1], BAD], 132, ["get", "podG"]];
 const BLUE = ["case", ["all", ["==", ["var", "numericEnabled"], 1], BAD], 145, ["get", "podB"]];
@@ -98,7 +100,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     const saved = JSON.parse(storage.getItem(heatStoreKey) || "{}");
     heat = { intensity: valid(saved.intensity, 0.25, 3, 1), radius: valid(saved.radius, 0.25, 3, 1), opacity: valid(saved.opacity, 0, 1, 0.88), weight: valid(saved.weight, 0.1, 5, 1), palette: COLORS[saved.palette] ? saved.palette : "default" };
   } catch {}
-  const vars = { minEle: -1000000, maxEle: 1000000, numericEnabled: 0, showErrors: 0 };
+  const vars = { minEle: -1000000, maxEle: 1000000, numericEnabled: 0, showErrors: 0, minGeom: 0, maxGeom: 0, geometryEnabled: 0 };
   const vectorSource = new Vector({ wrapX: false });
   const heatSource = new Vector({ wrapX: false });
   const vectorLayer = new WebGLVector({ source: vectorSource, variables: { ...vars }, style: [{ filter: FILTER, style: { "circle-radius": 7, "circle-fill-color": styleColor(1), "circle-stroke-color": "#e5edf8", "circle-stroke-width": 1.4, "stroke-color": styleColor(1), "stroke-width": 3, "fill-color": styleColor(0.18) } }] });
@@ -125,10 +127,16 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     const button = event.target.closest(".pop-action");
     if (button) window.open(button.dataset.url, "_blank", "noopener,noreferrer");
   });
+  const selectionSource = new Vector({ wrapX: false });
+  map.addLayer(new ol.layer.Vector({ source: selectionSource, style: { "stroke-color": "#ffe69d", "stroke-width": 4, "fill-color": "rgba(255,230,157,0.24)", "circle-radius": 10, "circle-fill-color": "#ffe69d", "circle-stroke-color": "#32483a", "circle-stroke-width": 2 } }));
   const format = new GeoJSON();
   let geo = null;
   let rendered = [];
+  let byIndex = new Map();
+  let selectedIndex = null;
+  let resultsChanged = null;
   let lastPrepared = "";
+  let lastGeometryValues = null;
   let regexPatterns = [];
   let options = {};
   let heatReady = false;
@@ -159,13 +167,29 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
       const attrs = basePass(original, opts, regexPatterns);
       const n = numericValue(tags[opts.numericKey]);
       const [podR, podG, podB] = hexRgb(attrs.color);
-      rendered[i].setProperties({ podKeep: attrs.keep, podValue: Number.isFinite(n) ? n : 0, podValid: Number.isFinite(n) ? 1 : 0, podR, podG, podB }, true);
+      rendered[i].setProperties({ podKeep: attrs.keep, podValue: Number.isFinite(n) ? n : MISSING_NUMBER, podR, podG, podB }, true);
     }
     vectorSource.changed();
     if (heatReady && !heatShared) {
       for (const feat of heatSource.getFeatures()) {
         const original = rendered[feat.get("podLocalIndex")];
-        if (original) feat.setProperties({ podKeep: original.get("podKeep"), podValue: original.get("podValue"), podValid: original.get("podValid") }, true);
+        if (original) feat.setProperties({ podKeep: original.get("podKeep"), podValue: original.get("podValue") }, true);
+      }
+      heatSource.changed();
+    }
+  };
+  const syncGeometryAttributes = (values) => {
+    if (values === lastGeometryValues) return;
+    lastGeometryValues = values;
+    for (const feature of rendered) {
+      const value = values?.[feature.get("podIndex")];
+      feature.setProperties({ podGeomValue: Number.isFinite(value) ? value : -1 }, true);
+    }
+    vectorSource.changed();
+    if (heatReady && !heatShared) {
+      for (const feature of heatSource.getFeatures()) {
+        const original = rendered[feature.get("podLocalIndex")];
+        if (original) feature.setProperties({ podGeomValue: original.get("podGeomValue") }, true);
       }
       heatSource.changed();
     }
@@ -174,10 +198,49 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     options = next;
     if (!geo) return;
     syncAttributes(next);
+    syncGeometryAttributes(next.geometryValues);
     const active = next.numericEnabled && next.numericKey ? 1 : 0;
-    const update = { minEle: Number(next.numericMin) || 0, maxEle: Number(next.numericMax) || 0, numericEnabled: active, showErrors: next.numericShowErrors ? 1 : 0 };
+    const update = { minEle: Number(next.numericMin) || 0, maxEle: Number(next.numericMax) || 0, numericEnabled: active, showErrors: next.numericShowErrors ? 1 : 0, minGeom: Number(next.geometryMin) || 0, maxGeom: Number(next.geometryMax) || 0, geometryEnabled: next.geometryEnabled ? 1 : 0 };
     vectorLayer.updateStyleVariables(update);
     heatLayer.updateStyleVariables(update);
+  };
+  const hasResultFilter = () => Boolean(geo && (options.onlySelectedKey && options.selectedKey || options.selectedValue !== null && options.selectedValue !== undefined || options.regexEnabled && regexPatterns.length || options.numericEnabled && options.numericKey || options.geometryEnabled || areaGeometry));
+  const isResultMatch = (feature) => {
+    if (!feature || feature.get("podKeep") !== 1) return false;
+    const index = feature.get("podIndex");
+    const raw = geo?.features[index];
+    if (!raw) return false;
+    const tags = featureTags(raw);
+    if (options.selectedValue !== null && options.selectedValue !== undefined && !matchesTagValue(tags, options.selectedKey, options.selectedValue, options.countMode)) return false;
+    if (options.regexEnabled && regexPatterns.length && !regexPatterns.some((rule) => rule.regex.test(String(tags[options.selectedKey] ?? "").trim()))) return false;
+    const number = feature.get("podValue");
+    if (options.numericEnabled && options.numericKey && (number === MISSING_NUMBER || number < Number(options.numericMin) || number > Number(options.numericMax))) return false;
+    const measure = feature.get("podGeomValue");
+    if (options.geometryEnabled && (measure === -1 || measure < Number(options.geometryMin) || measure > Number(options.geometryMax))) return false;
+    if (areaGeometry && !geometryInsideArea(feature.getGeometry(), areaGeometry)) return false;
+    return true;
+  };
+  const clearResultSelection = (zoom = false) => {
+    selectedIndex = null;
+    selectionSource.clear(true);
+    if (zoom) fit(rendered);
+  };
+  const selectResult = (index) => {
+    if (selectedIndex === index) { clearResultSelection(true); return null; }
+    const feature = byIndex.get(index);
+    if (!isResultMatch(feature)) return selectedIndex;
+    selectedIndex = index;
+    selectionSource.clear(true);
+    selectionSource.addFeature(new Feature({ geometry: feature.getGeometry() }));
+    const shape = feature.getGeometry();
+    const extent = shape.getExtent();
+    const view = map.getView();
+    if (!extent.every(Number.isFinite)) { clearResultSelection(); return null; }
+    view.cancelAnimations();
+    if (shape.getType() === "Point" || (extent[0] === extent[2] && extent[1] === extent[3])) view.animate({ center: [(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2], zoom: 18, duration: 250 });
+    else view.fit(extent, { padding: [65, 65, 65, 65], maxZoom: 19, duration: 250 });
+    closePopup();
+    return selectedIndex;
   };
   const fit = (features) => {
     if (!features.length) return;
@@ -284,9 +347,9 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     areaControls();
   };
   areaDraw.on("drawstart", () => { areaSource.clear(); areaGeometry = null; });
-  areaDraw.on("drawend", ({ feature }) => { areaGeometry = feature.getGeometry(); queueMicrotask(() => setAreaDrawing(false)); });
+  areaDraw.on("drawend", ({ feature }) => { areaGeometry = feature.getGeometry(); queueMicrotask(() => { setAreaDrawing(false); resultsChanged?.(); }); });
   areaButton.addEventListener("click", () => {
-    if (areaGeometry) { areaSource.clear(); areaGeometry = null; setAreaDrawing(false); }
+    if (areaGeometry) { areaSource.clear(); areaGeometry = null; setAreaDrawing(false); resultsChanged?.(); }
     else setAreaDrawing(!areaDrawing);
   });
   areaControls();
@@ -295,9 +358,12 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     geo = collection;
     options = filters;
     rendered = [];
+    byIndex = new Map();
+    clearResultSelection();
     heatReady = false;
     heatShared = true;
     lastPrepared = "";
+    lastGeometryValues = null;
     heatSource.clear(true);
     vectorSource.clear(true);
     const features = [];
@@ -308,16 +374,19 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
       try { geometry = format.readGeometry(item.geometry, { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }); } catch { continue; }
       if (!geometry) continue;
       if (geometry.getType() !== "Point") heatShared = false;
-      const feature = new Feature({ geometry, podIndex: i, podKeep: 1, podValid: 0, podValue: 0, podR: 141, podG: 182, podB: 232 });
+      const feature = new Feature({ geometry, podIndex: i, podKeep: 1, podValue: MISSING_NUMBER, podGeomValue: -1, podR: 141, podG: 182, podB: 232 });
       rendered.push(feature);
+      byIndex.set(i, feature);
       features.push(feature);
     }
     syncAttributes(options, true);
+    syncGeometryAttributes(options.geometryValues);
     vectorSource.addFeatures(features);
     heatLayer.setSource(heatShared ? vectorSource : heatSource);
     heatReady = heatShared;
     if (fitBounds) fit(features);
     render();
+    resultsChanged?.();
   };
   const buildHeat = () => {
     if (heatReady) return;
@@ -338,7 +407,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
         center = geometry.getClosestPoint([(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2]);
       }
       if (!center || !center.every(Number.isFinite)) continue;
-      const point = new Feature({ geometry: new Point(center), podLocalIndex: i, podKeep: feature.get("podKeep"), podValue: feature.get("podValue"), podValid: feature.get("podValid") });
+      const point = new Feature({ geometry: new Point(center), podLocalIndex: i, podKeep: feature.get("podKeep"), podValue: feature.get("podValue"), podGeomValue: feature.get("podGeomValue") });
       points.push(point);
     }
     heatSource.addFeatures(points);
@@ -380,7 +449,9 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     const base = basePass(raw, options, regexPatterns);
     const num = numericValue(featureTags(raw)[options.numericKey]);
     const pass = !options.numericEnabled || !options.numericKey || options.numericShowErrors || Number.isFinite(num) && num >= Number(options.numericMin) && num <= Number(options.numericMax);
-    if (!base.keep || !pass) { closePopup(); return; }
+    const geometryValue = options.geometryValues?.[index];
+    const geometryPass = !options.geometryEnabled || Number.isFinite(geometryValue) && geometryValue >= Number(options.geometryMin) && geometryValue <= Number(options.geometryMax);
+    if (!base.keep || !pass || !geometryPass) { closePopup(); return; }
     popupContent.innerHTML = popupHtml(raw);
     popupElement.hidden = false;
     popup.setPosition(event.coordinate);
@@ -395,20 +466,22 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     const valueHidden = options.selectedValue !== null && options.selectedValue !== undefined && options.hideOtherValues;
     const regexHidden = options.regexEnabled && options.regexOnly && !valueHidden && (options.selectedValue === null || options.selectedValue === undefined);
     const numericHidden = Boolean(options.numericEnabled && options.numericKey && !options.numericShowErrors);
-    if (!areaGeometry && !(options.onlySelectedKey && options.selectedKey) && !valueHidden && !regexHidden && !numericHidden) return null;
+    const geometryHidden = Boolean(options.geometryEnabled);
+    if (!areaGeometry && !(options.onlySelectedKey && options.selectedKey) && !valueHidden && !regexHidden && !numericHidden && !geometryHidden) return null;
     const min = Number(options.numericMin) || 0;
     const max = Number(options.numericMax) || 0;
     const result = [];
     for (const feature of rendered) {
       if (feature.get("podKeep") !== 1) continue;
-      if (numericHidden && (feature.get("podValid") !== 1 || feature.get("podValue") < min || feature.get("podValue") > max)) continue;
+      if (numericHidden && (feature.get("podValue") === MISSING_NUMBER || feature.get("podValue") < min || feature.get("podValue") > max)) continue;
+      if (geometryHidden && (feature.get("podGeomValue") === -1 || feature.get("podGeomValue") < Number(options.geometryMin) || feature.get("podGeomValue") > Number(options.geometryMax))) continue;
       if (areaGeometry && !geometryInsideArea(feature.getGeometry(), areaGeometry)) continue;
       result.push(oid(geo.features[feature.get("podIndex")]));
     }
     return result;
   };
-  const clear = () => { closePopup(); geo = null; rendered = []; heatReady = false; heatShared = false; lastPrepared = ""; regexPatterns = []; vectorSource.clear(true); heatSource.clear(true); heatLayer.setSource(heatSource); };
+  const clear = () => { closePopup(); clearResultSelection(); geo = null; rendered = []; byIndex = new Map(); heatReady = false; heatShared = false; lastPrepared = ""; lastGeometryValues = null; regexPatterns = []; vectorSource.clear(true); heatSource.clear(true); heatLayer.setSource(heatSource); };
   heatUI();
   render();
-  return { map, draw, clear, render, heatUI, getHeat, setHeat, hasGeo: () => Boolean(geo), applyFilters, getVisibleOsm };
+  return { map, draw, clear, render, heatUI, getHeat, setHeat, hasGeo: () => Boolean(geo), applyFilters, getVisibleOsm, hasResultFilter, getResultSource: () => rendered, isResultMatch, isSelectedResultMatch: () => selectedIndex === null || isResultMatch(byIndex.get(selectedIndex)), clearResultSelection, selectResult, onResultsChanged: (callback) => { resultsChanged = callback; } };
 };

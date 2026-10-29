@@ -6,6 +6,7 @@ import { parseResponse, responseError, errorStatusHtml, OSM_TYPES } from "./resp
 import { createMapController } from "./map.js";
 import { createUI } from "./ui.js";
 import { createAnalysis } from "./analysis.js";
+import { createResultsList } from "./results-list.js";
 import { createJosmExporter } from "./josm-export.js";
 import { encodeShare, encodeShareDetailed, encodeShareZopfli, encodeShareBrotli, decodeShare, sharedFragment, createShareComparison } from "./share.js";
 import { $, esc, abortError } from "./utils.js";
@@ -394,7 +395,10 @@ const initializeApp = (deps) => {
   new ResizeObserver(syncPanelHeight).observe(headerPanel);
   const groupNodes = (names, prefix = "") => Object.fromEntries(names.split(" ").map((name) => [name, $(prefix ? prefix + name[0].toUpperCase() + name.slice(1) : name)]));
   const analysisElements = { ...groupNodes("key onlyKey countMode values valueTools valueSelectedColor valueOtherColor valueHideOthers summary", "analysis"), ...groupNodes("numericEnable numericKey numericErrors numericMin numericMax numericMinValue numericMaxValue regexEnable regexText regexInsensitive regexOnly regexColors"), reset: $("analysisReset") };
-  const analysis = createAnalysis({ elements: analysisElements, onChange: (options) => mapController.applyFilters(options) });
+  let resultsList = null;
+  const analysis = createAnalysis({ elements: analysisElements, onChange: (options) => { mapController.applyFilters(options); resultsList?.refresh(options); } });
+  resultsList = createResultsList({ container: $("analysisPanel").querySelector(".analysis-scroll"), controller: mapController });
+  mapController.onResultsChanged(() => resultsList.refresh(analysis.options()));
   const josm = createJosmExporter({ container: $("josmTools"), sendButton: $("josmSend"), message: $("josmMessage"), getVisibleOsm: () => mapController.getVisibleOsm() });
   josm.setEngine(getEngine());
   const preparer = createQueryPreparer({ map, storage, areaStoreKey: STORE.areas, log: ui.log });
@@ -429,6 +433,7 @@ const initializeApp = (deps) => {
     josm.reset();
     const time = elapsed(start);
     analysis.clear();
+    resultsList.clear();
     ui.setGeojson(null);
     dataView.value = "raw";
     ui.setStatus(`<strong>Respuesta textual recibida</strong><br>Formato: ${esc(result.format.toUpperCase())} · Tiempo: ${time}`, "ok");
@@ -444,6 +449,7 @@ const initializeApp = (deps) => {
     ui.log(`${postpass ? "GeoJSON recibido" : "Conversión GeoJSON completada"}\nDibujando ${result.geo.features.length} entidades GeoJSON…`);
     mapController.draw(result.geo, { filters: analysis.options() });
     mapController.applyFilters(analysis.options());
+    resultsList.setData(result.geo, analysis.options());
     const formatter = new Intl.NumberFormat("es-ES");
     const time = elapsed(start);
     const featureCount = result.geo.features.length;
@@ -476,6 +482,7 @@ const initializeApp = (deps) => {
     map.getView().cancelAnimations();
     mapController.clear();
     analysis.clear();
+    resultsList.clear();
     ui.resetData();
     ui.show();
     ui.overlayOpen("Preparando consulta…");

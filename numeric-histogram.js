@@ -5,7 +5,7 @@ document.head.append(stylesheet);
 const BIN_COUNT = 48;
 const format = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 8 });
 const limit = (value, min, max) => Math.min(max, Math.max(min, value));
-export const createNumericHistogram = ({ anchor, minInput, maxInput, getCollection, getValue, onRange }) => {
+export const createNumericHistogram = ({ anchor, minInput, maxInput, getCollection, getValue, onRange, formatter = format }) => {
   const root = document.createElement("section");
   root.className = "pod-histogram";
   root.hidden = true;
@@ -114,9 +114,9 @@ export const createNumericHistogram = ({ anchor, minInput, maxInput, getCollecti
         total++;
       }
       peak = Math.max(0, ...bins);
-      count.textContent = `${format.format(total)} valores`;
-      first.textContent = format.format(lower);
-      last.textContent = format.format(upper);
+      count.textContent = `${formatter.format(total)} valores`;
+      first.textContent = formatter.format(lower);
+      last.textContent = formatter.format(upper);
     }
     requestAnimationFrame(redraw);
   };
@@ -151,7 +151,7 @@ export const createNumericHistogram = ({ anchor, minInput, maxInput, getCollecti
       const index = limit(Math.floor(ratio(event) * BIN_COUNT), 0, BIN_COUNT - 1);
       const begin = actual(index / BIN_COUNT);
       const end = actual((index + 1) / BIN_COUNT);
-      canvas.title = `${format.format(begin)} – ${format.format(end)}: ${format.format(bins[index])} objetos`;
+      canvas.title = `${formatter.format(begin)} – ${formatter.format(end)}: ${formatter.format(bins[index])} objetos`;
     }
   });
   const finish = (event) => {
