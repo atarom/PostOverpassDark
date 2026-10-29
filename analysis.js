@@ -53,6 +53,27 @@ export const compilePatterns = (raw, insensitive) => splitRegexPatterns(raw).fla
 export const createAnalysis = ({ elements, onChange }) => {
   const { key, onlyKey, countMode, values, valueTools, valueSelectedColor, valueOtherColor, valueHideOthers, summary, numericEnable, numericKey, numericErrors, numericMin, numericMax, numericMinValue, numericMaxValue, regexEnable, regexText: regexInput, regexInsensitive, regexOnly, regexColors, reset } = elements;
   const regexText = regexInput;
+  const compactLabel = (input, value) => {
+    const label = input.closest("label");
+    const text = [...label.childNodes].find((node) => node.nodeType === 3);
+    if (text) text.textContent = ` ${value}`;
+  };
+  const compactSection = (input, title) => {
+    const label = input.closest("label");
+    const head = label.closest("details").querySelector("summary");
+    head.textContent = title;
+    head.classList.add("pod-filter-summary");
+    input.setAttribute("aria-label", `Activar ${title}`);
+    head.prepend(input);
+    label.remove();
+  };
+  compactSection(regexEnable, "Regex");
+  compactSection(numericEnable, "Numérico");
+  compactLabel(onlyKey, "Solo key");
+  compactLabel(valueHideOthers, "Ocultar otros");
+  compactLabel(regexInsensitive, "Ignorar mayús.");
+  compactLabel(regexOnly, "Solo coincid.");
+  compactLabel(numericErrors, "Mostrar fuera");
   const regexHead = document.createElement("div");
   regexHead.className = "pod-regex-head";
   regexHead.innerHTML = "<span>Expresión regular</span><span>Color</span>";

@@ -291,11 +291,12 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
 .pod-geometry-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:0 0 10px}
 .pod-geometry-tab{min-width:0;padding:8px 2px;border-radius:4px;font-size:10px;font-weight:700}
 .pod-geometry-tab.on{border-color:var(--a);background:#304e38;color:var(--ah)}
-.pod-geometry-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 7px}
-.pod-geometry-toolbar label{display:flex;align-items:center;gap:7px;margin:0;font-size:11px;font-weight:600;letter-spacing:0;text-transform:none}
-.pod-geometry-toolbar input{width:16px;height:16px;margin:0;accent-color:var(--a)}
-.pod-geometry-toolbar button{width:auto;padding:6px 9px;font-size:11px}
-.pod-geometry-status{margin-bottom:8px;color:var(--m);font-size:11px;line-height:1.4}
+.analysis-box summary.pod-filter-summary{display:flex;align-items:center;gap:8px;min-height:38px}
+.analysis-box summary.pod-filter-summary::after{float:none;flex:none;margin-left:auto}
+.pod-filter-summary input[type=checkbox]{flex:none;width:16px;height:16px;margin:0;accent-color:var(--a);cursor:pointer}
+.pod-geometry-statusline{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px}
+.pod-geometry-statusline button{flex:none;width:auto;padding:6px 9px;font-size:11px}
+.pod-geometry-status{min-width:0;color:var(--m);font-size:11px;line-height:1.4}
 .pod-geometry #podGeometryPanel > label{display:block;margin-top:9px}
 .pod-geometry .analysis-body label output{float:right;color:var(--a);font-family:var(--mono);text-transform:none}
 .pod-geometry .analysis-body input[type=range]{width:100%;height:24px;margin:0;accent-color:var(--a);cursor:pointer}
