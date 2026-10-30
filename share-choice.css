@@ -1,8 +1,29 @@
-.share-comparison-bars{grid-template-columns:repeat(7,minmax(80px,1fr));overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin;padding-bottom:6px}
-.share-comparison-method{appearance:none;border:1px solid transparent;border-radius:4px;padding:5px 2px;background:transparent;color:var(--t);font:inherit;cursor:pointer}
-.share-comparison-method:not(:disabled):hover{border-color:var(--b2);background:var(--p)}
-.share-comparison-method:focus-visible{outline:2px solid var(--a);outline-offset:-2px}
-.share-comparison-method.is-selected{border-color:var(--a);background:var(--p)}
-.share-comparison-method.is-selected .share-comparison-value,.share-comparison-method.is-selected .share-comparison-name{color:var(--a)}
+.share-comparison{padding:13px}
+.share-comparison-head{align-items:flex-start;flex-wrap:wrap;gap:5px 12px}
+.share-comparison-status{max-width:none;text-align:right;margin-left:auto}
+.share-comparison-help{margin-top:7px}
+.share-comparison-bars{display:flex;flex-direction:column;align-items:stretch;gap:5px;margin-top:12px;padding:0;overflow:visible}
+.share-comparison-bars:empty::after{content:"Preparando comparativa…";color:var(--m);font-size:12px;padding:12px 0}
+.share-comparison-method{appearance:none;display:grid;grid-template-columns:minmax(105px,120px) minmax(0,1fr) auto;grid-template-rows:18px 17px;align-items:center;gap:2px 11px;width:100%;min-width:0;min-height:52px;margin:0;padding:7px 10px;border:1px solid var(--b);border-radius:5px;background:var(--p);color:var(--t);font:inherit;text-align:left;cursor:pointer}
+.share-comparison-method:not(:disabled):hover{border-color:var(--b2);background:#1c3024}
+.share-comparison-method:focus-visible{outline:2px solid var(--a);outline-offset:1px}
+.share-comparison-method.is-selected{border-color:var(--a);background:#213729}
+.share-comparison-method.is-selected .share-comparison-name{color:var(--a)}
+.share-comparison-method .share-comparison-name{grid-column:1;grid-row:1/3;display:flex;align-items:center;justify-content:flex-start;min-height:0;font-size:12px;font-weight:800;line-height:1.3;text-align:left}
+.share-comparison-value{grid-column:3;grid-row:1;min-height:0;justify-self:end;color:var(--t);font:700 12px var(--mono);white-space:nowrap}
+.share-comparison-track{grid-column:2;grid-row:1;display:block;width:100%;height:10px;min-height:0;border:0;border-radius:3px;background:#2d4636;overflow:hidden}
+.share-comparison-bar{display:block;height:100%;min-height:0;border:0;border-radius:3px;background:#60836e;transition:width .16s ease}
+.share-comparison-method.is-best .share-comparison-bar{background:var(--a)}
+.share-comparison-delta{grid-column:2/4;grid-row:2;min-height:0;color:var(--m);font-size:11px;line-height:1.3;text-align:right;white-space:nowrap}
+.share-comparison-method.is-selected .share-comparison-value,.share-comparison-method.is-selected .share-comparison-delta{color:var(--a)}
 .share-comparison-method:disabled{cursor:default;opacity:.6}
-.share-comparison-method .share-comparison-name{min-height:28px;display:flex;align-items:center;justify-content:center;line-height:1.15}
+.share-comparison .share-max-result{position:absolute;width:1px;height:1px;margin:0;padding:0;border:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@media (max-width:420px){
+.share-comparison{padding:10px}
+.share-comparison-status{width:100%;max-width:none;margin-left:0;text-align:left}
+.share-comparison-method{grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto 10px auto;gap:5px 8px;padding:9px 10px}
+.share-comparison-method .share-comparison-name{grid-column:1;grid-row:1;min-height:0}
+.share-comparison-value{grid-column:2;grid-row:1}
+.share-comparison-track{grid-column:1/3;grid-row:2}
+.share-comparison-delta{grid-column:1/3;grid-row:3;text-align:right}
+}

@@ -233,7 +233,7 @@ export const createShareComparison = (onSelect) => {
   header.append(title, status);
   const help = document.createElement("p");
   help.className = "share-comparison-help";
-  help.textContent = "Selecciona una barra para usar ese método · Menor tamaño primero";
+  help.textContent = "Selecciona un método · Ordenados del enlace más corto al más largo";
   const bars = document.createElement("div");
   bars.className = "share-comparison-bars";
   bars.setAttribute("role", "group");
@@ -260,7 +260,7 @@ export const createShareComparison = (onSelect) => {
   let manual = false;
   let plain = null;
   const render = () => {
-    const ordered = names.map((name) => ({ name, ...methods.get(name) })).sort((a, b) => (a.encoded?.length ?? Infinity) - (b.encoded?.length ?? Infinity));
+    const ordered = names.map((name) => ({ name, ...methods.get(name) })).filter((method) => method.encoded).sort((a, b) => a.encoded.length - b.encoded.length);
     const available = ordered.filter((item) => item.encoded);
     const best = available[0];
     const maximum = Math.max(1, ...available.map((item) => item.encoded.length));
@@ -279,7 +279,7 @@ export const createShareComparison = (onSelect) => {
       track.className = "share-comparison-track";
       const bar = document.createElement("div");
       bar.className = "share-comparison-bar";
-      bar.style.height = `${method.encoded ? Math.max(5, Math.round(method.encoded.length / maximum * 110)) : 0}px`;
+      bar.style.width = `${Math.round(method.encoded.length / maximum * 1000) / 10}%`;
       track.append(bar);
       const name = document.createElement("span");
       name.className = "share-comparison-name";
@@ -287,7 +287,7 @@ export const createShareComparison = (onSelect) => {
       const delta = document.createElement("small");
       delta.className = "share-comparison-delta";
       const difference = plain === null || !method.encoded ? 0 : plain - method.encoded.length;
-      delta.textContent = !method.encoded ? method.status || "Pendiente" : difference > 0 ? `−${numbers.format(difference)} car. (−${(difference / plain * 100).toFixed(1)} %)` : difference < 0 ? `+${numbers.format(-difference)} car. (+${(-difference / plain * 100).toFixed(1)} %)` : "Referencia";
+      delta.textContent = difference > 0 ? `−${numbers.format(difference)} caracteres · ${(difference / plain * 100).toLocaleString("es-ES", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} % menos` : difference < 0 ? `+${numbers.format(-difference)} caracteres · ${(-difference / plain * 100).toLocaleString("es-ES", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} % más` : "Referencia";
       item.setAttribute("aria-label", `${method.name}: ${method.encoded ? `${numbers.format(method.encoded.length)} caracteres, ${delta.textContent}` : delta.textContent}`);
       item.onclick = () => onSelect(method.name);
       item.append(value, track, name, delta);
@@ -295,7 +295,7 @@ export const createShareComparison = (onSelect) => {
     }));
     if (focused) [...bars.children].find((item) => item.dataset.method === focused && !item.disabled)?.focus({ preventScroll: true });
     const waiting = advanced.some((name) => !methods.get(name));
-    status.textContent = plain === null ? "Preparando enlace…" : selected ? `${manual ? "Elegido" : "Automático"}: ${selected}` : waiting ? "Comparando métodos…" : "Sin resultados";
+    status.textContent = plain === null ? "Preparando enlace…" : waiting ? "Calculando variantes…" : selected ? `${manual ? "Elegido" : "Automático"}: ${selected}` : "Sin resultados";
     for (const name of advanced) if (extra[name]) {
       const method = methods.get(name);
       extra[name].textContent = method?.encoded ? `${numbers.format(method.encoded.length)} caracteres` : method?.status || "Calculando…";
