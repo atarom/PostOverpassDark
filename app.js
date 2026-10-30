@@ -8,7 +8,7 @@ import { createUI } from "./ui.js";
 import { createAnalysis } from "./analysis.js";
 import { createResultsList } from "./results-list.js";
 import { createJosmExporter } from "./josm-export.js";
-import { encodeShare, encodeShareDetailed, encodeShareZopfli, encodeShareBrotli, decodeShare, sharedFragment, createShareComparison } from "./share.js";
+import { encodeShare, encodeShareDetailed, encodeShareDeflateIds, encodeShareZopfli, encodeShareBrotli, decodeShare, sharedFragment, createShareComparison } from "./share.js";
 import { $, esc, abortError } from "./utils.js";
 import { OVERPASS_PRESETS } from "./presets-overpass.js";
 import { POSTPASS_PRESETS } from "./presets-postpass.js";
@@ -159,7 +159,7 @@ const initializeApp = (deps) => {
   });
   applyWidth();
   const [shareDialog, shareAuto, shareUrl, shareCopy, shareMaxResult, shareMessage] = "shareDialog shareAuto shareUrl shareCopy shareMaxResult shareMessage".split(" ").map($);
-  const comparison = createShareComparison();
+  const comparison = createShareComparison((name) => selectShareMethod(name, true));
   const shareInfo = Object.fromEntries(["Endpoint", "Center", "Zoom", "Mode", "Heat", "Auto", "Query", "Method", "Bytes", "Direct", "Compressed", "Reason"].map((name) => [name, $("shareInfo" + name)]));
   let shareRevision = 0;
   let maximumController = null;
@@ -197,10 +197,34 @@ const initializeApp = (deps) => {
   $("heatReset").addEventListener("click", () => updateBookmark());
   const setLinkStatus = (url) => shareStatus(`${url.length} caracteres${url.length > 4000 ? " · Enlace largo: algunas aplicaciones pueden recortarlo" : ""}`);
   const fmt = (value) => value.toLocaleString("es-ES");
+  const shareCandidates = new Map();
+  let shareManual = null;
+  const selectShareMethod = (name, manual = false) => {
+    const candidate = shareCandidates.get(name);
+    if (!candidate) return;
+    if (manual) shareManual = name;
+    const url = new URL(".", location.href);
+    url.hash = `s=${candidate.encoded}`;
+    shareUrl.value = url.href;
+    shareCopy.disabled = false;
+    shareInfo.Method.textContent = `${name} + Base64URL (${candidate.encoded[0]})`;
+    shareInfo.Compressed.previousElementSibling.textContent = "Enlace seleccionado";
+    shareInfo.Compressed.textContent = `${fmt(candidate.encoded.length)} caracteres (${fmt(candidate.compressedBytes)} bytes comprimidos)`;
+    shareInfo.Reason.textContent = shareManual ? `Método seleccionado manualmente: ${name}.` : `Selección automática: ${name} genera el enlace más corto de los métodos calculados.`;
+    setLinkStatus(url.href);
+    comparison.setSelected(name, Boolean(shareManual));
+  };
+  const registerShareCandidates = (candidates) => {
+    for (const candidate of candidates) shareCandidates.set(candidate.name, candidate);
+    const best = [...shareCandidates.values()].sort((a, b) => a.encoded.length - b.encoded.length)[0];
+    if (best) selectShareMethod(shareManual || best.name);
+  };
   const refreshShare = async () => {
     const revision = ++shareRevision;
     stopMaximum();
     comparison.reset();
+    shareCandidates.clear();
+    shareManual = null;
     shareCopy.disabled = true;
     shareUrl.value = "";
     shareStatus("Preparando enlace…");
@@ -222,20 +246,10 @@ const initializeApp = (deps) => {
       shareInfo.Heat.textContent = `Intensidad ${decoded.heat.intensity} · Radio ${decoded.heat.radius} · Opacidad ${decoded.heat.opacity} · Peso ${decoded.heat.weight} · Paleta ${paletteNames[decoded.heat.palette]}`;
       shareInfo.Auto.textContent = decoded.autoRun ? "Sí" : "No";
       shareInfo.Query.textContent = decoded.query;
-      shareInfo.Method.textContent = info.method === "deflate-raw" ? "DEFLATE raw + Base64URL (b)" : "Binario directo + Base64URL (a)";
       shareInfo.Bytes.textContent = `${fmt(info.rawBytes)} bytes`;
       shareInfo.Direct.textContent = `${fmt(info.directChars)} caracteres`;
-      shareInfo.Compressed.textContent = info.compressedChars === null ? info.compressionStatus === "failed" ? "Falló la compresión" : "No disponible" : `${fmt(info.compressedChars)} caracteres (${fmt(info.compressedBytes)} bytes comprimidos)`;
-      if (info.method === "deflate-raw") {
-        const saved = info.directChars - info.compressedChars;
-        shareInfo.Reason.textContent = `Se eligió DEFLATE raw porque ahorra ${fmt(saved)} caracteres (${(saved / info.directChars * 100).toFixed(1)} %) frente a la versión directa.`;
-      } else if (info.compressionStatus === "compared") {
-        shareInfo.Reason.textContent = info.compressedChars === info.directChars ? "Ambos formatos ocupan lo mismo; se conserva la versión directa." : `Se conserva la versión directa porque DEFLATE raw añadiría ${(info.compressedChars - info.directChars).toLocaleString("es-ES")} caracteres.`;
-      } else {
-        shareInfo.Reason.textContent = info.compressionStatus === "failed" ? "No se pudo comprimir con DEFLATE raw; se conserva el formato directo." : "Este navegador no admite DEFLATE raw para estos enlaces; se utiliza el formato directo.";
-      }
-      setLinkStatus(url.href);
       comparison.setNative(info);
+      registerShareCandidates(info.candidates);
       void runMaximum(revision, state);
     } catch (error) {
       if (revision === shareRevision) { shareStatus(error.message || String(error), true); comparison.setFailure(); }
@@ -247,40 +261,27 @@ const initializeApp = (deps) => {
     const controller = new AbortController();
     maximumController = controller;
     const results = {};
-    const names = ["Zopfli", "Brotli"];
+    const tasks = [["DEFLATE + IDs", encodeShareDeflateIds], ["Zopfli", encodeShareZopfli], ["Brotli", encodeShareBrotli]];
     const isCurrent = () => revision === shareRevision && shareDialog.open && !controller.signal.aborted;
-    shareMaxResult.textContent = "Probando Zopfli (15 iteraciones) y Brotli (calidad 11)…";
-    const run = async (name, encode, prefix) => {
+    shareMaxResult.textContent = "Probando compresión normal y Delta/Varint…";
+    const run = async (group, encode) => {
       try {
-        if (name === "Zopfli" && typeof DecompressionStream !== "function") throw Error("El navegador no admite DEFLATE raw");
+        if (group === "Zopfli" && typeof DecompressionStream !== "function") throw Error("El navegador no admite DEFLATE raw");
         const start = performance.now();
-        const result = await encode(state, controller.signal);
+        const candidates = await encode(state, controller.signal);
         if (!isCurrent()) return;
+        comparison.setResults(group, candidates);
+        registerShareCandidates(candidates);
         const elapsed = ((performance.now() - start) / 1000).toFixed(1);
-        const currentUrl = shareUrl.value;
-        const currentEncoded = new URL(currentUrl).hash.slice(3);
-        const saved = currentEncoded.length - result.encoded.length;
-        const optimizedIds = name === "Brotli" && result.encoded[0] === "d";
-        const methodName = optimizedIds ? "Brotli + IDs" : name;
-        comparison.setResult(name, result.encoded.length, methodName);
-        if (saved > 0) {
-          const url = new URL(currentUrl);
-          url.hash = `s=${result.encoded}`;
-          shareUrl.value = url.href;
-          shareInfo.Method.textContent = optimizedIds ? "Brotli 11 + Delta/Varint + Base64URL (d)" : `${name} ${name === "Zopfli" ? "DEFLATE raw" : "calidad 11"} + Base64URL (${prefix})`;
-          shareInfo.Compressed.textContent = `${fmt(result.encoded.length)} caracteres (${fmt(result.compressedBytes)} bytes comprimidos)`;
-          shareInfo.Reason.textContent = `${methodName} reduce el enlace ${fmt(saved)} caracteres más que el mejor método anterior.`;
-          setLinkStatus(url.href);
-        }
-        results[name] = `${methodName}: ${fmt(result.encoded.length)} caracteres (${elapsed} s)`;
+        results[group] = `${group}: ${candidates.length ? candidates.map((item) => `${item.name} ${fmt(item.encoded.length)} car.`).join(" / ") : "No aplicable"} (${elapsed} s)`;
       } catch (error) {
         if (!isCurrent()) return;
-        comparison.setFailure(name);
-        results[name] = `${name} no disponible: ${error.message || error}`;
+        comparison.setFailure(group);
+        results[group] = `${group} no disponible: ${error.message || error}`;
       }
-      if (isCurrent()) shareMaxResult.textContent = names.filter((item) => results[item]).map((item) => results[item]).join(" · ");
+      if (isCurrent()) shareMaxResult.textContent = tasks.filter(([name]) => results[name]).map(([name]) => results[name]).join(" · ");
     };
-    await Promise.all([run("Zopfli", encodeShareZopfli, "b"), run("Brotli", encodeShareBrotli, "c")]);
+    await Promise.all(tasks.map(([group, encode]) => run(group, encode)));
     if (maximumController === controller) maximumController = null;
   };
   $("shareBtn").onclick = () => {

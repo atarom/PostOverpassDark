@@ -1,0 +1,8 @@
+.share-comparison-bars{grid-template-columns:repeat(7,minmax(80px,1fr));overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin;padding-bottom:6px}
+.share-comparison-method{appearance:none;border:1px solid transparent;border-radius:4px;padding:5px 2px;background:transparent;color:var(--t);font:inherit;cursor:pointer}
+.share-comparison-method:not(:disabled):hover{border-color:var(--b2);background:var(--p)}
+.share-comparison-method:focus-visible{outline:2px solid var(--a);outline-offset:-2px}
+.share-comparison-method.is-selected{border-color:var(--a);background:var(--p)}
+.share-comparison-method.is-selected .share-comparison-value,.share-comparison-method.is-selected .share-comparison-name{color:var(--a)}
+.share-comparison-method:disabled{cursor:default;opacity:.6}
+.share-comparison-method .share-comparison-name{min-height:28px;display:flex;align-items:center;justify-content:center;line-height:1.15}
