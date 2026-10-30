@@ -1,10 +1,11 @@
-import { $, esc, json } from "./utils.js";
+import { $, esc } from "./utils.js";
+import { createDataViewer } from "./data-viewer.js";
 export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLog, copyButton }) => {
   const data = { query: "", raw: "", geojson: "" };
   let overlayTimer;
   let previousFocus = null;
   let geoData = null;
-  let originalData = null;
+  const viewer = createDataViewer({ data, dataView, dataOutput, copyButton, getGeo: () => geoData });
   const log = (message) => {
     overlayLog.textContent += message + "\n";
     overlayLog.scrollTop = overlayLog.scrollHeight;
@@ -31,25 +32,13 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
     status.className = "status " + cls;
     status.innerHTML = html;
   };
-  const show = () => {
-    if (dataView.value === "raw" && originalData) {
-      try { data.raw = json(originalData); }
-      catch (error) { data.raw = "Error al generar la respuesta original: " + (error.message || String(error)); }
-      originalData = null;
-    }
-    if (dataView.value === "geojson" && geoData) {
-      try { data.geojson = json(geoData); }
-      catch (error) { data.geojson = "Error al generar GeoJSON: " + (error.message || String(error)); }
-      geoData = null;
-    }
-    dataOutput.textContent = data[dataView.value] || "Sin datos.";
-  };
-  const setGeojson = (value) => { geoData = value; data.geojson = ""; };
-  const setOriginal = (text, value) => { data.raw = text; originalData = value && typeof value === "object" ? value : null; };
+  const show = () => viewer.show();
+  const setGeojson = (value) => { geoData = value; data.geojson = ""; viewer.resetPreview("geojson"); };
+  const setOriginal = (text) => { data.raw = text; viewer.resetPreview("raw"); };
   const resetData = () => {
     geoData = null;
-    originalData = null;
     Object.keys(data).forEach((key) => data[key] = "");
+    viewer.reset();
   };
   const tab = (name) => {
     for (const item of ["status", "data", "analysis"]) {
@@ -63,21 +52,6 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
     if (name === "data") show();
     requestAnimationFrame(() => map.updateSize());
   };
-  const copy = async () => {
-    try {
-      if (!navigator.clipboard?.writeText) throw Error("Portapapeles no disponible");
-      await navigator.clipboard.writeText(dataOutput.textContent);
-      const old = copyButton.textContent;
-      copyButton.textContent = "Copiado";
-      copyButton.disabled = true;
-      setTimeout(() => {
-        copyButton.textContent = old;
-        copyButton.disabled = false;
-      }, 1200);
-    } catch (error) {
-      setStatus("No se pudo copiar: " + esc(error.message || error), "err");
-      tab("status");
-    }
-  };
+  const copy = () => viewer.copy();
   return { data, log, overlayClose, overlayOpen, overlayDone, setStatus, show, setGeojson, setOriginal, resetData, tab, copy };
 };

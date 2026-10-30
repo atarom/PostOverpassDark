@@ -1,0 +1,12 @@
+.pod-data-tools{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:9px 10px}
+.pod-data-tools select{flex:1 1 100%;min-width:0}
+.pod-data-tools button{flex:1 1 auto;width:auto;min-width:0;padding:7px 8px;font-size:12px}
+.pod-data-tools button[hidden],.pod-data-pager[hidden],.pod-data-meta[hidden]{display:none!important}
+.pod-data-meta{flex:none;min-width:0;padding:8px 12px;border-bottom:1px solid var(--b);color:var(--m);font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+.pod-data-pager{display:flex;flex:none;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-top:1px solid var(--b);background:var(--p)}
+.pod-data-pager span{min-width:0;text-align:center;font:11px var(--mono);color:var(--m)}
+.pod-data-pager button{width:auto;min-width:80px;padding:7px 8px;font-size:11px}
+.pod-data-ov .ot{width:min(420px, 90vw)}
+.pod-data-ov .ot pre{color:var(--t);padding:42px 18px 20px;text-align:center}
+#dataOutput{contain:content}
+@media(max-width:460px){.pod-data-tools button{font-size:11px;padding:8px 5px}.pod-data-pager button{min-width:70px}}
