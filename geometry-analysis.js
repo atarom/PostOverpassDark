@@ -1,7 +1,9 @@
 import { createNumericHistogram } from "./numeric-histogram.js";
+import { shapeDescriptors } from "./shape-analysis.js";
 const R = 6371008.8;
 const RAD = Math.PI / 180;
-const MODES = [{ key: "length", label: "Longitud", unit: "m" }, { key: "area", label: "Superficie", unit: "m²" }, { key: "perimeter", label: "Perímetro", unit: "m" }, { key: "vertices", label: "Vértices", unit: "" }];
+const MODES = [{ key: "length", label: "Longitud", unit: "m" }, { key: "area", label: "Superficie", unit: "m²" }, { key: "perimeter", label: "Perímetro", unit: "m" }, { key: "vertices", label: "Vértices", unit: "" }, { key: "shape", label: "Forma", unit: "" }];
+const BASIC_MODES = MODES.slice(0, 4);
 const format = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 });
 const validPoint = (point) => Array.isArray(point) && point.length >= 2 && Number.isFinite(point[0]) && Number.isFinite(point[1]) && Math.abs(point[1]) <= 90;
 const distance = (a, b) => {
@@ -100,9 +102,9 @@ export const geometryMetrics = (geometry) => {
     const counts = { length: 0, area: 0, perimeter: 0, vertices: 0 };
     for (const part of geometry.geometries) {
       const item = geometryMetrics(part);
-      for (const mode of MODES) if (Number.isFinite(item[mode.key])) { totals[mode.key] += item[mode.key]; counts[mode.key]++; }
+      for (const mode of BASIC_MODES) if (Number.isFinite(item[mode.key])) { totals[mode.key] += item[mode.key]; counts[mode.key]++; }
     }
-    for (const mode of MODES) if (counts[mode.key]) result[mode.key] = totals[mode.key];
+    for (const mode of BASIC_MODES) if (counts[mode.key]) result[mode.key] = totals[mode.key];
   }
   return result;
 };
@@ -118,7 +120,7 @@ const upperBound = (list, target) => {
   while (low < high) { const mid = (low + high) >>> 1; if (list[mid] <= target) low = mid + 1; else high = mid; }
   return low;
 };
-export const createGeometryAnalysis = ({ anchor, onChange }) => {
+export const createGeometryAnalysis = ({ anchor, onChange, getShapeReference }) => {
   const details = document.createElement("details");
   details.className = "analysis-box pod-geometry";
   const summary = document.createElement("summary");
@@ -159,7 +161,45 @@ export const createGeometryAnalysis = ({ anchor, onChange }) => {
   maxLabel.append("Máximo ", maxOutput);
   const maxInput = document.createElement("input");
   maxInput.type = "range";
-  panel.append(statusLine, hiddenAnchor, minLabel, minInput, maxLabel, maxInput);
+  const shapeTools = document.createElement("div");
+  shapeTools.className = "pod-shape-tools";
+  shapeTools.hidden = true;
+  const shapeTypeLabel = document.createElement("label");
+  shapeTypeLabel.textContent = "Índice de forma";
+  const shapeType = document.createElement("select");
+  for (const [value, label] of [["anomaly", "Anomalías adaptativas"], ["compactness", "Compacidad"], ["irregularity", "Irregularidad"]]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    shapeType.append(option);
+  }
+  shapeTypeLabel.append(shapeType);
+  const scopeLabel = document.createElement("label");
+  scopeLabel.textContent = "Comparar con";
+  const scope = document.createElement("select");
+  for (const [value, label] of [["all", "Todos los polígonos"], ["filtered", "Otros filtros activos"]]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    scope.append(option);
+  }
+  scopeLabel.append(scope);
+  const sensitivityLabel = document.createElement("label");
+  sensitivityLabel.textContent = "Sensibilidad";
+  const sensitivity = document.createElement("select");
+  for (const value of [1, 5, 10, 20]) {
+    const option = document.createElement("option");
+    option.value = String(value);
+    option.textContent = `Hasta el ${value} % más atípico`;
+    sensitivity.append(option);
+  }
+  sensitivity.value = "5";
+  sensitivityLabel.append(sensitivity);
+  const shapeHint = document.createElement("div");
+  shapeHint.className = "pod-shape-hint";
+  shapeHint.textContent = "Se comparan las formas del conjunto cargado. Una forma atípica no implica un error OSM.";
+  shapeTools.append(shapeTypeLabel, scopeLabel, sensitivityLabel, shapeHint);
+  panel.append(shapeTools, statusLine, hiddenAnchor, minLabel, minInput, maxLabel, maxInput);
   body.append(tabs, panel);
   details.append(summary, body);
   anchor.closest("details").after(details);
@@ -170,6 +210,115 @@ export const createGeometryAnalysis = ({ anchor, onChange }) => {
   let rangeState = {};
   let mode = "length";
   let frame = 0;
+  let shapeFrame = 0;
+  let shapeTimer = 0;
+  let shapeWorker = null;
+  let shapeVersion = 0;
+  let packedShapes = null;
+  let shapeComputed = false;
+  let shapeBuilding = false;
+  let shapeScores = null;
+  let shapeReasons = null;
+  let shapeCount = 0;
+  let shapeReferenceCount = 0;
+  let shapeReferenceSignature = "";
+  const cancelShape = () => {
+    cancelAnimationFrame(shapeFrame);
+    clearTimeout(shapeTimer);
+    shapeWorker?.terminate();
+    shapeWorker = null;
+    shapeFrame = shapeTimer = 0;
+    shapeVersion++;
+  };
+  const buildShape = () => {
+    if (shapeComputed || shapeBuilding) return;
+    ensureMetrics();
+    shapeBuilding = true;
+    const features = collection.features || [];
+    packedShapes = new Float64Array(features.length * 4).fill(NaN);
+    const compact = new Float64Array(features.length).fill(NaN);
+    const irregular = new Float64Array(features.length).fill(NaN);
+    let index = 0;
+    let completed = 0;
+    const version = shapeVersion;
+    const step = () => {
+      if (version !== shapeVersion) return;
+      const start = performance.now();
+      while (index < features.length && performance.now() - start < 9) {
+        const i = index++;
+        const item = shapeDescriptors(features[i]?.geometry, metrics.area[i], metrics.perimeter[i], metrics.vertices[i]);
+        if (!item) continue;
+        packedShapes.set(item, i * 4);
+        compact[i] = Math.exp(item[0]);
+        irregular[i] = Math.exp(item[1]);
+        completed++;
+      }
+      status.textContent = `Analizando formas… ${format.format(index)} / ${format.format(features.length)}`;
+      if (index < features.length) shapeFrame = requestAnimationFrame(step);
+      else {
+        shapeFrame = 0;
+        shapeBuilding = false;
+        shapeComputed = true;
+        shapeCount = completed;
+        shapeValues.compactness = compact;
+        shapeValues.irregularity = irregular;
+        if (shapeType.value === "anomaly") requestModel();
+        else updateShapeView();
+      }
+    };
+    shapeFrame = requestAnimationFrame(step);
+  };
+  const shapeValues = {};
+  const requestModel = () => {
+    if (!shapeComputed || !packedShapes || !collection.features.length) return;
+    shapeWorker?.terminate();
+    shapeWorker = null;
+    const version = ++shapeVersion;
+    const reference = scope.value === "filtered" ? getShapeReference?.() || null : null;
+    shapeValues.anomaly = null;
+    shapeScores = null;
+    if (mode === "shape" && shapeType.value === "anomaly") {
+      metrics.shape = null;
+      sorted.shape = null;
+      histogram.clear();
+      syncMode();
+      emit();
+    }
+    status.textContent = "Calculando patrones habituales…";
+    let worker;
+    try { worker = new Worker(new URL("./shape-worker.js", import.meta.url), { type: "module" }); }
+    catch { status.textContent = "El navegador no permite calcular anomalías."; return; }
+    shapeWorker = worker;
+    worker.onmessage = ({ data }) => {
+      if (version !== shapeVersion) return;
+      worker.terminate();
+      shapeWorker = null;
+      if (data.error) { status.textContent = `Error al calcular formas: ${data.error}`; return; }
+      shapeScores = data.scores;
+      shapeReasons = data.reasons;
+      shapeReferenceCount = data.size;
+      shapeValues.anomaly = shapeScores;
+      if (shapeType.value === "anomaly" && mode === "shape") updateShapeView();
+    };
+    worker.onerror = () => {
+      if (version !== shapeVersion) return;
+      worker.terminate();
+      shapeWorker = null;
+      status.textContent = "No se pudieron calcular las anomalías.";
+    };
+    worker.postMessage({ id: version, values: packedShapes, reference });
+  };
+  const updateShapeView = () => {
+    if (mode !== "shape" || !shapeComputed) return;
+    const source = shapeValues[shapeType.value];
+    if (!source) { status.textContent = "Calculando patrones habituales…"; return; }
+    metrics.shape = source;
+    sorted.shape = null;
+    delete rangeState.shape;
+    histogram.clear();
+    syncMode();
+    emit();
+  };
   const buttons = MODES.map((entry, index) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -177,7 +326,7 @@ export const createGeometryAnalysis = ({ anchor, onChange }) => {
     button.id = `podGeomTab${index}`;
     button.setAttribute("role", "tab");
     button.setAttribute("aria-controls", panel.id);
-    button.textContent = ["Long.", "Sup.", "Perím.", "Vért."][index];
+    button.textContent = ["Long.", "Sup.", "Perím.", "Vért.", "Forma"][index];
     button.title = entry.label;
     button.setAttribute("aria-label", entry.label);
     tabs.append(button);
@@ -186,33 +335,39 @@ export const createGeometryAnalysis = ({ anchor, onChange }) => {
   const ensureMetrics = () => {
     if (metrics) return;
     const features = collection.features || [];
-    metrics = Object.fromEntries(MODES.map(({ key }) => [key, new Float64Array(features.length).fill(NaN)]));
+    metrics = Object.fromEntries(BASIC_MODES.map(({ key }) => [key, new Float64Array(features.length).fill(NaN)]));
     for (let i = 0; i < features.length; i++) {
       const item = geometryMetrics(features[i]?.geometry);
-      for (const entry of MODES) metrics[entry.key][i] = item[entry.key];
+      for (const entry of BASIC_MODES) metrics[entry.key][i] = item[entry.key];
     }
     histogramSource = { features: Array.from({ length: features.length }, (_, i) => i) };
   };
   const getSorted = () => {
     ensureMetrics();
+    if (!metrics[mode]) return [];
     if (!sorted[mode]) sorted[mode] = Array.from(metrics[mode]).filter(Number.isFinite).sort((a, b) => a - b);
     return sorted[mode];
   };
   const histogram = createNumericHistogram({ anchor: hiddenAnchor, minInput, maxInput, getCollection: () => histogramSource, getValue: (index, key) => metrics?.[key]?.[index] ?? NaN, formatter: format, onRange: () => { updateOutputs(); updateStatus(); emitFrame(); } });
-  const options = () => ({ geometryEnabled: Boolean(enabled.checked && metrics && getSorted().length), geometryValues: metrics?.[mode] || null, geometryMode: mode, geometryMin: Number(minInput.value), geometryMax: Number(maxInput.value) });
+  const options = () => ({ geometryEnabled: Boolean(enabled.checked && metrics?.[mode] && getSorted().length), geometryValues: metrics?.[mode] || null, geometryMode: mode, geometryShapeType: mode === "shape" ? shapeType.value : "", geometryReasons: mode === "shape" && shapeType.value === "anomaly" ? shapeReasons : null, geometryMin: Number(minInput.value), geometryMax: Number(maxInput.value) });
   const emit = () => onChange?.();
   const emitFrame = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(emit); };
   const selectedMode = () => MODES.find((entry) => entry.key === mode);
-  const display = (value) => `${format.format(value)}${selectedMode().unit ? " " + selectedMode().unit : ""}`;
+  const display = (value) => `${format.format(value)}${selectedMode().unit ? " " + selectedMode().unit : ""}${mode === "shape" && shapeType.value === "anomaly" ? " %" : ""}`;
   const updateOutputs = () => {
     minOutput.textContent = display(Number(minInput.value));
     maxOutput.textContent = display(Number(maxInput.value));
     if (metrics) rangeState[mode] = [Number(minInput.value), Number(maxInput.value)];
   };
   const updateStatus = () => {
+    if (mode === "shape" && (!shapeComputed || shapeType.value === "anomaly" && !shapeScores)) return;
     const list = getSorted();
+    if (mode === "shape" && shapeType.value === "anomaly" && shapeReferenceCount < 30) {
+      status.textContent = `Se necesitan 30 polígonos de referencia como mínimo (${format.format(shapeReferenceCount)}).`;
+      return;
+    }
     const inside = upperBound(list, Number(maxInput.value)) - lowerBound(list, Number(minInput.value));
-    status.textContent = `${format.format(list.length)} geometrías medibles · ${format.format(inside)} en el rango`;
+    status.textContent = mode === "shape" ? `${format.format(shapeCount)} polígonos · ${shapeType.value === "anomaly" ? `${format.format(shapeReferenceCount)} referencia · ` : ""}${format.format(inside)} en rango` : `${format.format(list.length)} geometrías medibles · ${format.format(inside)} en el rango`;
   };
   const syncMode = () => {
     buttons.forEach((button, i) => {
@@ -222,10 +377,13 @@ export const createGeometryAnalysis = ({ anchor, onChange }) => {
       button.tabIndex = active ? 0 : -1;
     });
     hiddenAnchor.value = mode;
+    shapeTools.hidden = mode !== "shape";
+    scopeLabel.hidden = mode !== "shape" || shapeType.value !== "anomaly";
+    sensitivityLabel.hidden = mode !== "shape" || shapeType.value !== "anomaly";
     const list = getSorted();
-    const min = list[0] ?? 0;
-    const max = list.at(-1) ?? 0;
-    const range = rangeState[mode] || [min, max];
+    const min = mode === "shape" && shapeType.value === "anomaly" ? 0 : list[0] ?? 0;
+    const max = mode === "shape" && shapeType.value === "anomaly" ? 100 : list.at(-1) ?? 0;
+    const range = mode === "shape" && shapeType.value === "anomaly" ? [Math.max(min, 100 - Number(sensitivity.value)), 100] : rangeState[mode] || [min, max];
     for (const input of [minInput, maxInput]) {
       input.min = String(min);
       input.max = String(max);
@@ -236,7 +394,6 @@ export const createGeometryAnalysis = ({ anchor, onChange }) => {
     maxInput.value = String(Math.max(min, Math.min(max, range[1])));
     if (Number(minInput.value) > Number(maxInput.value)) maxInput.value = minInput.value;
     enabled.disabled = !list.length;
-    if (!list.length) enabled.checked = false;
     updateOutputs();
     updateStatus();
     histogram.refresh();
@@ -245,6 +402,10 @@ export const createGeometryAnalysis = ({ anchor, onChange }) => {
     button.onclick = () => {
       mode = MODES[i].key;
       ensureMetrics();
+      if (mode === "shape") {
+        if (!shapeComputed) buildShape();
+        else if (shapeType.value === "anomaly" && !shapeScores) requestModel();
+      }
       syncMode();
       emit();
     };
@@ -263,9 +424,22 @@ export const createGeometryAnalysis = ({ anchor, onChange }) => {
   details.addEventListener("toggle", () => {
     if (!details.open) return;
     ensureMetrics();
+    if (mode === "shape") buildShape();
     syncMode();
     emit();
   });
+  shapeType.onchange = () => {
+    if (shapeType.value === "anomaly") {
+      if (shapeComputed && !shapeScores) requestModel();
+      else updateShapeView();
+    } else updateShapeView();
+    syncMode();
+  };
+  scope.onchange = () => {
+    shapeReferenceSignature = "";
+    if (mode === "shape" && shapeComputed && shapeType.value === "anomaly") requestModel();
+  };
+  sensitivity.onchange = () => { if (mode === "shape" && shapeType.value === "anomaly" && shapeScores) { syncMode(); emit(); } };
   enabled.onchange = emit;
   const sliderInput = (left) => {
     if (Number(minInput.value) > Number(maxInput.value)) {
@@ -289,15 +463,34 @@ export const createGeometryAnalysis = ({ anchor, onChange }) => {
   resetButton.onclick = () => reset(true);
   const setData = (next) => {
     cancelAnimationFrame(frame);
+    cancelShape();
+    packedShapes = null;
+    shapeScores = null;
+    shapeReasons = null;
+    shapeComputed = false;
+    shapeBuilding = false;
+    shapeCount = 0;
+    shapeReferenceCount = 0;
+    shapeReferenceSignature = "";
+    Object.keys(shapeValues).forEach((key) => delete shapeValues[key]);
     collection = next?.type === "FeatureCollection" && Array.isArray(next.features) ? next : { features: [] };
     metrics = null;
     sorted = {};
     rangeState = {};
     enabled.checked = false;
     histogram.clear();
-    if (details.open) { ensureMetrics(); syncMode(); }
+    if (details.open) { ensureMetrics(); if (mode === "shape") buildShape(); syncMode(); }
     else status.textContent = "Abre el grupo para calcular las medidas.";
   };
   setData(null);
-  return { options, reset, setData };
+  const refreshReference = (opts = {}, force = false) => {
+    if (mode !== "shape" || scope.value !== "filtered" || !shapeComputed || shapeType.value !== "anomaly") return;
+    const signature = JSON.stringify([opts.selectedKey, opts.selectedValue, opts.onlySelectedKey, opts.hideOtherValues, opts.countMode, opts.regexEnabled, opts.regexOnly, opts.regexText, opts.regexInsensitive, opts.numericEnabled, opts.numericKey, opts.numericMin, opts.numericMax]);
+    if (!shapeReferenceSignature) { shapeReferenceSignature = signature; return; }
+    if (!force && signature === shapeReferenceSignature) return;
+    shapeReferenceSignature = signature;
+    clearTimeout(shapeTimer);
+    shapeTimer = setTimeout(requestModel, 300);
+  };
+  return { options, reset, setData, refreshReference };
 };

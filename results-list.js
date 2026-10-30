@@ -1,4 +1,5 @@
 import { featureTags, numericValue } from "./analysis.js";
+import { shapeReason } from "./shape-analysis.js";
 const HEIGHT = 48;
 const OVERSCAN = 5;
 const format = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 });
@@ -76,9 +77,9 @@ export const createResultsList = ({ container, controller }) => {
   let first = -1;
   let last = -1;
   let selected = null;
-  const modeNames = { length: "Longitud", area: "Superficie", perimeter: "Perímetro", vertices: "Vértices" };
+  const modeNames = { length: "Longitud", area: "Superficie", perimeter: "Perímetro", vertices: "Vértices", shape: "Forma" };
   const availableMetrics = () => [
-    ...(opts.geometryEnabled && opts.geometryValues ? [{ key: "geometry", label: modeNames[opts.geometryMode] || "Geometría" }] : []),
+    ...(opts.geometryEnabled && opts.geometryValues ? [{ key: "geometry", label: opts.geometryMode === "shape" ? { anomaly: "Forma · Anomalías", compactness: "Forma · Compacidad", irregularity: "Forma · Irregularidad" }[opts.geometryShapeType] || "Forma" : modeNames[opts.geometryMode] || "Geometría" }] : []),
     ...(opts.numericEnabled && opts.numericKey ? [{ key: "numeric", label: opts.numericKey }] : [])
   ];
   const selectedMetric = () => availableMetrics().find(({ key }) => key === metric.value)?.key || "";
@@ -125,7 +126,10 @@ export const createResultsList = ({ container, controller }) => {
     const key = selectedMetric();
     const val = getMetricValue(index, key);
     if (!Number.isFinite(val)) return "";
-    if (key === "geometry") return `${format.format(val)}${opts.geometryMode === "area" ? " m²" : opts.geometryMode === "vertices" ? "" : " m"}`;
+    if (key === "geometry") {
+      if (opts.geometryMode === "shape") return opts.geometryShapeType === "anomaly" ? `${format.format(val)} %` : format.format(val);
+      return `${format.format(val)}${opts.geometryMode === "area" ? " m²" : opts.geometryMode === "vertices" ? "" : " m"}`;
+    }
     return format.format(val);
   };
   const makeRow = (pos) => {
@@ -145,6 +149,11 @@ export const createResultsList = ({ container, controller }) => {
     const id = document.createElement("span");
     id.className = "pod-result-id";
     id.textContent = ref;
+    if (opts.geometryEnabled && opts.geometryMode === "shape" && opts.geometryShapeType === "anomaly") {
+      const reason = shapeReason(opts.geometryReasons?.[index] || 0);
+      id.textContent = `${ref} · ${reason}`;
+      row.title = `${name} · ${ref} · ${reason}`;
+    }
     info.append(strong, id);
     const measure = document.createElement("span");
     measure.className = "pod-result-measure";

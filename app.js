@@ -396,9 +396,9 @@ const initializeApp = (deps) => {
   const groupNodes = (names, prefix = "") => Object.fromEntries(names.split(" ").map((name) => [name, $(prefix ? prefix + name[0].toUpperCase() + name.slice(1) : name)]));
   const analysisElements = { ...groupNodes("key onlyKey countMode values valueTools valueSelectedColor valueOtherColor valueHideOthers summary", "analysis"), ...groupNodes("numericEnable numericKey numericErrors numericMin numericMax numericMinValue numericMaxValue regexEnable regexText regexInsensitive regexOnly regexColors"), reset: $("analysisReset") };
   let resultsList = null;
-  const analysis = createAnalysis({ elements: analysisElements, onChange: (options) => { mapController.applyFilters(options); resultsList?.refresh(options); } });
+  const analysis = createAnalysis({ elements: analysisElements, getShapeReference: () => mapController.getShapeReference(), onChange: (options) => { mapController.applyFilters(options); resultsList?.refresh(options); analysis.refreshShapeReference(options); } });
   resultsList = createResultsList({ container: $("analysisPanel").querySelector(".analysis-scroll"), controller: mapController });
-  mapController.onResultsChanged(() => resultsList.refresh(analysis.options()));
+  mapController.onResultsChanged(() => { resultsList.refresh(analysis.options()); analysis.refreshShapeReference(analysis.options(), true); });
   const josm = createJosmExporter({ container: $("josmTools"), sendButton: $("josmSend"), message: $("josmMessage"), getVisibleOsm: () => mapController.getVisibleOsm() });
   josm.setEngine(getEngine());
   const preparer = createQueryPreparer({ map, storage, areaStoreKey: STORE.areas, log: ui.log });

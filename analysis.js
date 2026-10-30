@@ -50,7 +50,7 @@ export const compilePatterns = (raw, insensitive) => splitRegexPatterns(raw).fla
     return [];
   }
 });
-export const createAnalysis = ({ elements, onChange }) => {
+export const createAnalysis = ({ elements, onChange, getShapeReference }) => {
   const { key, onlyKey, countMode, values, valueTools, valueSelectedColor, valueOtherColor, valueHideOthers, summary, numericEnable, numericKey, numericErrors, numericMin, numericMax, numericMinValue, numericMaxValue, regexEnable, regexText: regexInput, regexInsensitive, regexOnly, regexColors, reset } = elements;
   const regexText = regexInput;
   const compactLabel = (input, value) => {
@@ -273,7 +273,7 @@ export const createAnalysis = ({ elements, onChange }) => {
     numericMinValue.value = String(min);
     numericMaxValue.value = String(max);
   };
-  const geometry = createGeometryAnalysis({ anchor: numericKey, onChange: () => onChange?.(options()) });
+  const geometry = createGeometryAnalysis({ anchor: numericKey, onChange: () => onChange?.(options()), getShapeReference });
   const options = () => ({ ...geometry.options(), selectedKey: key.value, onlySelectedKey: onlyKey.checked, selectedValue, countMode: countMode.value, selectedValueColor: valueSelectedColor.value, otherValueColor: valueOtherColor.value, hideOtherValues: valueHideOthers.checked, regexEnabled: regexEnable.checked, regexText: regexText.value, regexInsensitive: regexInsensitive.checked, regexOnly: regexOnly.checked, regexColors: colors, numericEnabled: numericEnable.checked, numericKey: numericKey.value, numericMin: numericMin.value, numericMax: numericMax.value, numericShowErrors: numericErrors.checked, errorColor: "#ef8491" });
   const emit = () => onChange?.(options());
   const emitFrame = () => {
@@ -419,5 +419,5 @@ export const createAnalysis = ({ elements, onChange }) => {
     geometry.setData(null);
   };
   clear();
-  return { setData, clear, options };
+  return { setData, clear, options, refreshShapeReference: geometry.refreshReference };
 };

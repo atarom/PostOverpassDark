@@ -205,7 +205,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     heatLayer.updateStyleVariables(update);
   };
   const hasResultFilter = () => Boolean(geo && (options.onlySelectedKey && options.selectedKey || options.selectedValue !== null && options.selectedValue !== undefined || options.regexEnabled && regexPatterns.length || options.numericEnabled && options.numericKey || options.geometryEnabled || areaGeometry));
-  const isResultMatch = (feature) => {
+  const isResultMatch = (feature, ignoreGeometry = false) => {
     if (!feature || feature.get("podKeep") !== 1) return false;
     const index = feature.get("podIndex");
     const raw = geo?.features[index];
@@ -216,9 +216,14 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     const number = feature.get("podValue");
     if (options.numericEnabled && options.numericKey && (number === MISSING_NUMBER || number < Number(options.numericMin) || number > Number(options.numericMax))) return false;
     const measure = feature.get("podGeomValue");
-    if (options.geometryEnabled && (measure === -1 || measure < Number(options.geometryMin) || measure > Number(options.geometryMax))) return false;
+    if (!ignoreGeometry && options.geometryEnabled && (measure === -1 || measure < Number(options.geometryMin) || measure > Number(options.geometryMax))) return false;
     if (areaGeometry && !geometryInsideArea(feature.getGeometry(), areaGeometry)) return false;
     return true;
+  };
+  const getShapeReference = () => {
+    const mask = new Uint8Array(geo?.features.length || 0);
+    for (const feature of rendered) if (isResultMatch(feature, true)) mask[feature.get("podIndex")] = 1;
+    return mask;
   };
   const clearResultSelection = (zoom = false) => {
     selectedIndex = null;
@@ -483,5 +488,5 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   const clear = () => { closePopup(); clearResultSelection(); geo = null; rendered = []; byIndex = new Map(); heatReady = false; heatShared = false; lastPrepared = ""; lastGeometryValues = null; regexPatterns = []; vectorSource.clear(true); heatSource.clear(true); heatLayer.setSource(heatSource); };
   heatUI();
   render();
-  return { map, draw, clear, render, heatUI, getHeat, setHeat, hasGeo: () => Boolean(geo), applyFilters, getVisibleOsm, hasResultFilter, getResultSource: () => rendered, isResultMatch, isSelectedResultMatch: () => selectedIndex === null || isResultMatch(byIndex.get(selectedIndex)), clearResultSelection, selectResult, onResultsChanged: (callback) => { resultsChanged = callback; } };
+  return { map, draw, clear, render, heatUI, getHeat, setHeat, hasGeo: () => Boolean(geo), applyFilters, getVisibleOsm, hasResultFilter, getShapeReference, getResultSource: () => rendered, isResultMatch, isSelectedResultMatch: () => selectedIndex === null || isResultMatch(byIndex.get(selectedIndex)), clearResultSelection, selectResult, onResultsChanged: (callback) => { resultsChanged = callback; } };
 };
