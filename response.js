@@ -1,4 +1,4 @@
-import { esc, json } from "./utils.js";
+import { esc } from "./utils.js";
 export const OSM_TYPES = ["node", "way", "relation"];
 const PP_TYPES = { N: "node", W: "way", R: "relation", node: "node", way: "way", relation: "relation" };
 const postpassType = (properties) => {
@@ -25,7 +25,11 @@ const countPostpass = (geo) => countElements((geo.features || []).map((feature) 
 }));
 const cleanText = (value) => String(value ?? "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
 const ERROR_RX = /\berror\b|parse error|static error|runtime error|timeout|time-out|timed out|out of memory|rate limit|too many requests|bad request|failed|gateway|service unavailable/i;
-export const responseError = (text, contentType, status, statusText) => {
+export const readResponseJson = (text, contentType) => {
+  if (!/json/i.test(contentType) && !/^\s*[\[{]/.test(text)) return null;
+  try { return { value: JSON.parse(text) }; } catch { return { invalid: true }; }
+};
+export const responseError = (text, contentType, status, statusText, decoded = null) => {
   const raw = String(text ?? "").trim();
   const bad = status < 200 || status >= 300;
   const jsonLike = /json/i.test(contentType) || /^\s*[\[{]/.test(raw);
@@ -33,7 +37,7 @@ export const responseError = (text, contentType, status, statusText) => {
   let messages = [];
   if (jsonLike) {
     try {
-      const value = JSON.parse(raw);
+      const value = decoded ? decoded.value : JSON.parse(raw);
       messages = [value?.remark, value?.error, value?.message, value?.detail].filter((entry) => typeof entry === "string" && (bad || ERROR_RX.test(entry))).map(cleanText);
     } catch {}
   } else if (markup) {
@@ -59,7 +63,7 @@ const outputFormat = (query) => {
   const format = directives.map((directive) => directive.match(/^\[\s*out\s*:\s*(xml|json|csv|custom|popup)\b/i)?.[1]).find(Boolean);
   return format?.toLowerCase() || "xml";
 };
-export const parseResponse = (text, contentType, engine, query, postpassTextOnly = false) => {
+export const parseResponse = (text, contentType, engine, query, postpassTextOnly = false, decoded = null) => {
   const postpass = engine === "postpass";
   const format = postpass ? "json" : outputFormat(query);
   if (postpass && postpassTextOnly) return { geo: null, cnt: null, raw: text, textOnly: true, format: "raw" };
@@ -67,12 +71,13 @@ export const parseResponse = (text, contentType, engine, query, postpassTextOnly
   if (postpass || /json/i.test(contentType) || /^\s*[\[{]/.test(text)) {
     let value;
     try {
-      value = JSON.parse(text);
+      if (decoded?.invalid) throw Error("JSON inválido");
+      value = decoded ? decoded.value : JSON.parse(text);
     } catch {
       throw Error("Respuesta JSON inválida" + (postpass ? " de Postpass" : ""));
     }
     if (postpass && (value?.type !== "FeatureCollection" || !Array.isArray(value.features))) throw Error("Postpass no devolvió un GeoJSON FeatureCollection");
-    return { geo: postpass ? value : window.osmtogeojson(value), cnt: postpass ? countPostpass(value) : count(value), raw: json(value) };
+    return { geo: postpass ? value : window.osmtogeojson(value), cnt: postpass ? countPostpass(value) : count(value), raw: text };
   }
   const value = new DOMParser().parseFromString(text, "text/xml");
   if (value.querySelector("parsererror")) throw Error("Respuesta XML inválida");

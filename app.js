@@ -2,7 +2,7 @@ import { loadDependencies } from "./deps.js";
 import { storage } from "./storage.js";
 import { createEditor } from "./editor.js";
 import { createQueryPreparer, isPostpassTextOnly } from "./query.js";
-import { parseResponse, responseError, errorStatusHtml, OSM_TYPES } from "./response.js";
+import { readResponseJson, parseResponse, responseError, errorStatusHtml, OSM_TYPES } from "./response.js";
 import { createMapController } from "./map.js";
 import { createUI } from "./ui.js";
 import { createAnalysis } from "./analysis.js";
@@ -506,14 +506,15 @@ const initializeApp = (deps) => {
       if (runId !== runSeq) return;
       ui.log(`Respuesta recibida: HTTP ${response.status}`);
       ui.data.raw = text;
-      const queryError = responseError(text, contentType, response.status, response.statusText);
+      const decoded = readResponseJson(text, contentType);
+      const queryError = responseError(text, contentType, response.status, response.statusText, decoded);
       if (queryError) {
         const error = new Error(queryError.title);
         error.overpass = queryError;
         throw error;
       }
-      const result = parseResponse(text, contentType, runEngine, query, postpassTextOnly);
-      ui.data.raw = result.raw;
+      const result = parseResponse(text, contentType, runEngine, query, postpassTextOnly, decoded);
+      ui.setOriginal(result.raw, result.textOnly ? null : decoded?.value);
       if (result.textOnly) {
         textResult(result, start);
         return;

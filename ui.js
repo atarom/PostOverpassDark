@@ -4,6 +4,7 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
   let overlayTimer;
   let previousFocus = null;
   let geoData = null;
+  let originalData = null;
   const log = (message) => {
     overlayLog.textContent += message + "\n";
     overlayLog.scrollTop = overlayLog.scrollHeight;
@@ -31,6 +32,11 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
     status.innerHTML = html;
   };
   const show = () => {
+    if (dataView.value === "raw" && originalData) {
+      try { data.raw = json(originalData); }
+      catch (error) { data.raw = "Error al generar la respuesta original: " + (error.message || String(error)); }
+      originalData = null;
+    }
     if (dataView.value === "geojson" && geoData) {
       try { data.geojson = json(geoData); }
       catch (error) { data.geojson = "Error al generar GeoJSON: " + (error.message || String(error)); }
@@ -39,8 +45,10 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
     dataOutput.textContent = data[dataView.value] || "Sin datos.";
   };
   const setGeojson = (value) => { geoData = value; data.geojson = ""; };
+  const setOriginal = (text, value) => { data.raw = text; originalData = value && typeof value === "object" ? value : null; };
   const resetData = () => {
     geoData = null;
+    originalData = null;
     Object.keys(data).forEach((key) => data[key] = "");
   };
   const tab = (name) => {
@@ -71,5 +79,5 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
       tab("status");
     }
   };
-  return { data, log, overlayClose, overlayOpen, overlayDone, setStatus, show, setGeojson, resetData, tab, copy };
+  return { data, log, overlayClose, overlayOpen, overlayDone, setStatus, show, setGeojson, setOriginal, resetData, tab, copy };
 };
