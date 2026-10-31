@@ -131,16 +131,12 @@ export const encodeShareDetailed = async (state) => {
   const bytes = encodeData(state);
   let encoded = `a${toBase64(bytes)}`;
   const candidates = [{ name: "Directo", encoded, compressedBytes: bytes.length }];
-  let compressedBytes = null;
-  let compressedChars = null;
   let compressionStatus = "unavailable";
   const directChars = encoded.length;
   if (typeof CompressionStream === "function" && typeof DecompressionStream === "function") {
     try {
       const compressed = await transform(bytes, new CompressionStream("deflate-raw"));
       const candidate = `b${toBase64(compressed)}`;
-      compressedBytes = compressed.length;
-      compressedChars = candidate.length;
       candidates.push({ name: "DEFLATE", encoded: candidate, compressedBytes: compressed.length });
       compressionStatus = "compared";
       if (candidate.length < directChars) encoded = candidate;
@@ -148,7 +144,7 @@ export const encodeShareDetailed = async (state) => {
       compressionStatus = "failed";
     }
   }
-  return { encoded, info: { rawBytes: bytes.length, directChars, compressedBytes, compressedChars, compressionStatus, method: encoded[0] === "b" ? "deflate-raw" : "direct", candidates } };
+  return { encoded, info: { rawBytes: bytes.length, directChars, compressionStatus, candidates } };
 };
 export const encodeShare = async (state) => (await encodeShareDetailed(state)).encoded;
 export const encodeShareDeflateIds = async (state, signal) => {
@@ -261,20 +257,18 @@ export const createShareComparison = (onSelect) => {
   let plain = null;
   const render = () => {
     const ordered = names.map((name) => ({ name, ...methods.get(name) })).filter((method) => method.encoded).sort((a, b) => a.encoded.length - b.encoded.length);
-    const available = ordered.filter((item) => item.encoded);
-    const best = available[0];
-    const maximum = Math.max(1, ...available.map((item) => item.encoded.length));
+    const best = ordered[0];
+    const maximum = Math.max(1, ...ordered.map((item) => item.encoded.length));
     const focused = document.activeElement?.dataset?.method;
     bars.replaceChildren(...ordered.map((method) => {
       const item = document.createElement("button");
       item.type = "button";
       item.dataset.method = method.name;
-      item.className = "share-comparison-method" + (method.name === best?.name ? " is-best" : "") + (method.name === selected ? " is-selected" : "") + (!method.encoded ? " is-waiting" : "");
-      item.disabled = !method.encoded;
+      item.className = "share-comparison-method" + (method.name === best?.name ? " is-best" : "") + (method.name === selected ? " is-selected" : "");
       item.setAttribute("aria-pressed", String(method.name === selected));
       const value = document.createElement("strong");
       value.className = "share-comparison-value";
-      value.textContent = method.encoded ? `${numbers.format(method.encoded.length)} car.` : method.status || "Calculando…";
+      value.textContent = `${numbers.format(method.encoded.length)} car.`;
       const track = document.createElement("div");
       track.className = "share-comparison-track";
       const bar = document.createElement("div");
@@ -286,14 +280,14 @@ export const createShareComparison = (onSelect) => {
       name.textContent = method.name;
       const delta = document.createElement("small");
       delta.className = "share-comparison-delta";
-      const difference = plain === null || !method.encoded ? 0 : plain - method.encoded.length;
+      const difference = plain === null ? 0 : plain - method.encoded.length;
       delta.textContent = difference > 0 ? `−${numbers.format(difference)} caracteres · ${(difference / plain * 100).toLocaleString("es-ES", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} % menos` : difference < 0 ? `+${numbers.format(-difference)} caracteres · ${(-difference / plain * 100).toLocaleString("es-ES", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} % más` : "Referencia";
-      item.setAttribute("aria-label", `${method.name}: ${method.encoded ? `${numbers.format(method.encoded.length)} caracteres, ${delta.textContent}` : delta.textContent}`);
+      item.setAttribute("aria-label", `${method.name}: ${numbers.format(method.encoded.length)} caracteres, ${delta.textContent}`);
       item.onclick = () => onSelect(method.name);
       item.append(value, track, name, delta);
       return item;
     }));
-    if (focused) [...bars.children].find((item) => item.dataset.method === focused && !item.disabled)?.focus({ preventScroll: true });
+    if (focused) [...bars.children].find((item) => item.dataset.method === focused)?.focus({ preventScroll: true });
     const waiting = advanced.some((name) => !methods.get(name));
     status.textContent = plain === null ? "Preparando enlace…" : waiting ? "Calculando variantes…" : selected ? `${manual ? "Elegido" : "Automático"}: ${selected}` : "Sin resultados";
     for (const name of advanced) if (extra[name]) {
