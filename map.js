@@ -335,8 +335,8 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   const areaControls = () => {
     const selected = areaDrawing || Boolean(areaGeometry);
     areaButton.setAttribute("aria-pressed", String(selected));
-    areaButton.setAttribute("aria-label", areaDrawing ? "Cancelar dibujo del área JOSM" : areaGeometry ? "Borrar área JOSM" : "Dibujar área para JOSM");
-    areaButton.title = areaDrawing ? "Cancelar dibujo" : areaGeometry ? "Borrar área JOSM" : "Área JOSM: clics para dibujar, doble clic para terminar";
+    areaButton.setAttribute("aria-label", areaDrawing ? "Cancelar dibujo" : areaGeometry ? "Borrar área de filtrado" : "Dibujar área de filtrado");
+    areaButton.title = areaDrawing ? "Cancelar dibujo" : areaGeometry ? "Borrar área de filtrado" : "Filtrar por área: clics para dibujar, doble clic para terminar";
     areaButton.style.background = selected ? "#64532e" : "";
     areaButton.style.color = selected ? "#f4db9b" : "";
   };
