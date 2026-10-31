@@ -6,7 +6,6 @@ const PAGE_SIZE = 51200;
 const FEATURES_PER_PAGE = 10;
 const yieldTask = () => new Promise((resolve) => setTimeout(resolve, 0));
 export const createDataViewer = ({ data, dataView, dataOutput, copyButton, getGeo }) => {
-  const panel = dataOutput.parentElement;
   const tools = dataView.parentElement;
   tools.classList.add("pod-data-tools");
   const showButton = document.createElement("button");

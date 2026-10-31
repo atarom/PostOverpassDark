@@ -1,7 +1,7 @@
-import { $, esc } from "./utils.js";
+import { $ } from "./utils.js";
 import { createDataViewer } from "./data-viewer.js";
 export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLog, copyButton }) => {
-  const data = { query: "", raw: "", geojson: "" };
+  const data = { query: "", raw: "" };
   let overlayTimer;
   let previousFocus = null;
   let geoData = null;
@@ -33,7 +33,7 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
     status.innerHTML = html;
   };
   const show = () => viewer.show();
-  const setGeojson = (value) => { geoData = value; data.geojson = ""; viewer.resetPreview("geojson"); };
+  const setGeojson = (value) => { geoData = value; viewer.resetPreview("geojson"); };
   const setOriginal = (text) => { data.raw = text; viewer.resetPreview("raw"); };
   const resetData = () => {
     geoData = null;

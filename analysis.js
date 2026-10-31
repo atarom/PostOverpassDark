@@ -274,7 +274,7 @@ export const createAnalysis = ({ elements, onChange, getShapeReference }) => {
     numericMaxValue.value = String(max);
   };
   const geometry = createGeometryAnalysis({ anchor: numericKey, onChange: () => onChange?.(options()), getShapeReference });
-  const options = () => ({ ...geometry.options(), selectedKey: key.value, onlySelectedKey: onlyKey.checked, selectedValue, countMode: countMode.value, selectedValueColor: valueSelectedColor.value, otherValueColor: valueOtherColor.value, hideOtherValues: valueHideOthers.checked, regexEnabled: regexEnable.checked, regexText: regexText.value, regexInsensitive: regexInsensitive.checked, regexOnly: regexOnly.checked, regexColors: colors, numericEnabled: numericEnable.checked, numericKey: numericKey.value, numericMin: numericMin.value, numericMax: numericMax.value, numericShowErrors: numericErrors.checked, errorColor: "#ef8491" });
+  const options = () => ({ ...geometry.options(), selectedKey: key.value, onlySelectedKey: onlyKey.checked, selectedValue, countMode: countMode.value, selectedValueColor: valueSelectedColor.value, otherValueColor: valueOtherColor.value, hideOtherValues: valueHideOthers.checked, regexEnabled: regexEnable.checked, regexText: regexText.value, regexInsensitive: regexInsensitive.checked, regexOnly: regexOnly.checked, regexColors: colors, numericEnabled: numericEnable.checked, numericKey: numericKey.value, numericMin: numericMin.value, numericMax: numericMax.value, numericShowErrors: numericErrors.checked });
   const emit = () => onChange?.(options());
   const emitFrame = () => {
     cancelAnimationFrame(frame);
@@ -405,6 +405,10 @@ export const createAnalysis = ({ elements, onChange, getShapeReference }) => {
     info = { keys: [], numericKeys: [] };
     regexCache = null;
     selectedValue = null;
+    onlyKey.checked = false;
+    valueHideOthers.checked = false;
+    numericErrors.checked = false;
+    regexOnly.checked = false;
     valueTools.hidden = true;
     key.replaceChildren();
     numericKey.replaceChildren();

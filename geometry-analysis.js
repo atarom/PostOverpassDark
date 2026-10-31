@@ -486,7 +486,6 @@ export const createGeometryAnalysis = ({ anchor, onChange, getShapeReference }) 
   const refreshReference = (opts = {}, force = false) => {
     if (mode !== "shape" || scope.value !== "filtered" || !shapeComputed || shapeType.value !== "anomaly") return;
     const signature = JSON.stringify([opts.selectedKey, opts.selectedValue, opts.onlySelectedKey, opts.hideOtherValues, opts.countMode, opts.regexEnabled, opts.regexOnly, opts.regexText, opts.regexInsensitive, opts.numericEnabled, opts.numericKey, opts.numericMin, opts.numericMax]);
-    if (!shapeReferenceSignature) { shapeReferenceSignature = signature; return; }
     if (!force && signature === shapeReferenceSignature) return;
     shapeReferenceSignature = signature;
     clearTimeout(shapeTimer);

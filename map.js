@@ -204,17 +204,14 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     vectorLayer.updateStyleVariables(update);
     heatLayer.updateStyleVariables(update);
   };
-  const hasResultFilter = () => Boolean(geo && (options.onlySelectedKey && options.selectedKey || options.selectedValue !== null && options.selectedValue !== undefined || options.regexEnabled && regexPatterns.length || options.numericEnabled && options.numericKey || options.geometryEnabled || areaGeometry));
+  const hasResultFilter = () => Boolean(geo && (options.onlySelectedKey && options.selectedKey || options.hideOtherValues && options.selectedValue !== null && options.selectedValue !== undefined || options.regexEnabled && options.regexOnly && options.selectedValue == null || options.numericEnabled && options.numericKey && !options.numericShowErrors || options.geometryEnabled || areaGeometry));
   const isResultMatch = (feature, ignoreGeometry = false) => {
     if (!feature || feature.get("podKeep") !== 1) return false;
     const index = feature.get("podIndex");
     const raw = geo?.features[index];
     if (!raw) return false;
-    const tags = featureTags(raw);
-    if (options.selectedValue !== null && options.selectedValue !== undefined && !matchesTagValue(tags, options.selectedKey, options.selectedValue, options.countMode)) return false;
-    if (options.regexEnabled && regexPatterns.length && !regexPatterns.some((rule) => rule.regex.test(String(tags[options.selectedKey] ?? "").trim()))) return false;
     const number = feature.get("podValue");
-    if (options.numericEnabled && options.numericKey && (number === MISSING_NUMBER || number < Number(options.numericMin) || number > Number(options.numericMax))) return false;
+    if (options.numericEnabled && options.numericKey && !options.numericShowErrors && (number === MISSING_NUMBER || number < Number(options.numericMin) || number > Number(options.numericMax))) return false;
     const measure = feature.get("podGeomValue");
     if (!ignoreGeometry && options.geometryEnabled && (measure === -1 || measure < Number(options.geometryMin) || measure > Number(options.geometryMax))) return false;
     if (areaGeometry && !geometryInsideArea(feature.getGeometry(), areaGeometry)) return false;

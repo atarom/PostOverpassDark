@@ -433,11 +433,7 @@ const initializeApp = (deps) => {
     return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toLocaleString("es-ES", { maximumFractionDigits: 2 })} s`;
   };
   const textResult = (result, start) => {
-    josm.reset();
     const time = elapsed(start);
-    analysis.clear();
-    resultsList.clear();
-    ui.setGeojson(null);
     dataView.value = "raw";
     ui.setStatus(`<strong>Respuesta textual recibida</strong><br>Formato: ${esc(result.format.toUpperCase())} · Tiempo: ${time}`, "ok");
     ui.show();
@@ -470,7 +466,6 @@ const initializeApp = (deps) => {
   const run = async () => {
     if (busy) return;
     const runId = ++runSeq;
-    josm.reset();
     const queryText = editor.getQuery();
     const runEngine = editor.getEngine();
     const postpassTextOnly = runEngine === "postpass" && isPostpassTextOnly(queryText);
@@ -482,18 +477,10 @@ const initializeApp = (deps) => {
     setOverlayButton(true);
     controller = active;
     timer = null;
-    map.getView().cancelAnimations();
-    mapController.clear();
-    analysis.clear();
-    resultsList.clear();
-    ui.resetData();
-    ui.show();
     ui.overlayOpen("Preparando consulta…");
     try {
       const query = await preparer.prep(queryText, active.signal, runEngine);
       if (runId !== runSeq) return;
-      ui.data.query = query;
-      ui.show();
       if (runEngine === "overpass") {
         const timeout = query.match(/\[\s*timeout\s*:\s*(\d+)\s*\]/i);
         if (timeout) timer = setTimeout(() => active.abort(abortError("Tiempo de espera agotado")), Number(timeout[1]) * 1000);
@@ -507,7 +494,6 @@ const initializeApp = (deps) => {
       const { text, contentType } = response;
       if (runId !== runSeq) return;
       ui.log(`Respuesta recibida: HTTP ${response.status}${response.cached ? " (caché)" : ""}`);
-      ui.data.raw = text;
       const decoded = readResponseJson(text, contentType);
       const queryError = responseError(text, contentType, response.status, response.statusText, decoded);
       if (queryError) {
@@ -518,7 +504,14 @@ const initializeApp = (deps) => {
       const result = parseResponse(text, contentType, runEngine, query, postpassTextOnly, decoded);
       if (!result.textOnly && !Array.isArray(result.geo?.features)) throw Error("GeoJSON no válido");
       overpassRequester.remember(url, body, response);
-      ui.setOriginal(result.raw, result.textOnly ? null : decoded?.value);
+      map.getView().cancelAnimations();
+      mapController.clear();
+      josm.reset();
+      analysis.clear();
+      resultsList.clear();
+      ui.resetData();
+      ui.data.query = query;
+      ui.setOriginal(result.raw);
       if (result.textOnly) {
         textResult(result, start);
         return;
