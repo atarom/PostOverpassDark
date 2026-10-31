@@ -1,3 +1,4 @@
+import { originalPostpassGeoJSON } from "./response.js";
 const stylesheet = document.createElement("link");
 stylesheet.rel = "stylesheet";
 stylesheet.href = new URL("./data-viewer.css", import.meta.url).href;
@@ -58,7 +59,8 @@ export const createDataViewer = ({ data, dataView, dataOutput, copyButton, getGe
   const views = { raw: { shown: false, page: 0, content: "" }, geojson: { shown: false, page: 0, content: "" } };
   const mode = () => dataView.value;
   const geoFeatures = () => Array.isArray(getGeo()?.features) ? getGeo().features : [];
-  const pages = (key) => key === "raw" ? Math.max(1, Math.ceil((data.raw || "").length / PAGE_SIZE)) : Math.max(1, Math.ceil(geoFeatures().length / FEATURES_PER_PAGE));
+  const geoText = () => originalPostpassGeoJSON(getGeo());
+  const pages = (key) => key === "raw" ? Math.max(1, Math.ceil((data.raw || "").length / PAGE_SIZE)) : geoText() !== null ? Math.max(1, Math.ceil(geoText().length / PAGE_SIZE)) : Math.max(1, Math.ceil(geoFeatures().length / FEATURES_PER_PAGE));
   const available = (key) => key === "geojson" ? Boolean(getGeo()) : Boolean(data[key]);
   const resetMessage = () => { message.hidden = true; message.textContent = ""; };
   const feedback = (text, error = false) => {
@@ -141,7 +143,7 @@ export const createDataViewer = ({ data, dataView, dataOutput, copyButton, getGe
     if (job.abort.signal.aborted) throw new DOMException("Operación cancelada", "AbortError");
     return result.blob;
   };
-  const blobFor = (job, key) => key === "geojson" ? geoBlob(job) : Promise.resolve(new Blob([data[key] || ""], { type: "text/plain;charset=utf-8" }));
+  const blobFor = (job, key) => key === "geojson" ? geoText() !== null ? Promise.resolve(new Blob([geoText()], { type: "application/geo+json;charset=utf-8" })) : geoBlob(job) : Promise.resolve(new Blob([data[key] || ""], { type: "text/plain;charset=utf-8" }));
   const filename = (key) => {
     if (key === "geojson") return "datos.geojson";
     if (key === "raw") return /^\s*</.test(data.raw) ? "respuesta.xml" : /^\s*[\[{]/.test(data.raw) ? "respuesta.json" : "respuesta.txt";
@@ -182,19 +184,29 @@ export const createDataViewer = ({ data, dataView, dataOutput, copyButton, getGe
     state.content = (data.raw || "").slice(start, start + PAGE_SIZE);
     display();
   };
-  const paintGeo = (page) => run("Preparando vista previa GeoJSON…", async (job) => {
-    const features = geoFeatures();
-    const start = page * FEATURES_PER_PAGE;
-    const worker = createWorker(job);
-    const complete = workerResult(job, worker, "preview");
-    worker.postMessage({ action: "preview", features: features.slice(start, start + FEATURES_PER_PAGE) });
-    const result = await complete;
-    if (job.abort.signal.aborted) return;
-    views.geojson.page = page;
-    views.geojson.shown = true;
-    views.geojson.content = `Entidades ${start + 1}–${Math.min(start + FEATURES_PER_PAGE, features.length)} de ${features.length}\n\n${result.text || "Sin entidades."}`;
-    if (mode() === "geojson") display();
-  });
+  const paintGeo = (page) => {
+    const source = geoText();
+    if (source !== null) {
+      views.geojson.page = page;
+      views.geojson.shown = true;
+      views.geojson.content = source.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+      if (mode() === "geojson") display();
+      return;
+    }
+    return run("Preparando vista previa GeoJSON…", async (job) => {
+      const features = geoFeatures();
+      const start = page * FEATURES_PER_PAGE;
+      const worker = createWorker(job);
+      const complete = workerResult(job, worker, "preview");
+      worker.postMessage({ action: "preview", features: features.slice(start, start + FEATURES_PER_PAGE) });
+      const result = await complete;
+      if (job.abort.signal.aborted) return;
+      views.geojson.page = page;
+      views.geojson.shown = true;
+      views.geojson.content = `Entidades ${start + 1}–${Math.min(start + FEATURES_PER_PAGE, features.length)} de ${features.length}\n\n${result.text || "Sin entidades."}`;
+      if (mode() === "geojson") display();
+    });
+  };
   const show = () => {
     if (active) return;
     resetMessage();

@@ -1,5 +1,7 @@
 import { esc } from "./utils.js";
 export const OSM_TYPES = ["node", "way", "relation"];
+const originalPostpass = new WeakMap();
+export const originalPostpassGeoJSON = (geo) => geo && originalPostpass.get(geo) || null;
 const PP_TYPES = { N: "node", W: "way", R: "relation", node: "node", way: "way", relation: "relation" };
 const postpassType = (properties) => {
   const raw = String(properties.osm_type || properties.type || "").trim();
@@ -77,6 +79,7 @@ export const parseResponse = (text, contentType, engine, query, postpassTextOnly
       throw Error("Respuesta JSON inválida" + (postpass ? " de Postpass" : ""));
     }
     if (postpass && (value?.type !== "FeatureCollection" || !Array.isArray(value.features))) throw Error("Postpass no devolvió un GeoJSON FeatureCollection");
+    if (postpass) originalPostpass.set(value, text);
     return { geo: postpass ? value : window.osmtogeojson(value), cnt: postpass ? countPostpass(value) : count(value), raw: text };
   }
   const value = new DOMParser().parseFromString(text, "text/xml");
