@@ -1,5 +1,5 @@
 const encoder = new TextEncoder();
-const LISTS = /\b(?:(?:node|way|rel|relation|nw|nr|wr|nwr)\s*\(\s*id\s*:\s*|(?:osm_id|id)\s+IN\s*\(\s*)([1-9]\d*(?:\s*,\s*[1-9]\d*){7,})\s*\)/gi;
+const LISTS = /\b(?:(?:node|way|rel|relation|nw|nr|wr|nwr)\s*\(\s*id\s*:\s*|(?:osm_id|id)\s+IN\s*\(\s*)([1-9]\d*(?:\s*,\s*[1-9]\d*){2,})\s*\)|\b(?:osm_id|id)\s*=\s*ANY\s*\(\s*ARRAY\s*\[\s*([1-9]\d*(?:\s*,\s*[1-9]\d*){2,})\s*\]\s*(?:::\s*(?:bigint|int8|integer|int4|int)\s*\[\s*\])?\s*\)/gi;
 const maskIgnored = (query) => {
   const chars = query.split("");
   const blank = (start, end) => {
@@ -63,11 +63,12 @@ export const encodeIdLists = (data, query) => {
   if (headerLength < 0) return null;
   const groups = [];
   for (const match of maskIgnored(query).matchAll(LISTS)) {
-    const values = match[1].split(/\s*,\s*/).map(Number);
+    const source = match[1] || match[2];
+    const values = source.split(/\s*,\s*/).map(Number);
     if (values.some((value) => !Number.isSafeInteger(value) || value <= 0)) continue;
-    const start = match.index + match[0].indexOf(match[1]);
-    const end = start + match[1].length;
-    if (query.slice(start, end) !== match[1]) continue;
+    const start = match.index + match[0].indexOf(source);
+    const end = start + source.length;
+    if (query.slice(start, end) !== source) continue;
     groups.push({ start, end, values: [...new Set(values)].sort((a, b) => a - b) });
   }
   if (!groups.length) return null;
