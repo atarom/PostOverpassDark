@@ -1,5 +1,4 @@
 const encoder = new TextEncoder();
-const decoder = new TextDecoder("utf-8", { fatal: true });
 const LISTS = /\b(?:(?:node|way|rel|relation|nw|nr|wr|nwr)\s*\(\s*id\s*:\s*|(?:osm_id|id)\s+IN\s*\(\s*)([1-9]\d*(?:\s*,\s*[1-9]\d*){7,})\s*\)/gi;
 const maskIgnored = (query) => {
   const chars = query.split("");
@@ -69,7 +68,7 @@ export const encodeIdLists = (data, query) => {
     const start = match.index + match[0].indexOf(match[1]);
     const end = start + match[1].length;
     if (query.slice(start, end) !== match[1]) continue;
-    groups.push({ start, end, values: [...new Set(values)].sort((a, b) => a - b), separator: match[1].match(/\s*,\s*/)[0] });
+    groups.push({ start, end, values: [...new Set(values)].sort((a, b) => a - b) });
   }
   if (!groups.length) return null;
   const output = [];
@@ -84,7 +83,6 @@ export const encodeIdLists = (data, query) => {
   let cursor = 0;
   for (const group of groups) {
     writeText(query.slice(cursor, group.start));
-    writeText(group.separator);
     putVar(output, group.values.length);
     let previous = 0;
     for (const value of group.values) {
@@ -116,11 +114,6 @@ export const decodeIdLists = (data) => {
   };
   for (let group = 0; group < groups; group++) {
     readLiteral();
-    const separatorLength = getVar(data, pos);
-    if (!separatorLength || separatorLength > data.length - pos.index) throw Error("Separador de IDs no válido");
-    const separator = decoder.decode(data.subarray(pos.index, pos.index + separatorLength));
-    pos.index += separatorLength;
-    if (!/^\s*,\s*$/.test(separator)) throw Error("Separador de IDs no válido");
     const count = getVar(data, pos);
     totalIds += count;
     if (!count || totalIds > 500000) throw Error("Lista de IDs no válida");
@@ -132,7 +125,7 @@ export const decodeIdLists = (data) => {
       if (delta < 1 || !Number.isSafeInteger(previous)) throw Error("Secuencia de IDs no válida");
       values.push(String(previous));
     }
-    const bytes = encoder.encode(values.join(separator));
+    const bytes = encoder.encode(values.join(","));
     parts.push(bytes);
     total += bytes.length;
   }
