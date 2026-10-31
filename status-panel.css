@@ -1,0 +1,11 @@
+.status.pod-status-structured{padding:8px 14px;color:var(--m)}
+.pod-status-result{display:flex;flex-direction:column;gap:4px;min-width:0}
+.pod-status-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;min-width:0}
+.status .pod-status-total{min-width:0;color:var(--t);font-size:14px;font-weight:800;line-height:1.25}
+.pod-status-duration{flex:none;color:var(--m);font:600 11px/1.35 var(--mono);font-variant-numeric:tabular-nums}
+.pod-status-details{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 12px;font-size:12px;line-height:1.35}
+.pod-status-stat{white-space:nowrap;color:var(--m)}
+.status .pod-status-stat strong{color:var(--t);font-weight:800;font-variant-numeric:tabular-nums}
+.pod-status-geo{margin-left:auto}
+.status .pod-status-zero,.status .pod-status-zero strong{color:#758b7c}
+@media (max-width:480px){.pod-status-details{column-gap:9px}.pod-status-head{gap:8px}.status .pod-status-total{font-size:13px}}

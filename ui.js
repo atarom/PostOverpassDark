@@ -5,6 +5,10 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
   let overlayTimer;
   let previousFocus = null;
   let geoData = null;
+  const stylesheet = document.createElement("link");
+  stylesheet.rel = "stylesheet";
+  stylesheet.href = new URL("./status-panel.css", import.meta.url).href;
+  document.head.append(stylesheet);
   const viewer = createDataViewer({ data, dataView, dataOutput, copyButton, getGeo: () => geoData });
   const log = (message) => {
     overlayLog.textContent += message + "\n";
@@ -28,9 +32,50 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
     requestAnimationFrame(() => $("ovX").focus());
   };
   const overlayDone = () => overlayTimer = setTimeout(overlayClose, 1200);
+  const formatResultStatus = (html) => {
+    const lines = html.split(/<br\s*\/?\s*>/i);
+    const headline = lines[0]?.match(/^<strong>([^<>]+)<\/strong>$/);
+    if (!headline || !/^(?:[\d.,]+ elementos OSM|[\d.,]+ resultados Postpass|Consulta válida sin resultados)$/.test(headline[1])) return null;
+    const stats = new Map();
+    for (const item of lines.slice(1).flatMap((line) => line.split(/\s+·\s+/))) {
+      const match = item.match(/^(Nodos|Vías|Relaciones|Elementos OSM|GeoJSON|Tiempo): (.+)$/);
+      if (!match || stats.has(match[1])) return null;
+      stats.set(match[1], match[2]);
+    }
+    if (!stats.has("GeoJSON") || !stats.has("Tiempo")) return null;
+    const result = document.createElement("div");
+    result.className = "pod-status-result";
+    const head = document.createElement("div");
+    head.className = "pod-status-head";
+    const total = document.createElement("strong");
+    total.className = "pod-status-total";
+    total.textContent = headline[1];
+    const duration = document.createElement("span");
+    duration.className = "pod-status-duration";
+    duration.textContent = stats.get("Tiempo");
+    head.append(total, duration);
+    const details = document.createElement("div");
+    details.className = "pod-status-details";
+    const addStat = (label, value, isGeo = false) => {
+      const entry = document.createElement("span");
+      entry.className = "pod-status-stat" + (isGeo ? " pod-status-geo" : "") + (Number(value.replace(/\./g, "")) === 0 ? " pod-status-zero" : "");
+      const number = document.createElement("strong");
+      number.textContent = value;
+      entry.append(number, " " + label);
+      details.append(entry);
+    };
+    for (const label of ["Vías", "Relaciones", "Nodos", "Elementos OSM"]) if (stats.has(label)) addStat(label, stats.get(label));
+    addStat("GeoJSON", stats.get("GeoJSON"), true);
+    result.append(head, details);
+    return result;
+  };
   const setStatus = (html, cls = "") => {
     status.className = "status " + cls;
-    status.innerHTML = html;
+    const result = cls === "ok" ? formatResultStatus(html) : null;
+    if (result) {
+      status.classList.add("pod-status-structured");
+      status.replaceChildren(result);
+    } else status.innerHTML = html;
   };
   const show = () => viewer.show();
   const setGeojson = (value) => { geoData = value; viewer.resetPreview("geojson"); };
