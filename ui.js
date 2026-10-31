@@ -64,7 +64,7 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
       entry.append(number, " " + label);
       details.append(entry);
     };
-    for (const label of ["Vías", "Relaciones", "Nodos", "Elementos OSM"]) if (stats.has(label)) addStat(label, stats.get(label));
+    for (const label of ["Nodos", "Vías", "Relaciones", "Elementos OSM"]) if (stats.has(label)) addStat(label, stats.get(label));
     addStat("GeoJSON", stats.get("GeoJSON"), true);
     result.append(head, details);
     return result;
