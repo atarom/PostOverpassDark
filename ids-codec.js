@@ -1,19 +1,17 @@
 const encoder = new TextEncoder();
+const decoder = new TextDecoder("utf-8", { fatal: true });
 const LISTS = /\b(?:(?:node|way|rel|relation|nw|nr|wr|nwr)\s*\(\s*id\s*:\s*|(?:osm_id|id)\s+IN\s*\(\s*)([1-9]\d*(?:\s*,\s*[1-9]\d*){7,})\s*\)/gi;
 const maskIgnored = (query) => {
   const chars = query.split("");
-  const blank = (start, end) => { for (let i = start; i < end; i++) if (query[i] !== "\n" && query[i] !== "\r") chars[i] = " "; };
-  let i = 0;
-  while (i < query.length) {
+  const blank = (start, end) => {
+    for (let i = start; i < end; i++) if (query[i] !== "\n" && query[i] !== "\r") chars[i] = " ";
+  };
+  for (let i = 0; i < query.length;) {
+    const start = i;
     if (query.startsWith("//", i) || query.startsWith("--", i)) {
-      const end = query.indexOf("\n", i);
-      const stop = end < 0 ? query.length : end;
-      blank(i, stop);
-      i = stop;
-      continue;
-    }
-    if (query.startsWith("/*", i)) {
-      const start = i;
+      i = query.indexOf("\n", i);
+      if (i < 0) i = query.length;
+    } else if (query.startsWith("/*", i)) {
       let depth = 1;
       i += 2;
       while (i < query.length && depth) {
@@ -21,45 +19,31 @@ const maskIgnored = (query) => {
         else if (query.startsWith("*/", i)) { depth--; i += 2; }
         else i++;
       }
-      blank(start, i);
-      continue;
-    }
-    if (query[i] === "'" || query[i] === '"') {
-      const start = i;
+    } else if (query[i] === "'" || query[i] === '"') {
       const quote = query[i++];
       while (i < query.length) {
         if (query[i] === "\\") { i += 2; continue; }
-        if (query[i] === quote) {
-          if (query[i + 1] === quote) { i += 2; continue; }
-          i++;
-          break;
+        if (query[i++] === quote) {
+          if (query[i] === quote) i++;
+          else break;
         }
-        i++;
       }
-      blank(start, Math.min(i, query.length));
-      continue;
-    }
-    if (query[i] === "$") {
-      const tag = query.slice(i).match(/^\$(?:[A-Za-z_][A-Za-z_0-9]*)?\$/)?.[0];
-      if (tag) {
-        const end = query.indexOf(tag, i + tag.length);
-        const stop = end < 0 ? query.length : end + tag.length;
-        blank(i, stop);
-        i = stop;
-        continue;
-      }
-    }
-    i++;
+    } else if (query[i] === "$") {
+      const tag = query.slice(i).match(/^\$(?:[A-Za-z_]\w*)?\$/)?.[0];
+      if (!tag) { i++; continue; }
+      const end = query.indexOf(tag, i + tag.length);
+      i = end < 0 ? query.length : end + tag.length;
+    } else { i++; continue; }
+    blank(start, Math.min(i, query.length));
   }
   return chars.join("");
 };
 const putVar = (bytes, number) => {
-  let value = number;
-  while (value >= 128) {
-    bytes.push(value % 128 + 128);
-    value = Math.floor(value / 128);
+  while (number >= 128) {
+    bytes.push(number % 128 + 128);
+    number = Math.floor(number / 128);
   }
-  bytes.push(value);
+  bytes.push(number);
 };
 const getVar = (bytes, pos) => {
   let value = 0;
@@ -76,35 +60,31 @@ const getVar = (bytes, pos) => {
 };
 const append = (target, source) => { for (const byte of source) target.push(byte); };
 export const encodeIdLists = (data, query) => {
-  const queryBytes = encoder.encode(query);
-  const headerLength = data.length - queryBytes.length;
+  const headerLength = data.length - encoder.encode(query).length;
   if (headerLength < 0) return null;
   const groups = [];
   for (const match of maskIgnored(query).matchAll(LISTS)) {
-    const tokens = match[1].split(/(\s*,\s*)/);
-    const separator = tokens[1];
-    const values = tokens.filter((_, index) => index % 2 === 0).map(Number);
+    const values = match[1].split(/\s*,\s*/).map(Number);
     if (values.some((value) => !Number.isSafeInteger(value) || value <= 0)) continue;
-    const sorted = [...new Set(values)].sort((a, b) => a - b);
     const start = match.index + match[0].indexOf(match[1]);
     const end = start + match[1].length;
     if (query.slice(start, end) !== match[1]) continue;
-    if (groups.length && start < groups[groups.length - 1].end) continue;
-    groups.push({ start, end, values: sorted, separator });
+    groups.push({ start, end, values: [...new Set(values)].sort((a, b) => a - b), separator: match[1].match(/\s*,\s*/)[0] });
   }
   if (!groups.length) return null;
   const output = [];
   putVar(output, headerLength);
   append(output, data.subarray(0, headerLength));
   putVar(output, groups.length);
+  const writeText = (value) => {
+    const bytes = encoder.encode(value);
+    putVar(output, bytes.length);
+    append(output, bytes);
+  };
   let cursor = 0;
   for (const group of groups) {
-    const literal = encoder.encode(query.slice(cursor, group.start));
-    putVar(output, literal.length);
-    append(output, literal);
-    const separator = encoder.encode(group.separator);
-    putVar(output, separator.length);
-    append(output, separator);
+    writeText(query.slice(cursor, group.start));
+    writeText(group.separator);
     putVar(output, group.values.length);
     let previous = 0;
     for (const value of group.values) {
@@ -113,9 +93,7 @@ export const encodeIdLists = (data, query) => {
     }
     cursor = group.end;
   }
-  const tail = encoder.encode(query.slice(cursor));
-  putVar(output, tail.length);
-  append(output, tail);
+  writeText(query.slice(cursor));
   return new Uint8Array(output);
 };
 export const decodeIdLists = (data) => {
@@ -140,7 +118,7 @@ export const decodeIdLists = (data) => {
     readLiteral();
     const separatorLength = getVar(data, pos);
     if (!separatorLength || separatorLength > data.length - pos.index) throw Error("Separador de IDs no válido");
-    const separator = new TextDecoder("utf-8", { fatal: true }).decode(data.subarray(pos.index, pos.index + separatorLength));
+    const separator = decoder.decode(data.subarray(pos.index, pos.index + separatorLength));
     pos.index += separatorLength;
     if (!/^\s*,\s*$/.test(separator)) throw Error("Separador de IDs no válido");
     const count = getVar(data, pos);
