@@ -222,6 +222,7 @@ export const createGeometryAnalysis = ({ anchor, onChange, getShapeReference }) 
   let shapeCount = 0;
   let shapeReferenceCount = 0;
   let shapeReferenceSignature = "";
+  let startingShapeModel = false;
   const cancelShape = () => {
     cancelAnimationFrame(shapeFrame);
     clearTimeout(shapeTimer);
@@ -271,6 +272,8 @@ export const createGeometryAnalysis = ({ anchor, onChange, getShapeReference }) 
   const shapeValues = {};
   const requestModel = () => {
     if (!shapeComputed || !packedShapes || !collection.features.length) return;
+    clearTimeout(shapeTimer);
+    shapeTimer = 0;
     shapeWorker?.terminate();
     shapeWorker = null;
     const version = ++shapeVersion;
@@ -282,7 +285,8 @@ export const createGeometryAnalysis = ({ anchor, onChange, getShapeReference }) 
       sorted.shape = null;
       histogram.clear();
       syncMode();
-      emit();
+      startingShapeModel = true;
+      try { emit(); } finally { startingShapeModel = false; }
     }
     status.textContent = "Calculando patrones habituales…";
     let worker;
@@ -486,6 +490,7 @@ export const createGeometryAnalysis = ({ anchor, onChange, getShapeReference }) 
   const refreshReference = (opts = {}, force = false) => {
     if (mode !== "shape" || scope.value !== "filtered" || !shapeComputed || shapeType.value !== "anomaly") return;
     const signature = JSON.stringify([opts.selectedKey, opts.selectedValue, opts.onlySelectedKey, opts.hideOtherValues, opts.countMode, opts.regexEnabled, opts.regexOnly, opts.regexText, opts.regexInsensitive, opts.numericEnabled, opts.numericKey, opts.numericMin, opts.numericMax]);
+    if (startingShapeModel) { shapeReferenceSignature = signature; return; }
     if (!force && signature === shapeReferenceSignature) return;
     shapeReferenceSignature = signature;
     clearTimeout(shapeTimer);
