@@ -9,6 +9,7 @@ import { createUI } from "./ui.js";
 import { createAnalysis } from "./analysis.js";
 import { createResultsList } from "./results-list.js";
 import { createJosmExporter } from "./josm-export.js";
+import { createIdsToPod } from "./ids-to-pod.js";
 import { encodeShare, encodeShareDetailed, encodeShareDeflateIds, encodeShareZopfli, encodeShareBrotli, decodeShare, sharedFragment, createShareComparison } from "./share.js";
 import { $, esc, abortError } from "./utils.js";
 import { OVERPASS_PRESETS } from "./presets-overpass.js";
@@ -401,8 +402,37 @@ const initializeApp = (deps) => {
   const analysis = createAnalysis({ elements: analysisElements, getShapeReference: () => mapController.getShapeReference(), onChange: (options) => { mapController.applyFilters(options); resultsList?.refresh(options); analysis.refreshShapeReference(options); } });
   resultsList = createResultsList({ container: $("analysisPanel").querySelector(".analysis-scroll"), controller: mapController });
   mapController.onResultsChanged(() => { resultsList.refresh(analysis.options()); analysis.refreshShapeReference(analysis.options(), true); });
+  let selectedResultIndex = null;
+  let currentGeo = null;
+  const originalSelectResult = mapController.selectResult;
+  mapController.selectResult = (index) => { selectedResultIndex = originalSelectResult(index); return selectedResultIndex; };
+  const originalClearResultSelection = mapController.clearResultSelection;
+  mapController.clearResultSelection = (...args) => { selectedResultIndex = null; return originalClearResultSelection(...args); };
   const josm = createJosmExporter({ container: $("josmTools"), sendButton: $("josmSend"), message: $("josmMessage"), getVisibleOsm: () => mapController.getVisibleOsm() });
   josm.setEngine(getEngine());
+  const idsToPod = createIdsToPod({
+    anchor: $("josmTools"),
+    getFeatures: () => mapController.getResultSource().filter((feature) => mapController.isResultMatch(feature) && (selectedResultIndex === null || feature.get("podIndex") === selectedResultIndex)).map((feature) => currentGeo?.features[feature.get("podIndex")]).filter(Boolean),
+    getPosition: () => {
+      const [longitude, latitude] = deps.ol.proj.toLonLat(map.getView().getCenter());
+      return { longitude, latitude, zoom: map.getView().getZoom() };
+    },
+    receive: (query, position) => {
+      const option = [...endpoint.options].find((item) => item.dataset.engine === "overpass");
+      if (!option) throw Error("No hay servidor Overpass disponible");
+      endpoint.value = option.value;
+      endpoint.dispatchEvent(new Event("change"));
+      editor.setQuery(query);
+      if (Number.isFinite(position?.longitude) && Number.isFinite(position?.latitude) && Number.isFinite(position?.zoom)) {
+        map.getView().setCenter(deps.ol.proj.fromLonLat([position.longitude, position.latitude]));
+        map.getView().setZoom(position.zoom);
+        map.updateSize();
+      }
+      syncPreset();
+      ui.setStatus("<strong>Consulta IDsToPOD preparada</strong><br>Pulsa Ejecutar para iniciar la consulta.", "ok");
+      showTab("status");
+    }
+  });
   const preparer = createQueryPreparer({ map, storage, areaStoreKey: STORE.areas, log: ui.log });
   const overpassRequester = createOverpassRequester(storage);
   let controller;
@@ -442,11 +472,14 @@ const initializeApp = (deps) => {
     ui.overlayDone();
   };
   const geoResult = (result, start, postpass) => {
+    currentGeo = result.geo;
+    selectedResultIndex = null;
     josm.setData(postpass ? result.geo : result.raw, postpass ? "postpass" : "overpass");
     ui.setGeojson(result.geo);
     analysis.setData(result.geo, true);
     ui.log(`${postpass ? "GeoJSON recibido" : "Conversión GeoJSON completada"}\nDibujando ${result.geo.features.length} entidades GeoJSON…`);
     mapController.draw(result.geo, { filters: analysis.options() });
+    idsToPod.setData(true);
     mapController.applyFilters(analysis.options());
     resultsList.setData(result.geo, analysis.options());
     const formatter = new Intl.NumberFormat("es-ES");
@@ -506,6 +539,9 @@ const initializeApp = (deps) => {
       overpassRequester.remember(url, body, response);
       map.getView().cancelAnimations();
       mapController.clear();
+      currentGeo = null;
+      selectedResultIndex = null;
+      idsToPod.setData(false);
       josm.reset();
       analysis.clear();
       resultsList.clear();

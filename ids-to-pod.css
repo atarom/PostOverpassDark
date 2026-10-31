@@ -1,0 +1,2 @@
+.action-bar .ids-to-pod{flex:0 0 74px;width:74px;font-size:10px;font-weight:800;letter-spacing:0}
+@media(max-width:390px){.action-bar{flex-wrap:wrap;gap:4px}.action-bar .ids-to-pod{flex-basis:70px;width:70px}.action-bar .preset-toggle{margin-left:0}}
