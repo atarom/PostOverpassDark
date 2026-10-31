@@ -1,5 +1,6 @@
 import { loadDependencies } from "./deps.js";
 import { storage } from "./storage.js";
+import { createOverpassRequester } from "./overpass-de-request.js";
 import { createEditor } from "./editor.js";
 import { createQueryPreparer, isPostpassTextOnly } from "./query.js";
 import { readResponseJson, parseResponse, responseError, errorStatusHtml, OSM_TYPES } from "./response.js";
@@ -403,6 +404,7 @@ const initializeApp = (deps) => {
   const josm = createJosmExporter({ container: $("josmTools"), sendButton: $("josmSend"), message: $("josmMessage"), getVisibleOsm: () => mapController.getVisibleOsm() });
   josm.setEngine(getEngine());
   const preparer = createQueryPreparer({ map, storage, areaStoreKey: STORE.areas, log: ui.log });
+  const overpassRequester = createOverpassRequester(storage);
   let controller;
   let timer;
   let runSeq = 0;
@@ -501,11 +503,10 @@ const initializeApp = (deps) => {
       if (postpassTextOnly) body.set("options[geojson]", "false");
       bookmarkRun = { query: queryText, endpoint: url };
       updateBookmark(0);
-      const response = await fetch(url, { method: "POST", body, signal: active.signal, cache: "no-store" });
-      const text = await response.text();
-      const contentType = response.headers.get("content-type") || "";
+      const response = await overpassRequester.read(url, body, active.signal);
+      const { text, contentType } = response;
       if (runId !== runSeq) return;
-      ui.log(`Respuesta recibida: HTTP ${response.status}`);
+      ui.log(`Respuesta recibida: HTTP ${response.status}${response.cached ? " (caché)" : ""}`);
       ui.data.raw = text;
       const decoded = readResponseJson(text, contentType);
       const queryError = responseError(text, contentType, response.status, response.statusText, decoded);
@@ -515,12 +516,13 @@ const initializeApp = (deps) => {
         throw error;
       }
       const result = parseResponse(text, contentType, runEngine, query, postpassTextOnly, decoded);
+      if (!result.textOnly && !Array.isArray(result.geo?.features)) throw Error("GeoJSON no válido");
+      overpassRequester.remember(url, body, response);
       ui.setOriginal(result.raw, result.textOnly ? null : decoded?.value);
       if (result.textOnly) {
         textResult(result, start);
         return;
       }
-      if (!Array.isArray(result.geo?.features)) throw Error("GeoJSON no válido");
       geoResult(result, start, runEngine === "postpass");
     } catch (error) {
       if (runId !== runSeq) return;
