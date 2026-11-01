@@ -371,7 +371,6 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     heatShared = true;
     lastPrepared = "";
     lastGeometryValues = null;
-    lastOutlierFlags = null;
     heatSource.clear(true);
     vectorSource.clear(true);
     const features = [];
