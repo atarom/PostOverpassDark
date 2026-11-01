@@ -48,10 +48,12 @@ const MISSING_NUMBER = -1e20;
 const PASS = ["all", ["!=", ["get", "podValue"], MISSING_NUMBER], ["between", ["get", "podValue"], ["var", "minEle"], ["var", "maxEle"]]];
 const BAD = ["any", ["==", ["get", "podValue"], MISSING_NUMBER], ["<", ["get", "podValue"], ["var", "minEle"]], [">", ["get", "podValue"], ["var", "maxEle"]]];
 const GEOMETRY_PASS = ["any", ["==", ["var", "geometryEnabled"], 0], ["all", ["!=", ["get", "podGeomValue"], -1], ["between", ["get", "podGeomValue"], ["var", "minGeom"], ["var", "maxGeom"]]]];
-const FILTER = ["all", ["==", ["get", "podKeep"], 1], ["any", ["==", ["var", "numericEnabled"], 0], ["==", ["var", "showErrors"], 1], PASS], GEOMETRY_PASS];
-const RED = ["case", ["all", ["==", ["var", "numericEnabled"], 1], BAD], 239, ["get", "podR"]];
-const GREEN = ["case", ["all", ["==", ["var", "numericEnabled"], 1], BAD], 132, ["get", "podG"]];
-const BLUE = ["case", ["all", ["==", ["var", "numericEnabled"], 1], BAD], 145, ["get", "podB"]];
+const OUTLIER_PASS = ["any", ["!=", ["var", "outlierMode"], 2], ["==", ["get", "podOutlier"], 1]];
+const OUTLIER_ACTIVE = ["all", ["==", ["var", "outlierMode"], 1], ["==", ["get", "podOutlier"], 1]];
+const FILTER = ["all", ["==", ["get", "podKeep"], 1], ["any", ["==", ["var", "numericEnabled"], 0], ["==", ["var", "showErrors"], 1], PASS], GEOMETRY_PASS, OUTLIER_PASS];
+const RED = ["case", OUTLIER_ACTIVE, 237, ["all", ["==", ["var", "numericEnabled"], 1], BAD], 239, ["get", "podR"]];
+const GREEN = ["case", OUTLIER_ACTIVE, 153, ["all", ["==", ["var", "numericEnabled"], 1], BAD], 132, ["get", "podG"]];
+const BLUE = ["case", OUTLIER_ACTIVE, 134, ["all", ["==", ["var", "numericEnabled"], 1], BAD], 145, ["get", "podB"]];
 const styleColor = (alpha) => ["color", RED, GREEN, BLUE, alpha];
 const geometryInsideArea = (geometry, area) => {
   const bounds = geometry.getExtent();
@@ -100,11 +102,11 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     const saved = JSON.parse(storage.getItem(heatStoreKey) || "{}");
     heat = { intensity: valid(saved.intensity, 0.25, 3, 1), radius: valid(saved.radius, 0.25, 3, 1), opacity: valid(saved.opacity, 0, 1, 0.88), weight: valid(saved.weight, 0.1, 5, 1), palette: COLORS[saved.palette] ? saved.palette : "default" };
   } catch {}
-  const vars = { minEle: -1000000, maxEle: 1000000, numericEnabled: 0, showErrors: 0, minGeom: 0, maxGeom: 0, geometryEnabled: 0 };
+  const vars = { minEle: -1000000, maxEle: 1000000, numericEnabled: 0, showErrors: 0, minGeom: 0, maxGeom: 0, geometryEnabled: 0, outlierMode: 0 };
   const vectorSource = new Vector({ wrapX: false });
   const heatSource = new Vector({ wrapX: false });
   const vectorLayer = new WebGLVector({ source: vectorSource, variables: { ...vars }, style: [{ filter: FILTER, style: { "circle-radius": 7, "circle-fill-color": styleColor(1), "circle-stroke-color": "#e5edf8", "circle-stroke-width": 1.4, "stroke-color": styleColor(1), "stroke-width": 3, "fill-color": styleColor(0.18) } }] });
-  const heatWeight = ["clamp", ["*", 0.75, ["var", "weight"], ["var", "intensity"], ["case", FILTER, 1, 0]], 0, 1];
+  const heatWeight = ["clamp", ["*", 0.75, ["var", "weight"], ["var", "intensity"], ["case", OUTLIER_ACTIVE, 1.8, 1], ["case", FILTER, 1, 0]], 0, 1];
   const heatLayer = new Heatmap({ source: heatSource, radius: ["*", 20, ["var", "radius"]], blur: ["*", 13, ["var", "radius"]], weight: heatWeight, variables: { ...vars, radius: heat.radius, weight: heat.weight, intensity: heat.intensity }, opacity: heat.opacity, gradient: COLORS[heat.palette], visible: false });
   const baseLayer = new Tile({ className: "dark-base-layer", source: new OSM({ referrerPolicy: "strict-origin-when-cross-origin" }) });
   const map = new OlMap({ target: "map", layers: [baseLayer, vectorLayer, heatLayer], view: new View({ center: fromLonLat([-3.70379, 40.416775]), zoom: 5.5, minZoom: 0, maxZoom: 19 }) });
@@ -137,6 +139,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   let resultsChanged = null;
   let lastPrepared = "";
   let lastGeometryValues = null;
+  let lastOutlierFlags = null;
   let regexPatterns = [];
   let options = {};
   let heatReady = false;
@@ -194,19 +197,34 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
       heatSource.changed();
     }
   };
+  const syncOutlierAttributes = (flags) => {
+    if (flags === lastOutlierFlags) return;
+    lastOutlierFlags = flags;
+    for (const feature of rendered) feature.set("podOutlier", flags?.[feature.get("podIndex")] === 1 ? 1 : 0, true);
+    vectorSource.changed();
+    if (heatReady && !heatShared) {
+      for (const feature of heatSource.getFeatures()) {
+        const original = rendered[feature.get("podLocalIndex")];
+        if (original) feature.set("podOutlier", original.get("podOutlier"), true);
+      }
+      heatSource.changed();
+    }
+  };
   const applyFilters = (next = {}) => {
     options = next;
     if (!geo) return;
     syncAttributes(next);
     syncGeometryAttributes(next.geometryValues);
+    syncOutlierAttributes(next.outlierFlags);
     const active = next.numericEnabled && next.numericKey ? 1 : 0;
-    const update = { minEle: Number(next.numericMin) || 0, maxEle: Number(next.numericMax) || 0, numericEnabled: active, showErrors: next.numericShowErrors ? 1 : 0, minGeom: Number(next.geometryMin) || 0, maxGeom: Number(next.geometryMax) || 0, geometryEnabled: next.geometryEnabled ? 1 : 0 };
+    const update = { minEle: Number(next.numericMin) || 0, maxEle: Number(next.numericMax) || 0, numericEnabled: active, showErrors: next.numericShowErrors ? 1 : 0, minGeom: Number(next.geometryMin) || 0, maxGeom: Number(next.geometryMax) || 0, geometryEnabled: next.geometryEnabled ? 1 : 0, outlierMode: next.outlierMode === "only" && next.outlierFlags ? 2 : next.outlierMode === "highlight" && next.outlierFlags ? 1 : 0 };
     vectorLayer.updateStyleVariables(update);
     heatLayer.updateStyleVariables(update);
   };
-  const hasResultFilter = () => Boolean(geo && (options.onlySelectedKey && options.selectedKey || options.hideOtherValues && options.selectedValue !== null && options.selectedValue !== undefined || options.regexEnabled && options.regexOnly && options.selectedValue == null || options.numericEnabled && options.numericKey && !options.numericShowErrors || options.geometryEnabled || areaGeometry));
+  const hasResultFilter = () => Boolean(geo && (options.onlySelectedKey && options.selectedKey || options.hideOtherValues && options.selectedValue !== null && options.selectedValue !== undefined || options.regexEnabled && options.regexOnly && options.selectedValue == null || options.numericEnabled && options.numericKey && !options.numericShowErrors || options.geometryEnabled || options.outlierMode === "only" && options.outlierFlags || areaGeometry));
   const isResultMatch = (feature, ignoreGeometry = false) => {
     if (!feature || feature.get("podKeep") !== 1) return false;
+    if (options.outlierMode === "only" && options.outlierFlags && feature.get("podOutlier") !== 1) return false;
     const index = feature.get("podIndex");
     const raw = geo?.features[index];
     if (!raw) return false;
@@ -366,6 +384,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     heatShared = true;
     lastPrepared = "";
     lastGeometryValues = null;
+    lastOutlierFlags = null;
     heatSource.clear(true);
     vectorSource.clear(true);
     const features = [];
@@ -376,13 +395,14 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
       try { geometry = format.readGeometry(item.geometry, { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }); } catch { continue; }
       if (!geometry) continue;
       if (geometry.getType() !== "Point") heatShared = false;
-      const feature = new Feature({ geometry, podIndex: i, podKeep: 1, podValue: MISSING_NUMBER, podGeomValue: -1, podR: 141, podG: 182, podB: 232 });
+      const feature = new Feature({ geometry, podIndex: i, podKeep: 1, podValue: MISSING_NUMBER, podGeomValue: -1, podOutlier: 0, podR: 141, podG: 182, podB: 232 });
       rendered.push(feature);
       byIndex.set(i, feature);
       features.push(feature);
     }
     syncAttributes(options, true);
     syncGeometryAttributes(options.geometryValues);
+    syncOutlierAttributes(options.outlierFlags);
     vectorSource.addFeatures(features);
     heatLayer.setSource(heatShared ? vectorSource : heatSource);
     heatReady = heatShared;
@@ -409,7 +429,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
         center = geometry.getClosestPoint([(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2]);
       }
       if (!center || !center.every(Number.isFinite)) continue;
-      const point = new Feature({ geometry: new Point(center), podLocalIndex: i, podKeep: feature.get("podKeep"), podValue: feature.get("podValue"), podGeomValue: feature.get("podGeomValue") });
+      const point = new Feature({ geometry: new Point(center), podLocalIndex: i, podKeep: feature.get("podKeep"), podValue: feature.get("podValue"), podGeomValue: feature.get("podGeomValue"), podOutlier: feature.get("podOutlier") });
       points.push(point);
     }
     heatSource.addFeatures(points);
@@ -448,12 +468,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     const index = selected?.get("podIndex");
     if (index == null || !geo?.features[index]) { closePopup(); return; }
     const raw = geo.features[index];
-    const base = basePass(raw, options, regexPatterns);
-    const num = numericValue(featureTags(raw)[options.numericKey]);
-    const pass = !options.numericEnabled || !options.numericKey || options.numericShowErrors || Number.isFinite(num) && num >= Number(options.numericMin) && num <= Number(options.numericMax);
-    const geometryValue = options.geometryValues?.[index];
-    const geometryPass = !options.geometryEnabled || Number.isFinite(geometryValue) && geometryValue >= Number(options.geometryMin) && geometryValue <= Number(options.geometryMax);
-    if (!base.keep || !pass || !geometryPass) { closePopup(); return; }
+    if (!isResultMatch(selected)) { closePopup(); return; }
     popupContent.innerHTML = popupHtml(raw);
     popupElement.hidden = false;
     popup.setPosition(event.coordinate);
@@ -469,12 +484,14 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     const regexHidden = options.regexEnabled && options.regexOnly && !valueHidden && (options.selectedValue === null || options.selectedValue === undefined);
     const numericHidden = Boolean(options.numericEnabled && options.numericKey && !options.numericShowErrors);
     const geometryHidden = Boolean(options.geometryEnabled);
-    if (!areaGeometry && !(options.onlySelectedKey && options.selectedKey) && !valueHidden && !regexHidden && !numericHidden && !geometryHidden) return null;
+    const outlierHidden = Boolean(options.outlierMode === "only" && options.outlierFlags);
+    if (!areaGeometry && !(options.onlySelectedKey && options.selectedKey) && !valueHidden && !regexHidden && !numericHidden && !geometryHidden && !outlierHidden) return null;
     const min = Number(options.numericMin) || 0;
     const max = Number(options.numericMax) || 0;
     const result = [];
     for (const feature of rendered) {
       if (feature.get("podKeep") !== 1) continue;
+      if (outlierHidden && feature.get("podOutlier") !== 1) continue;
       if (numericHidden && (feature.get("podValue") === MISSING_NUMBER || feature.get("podValue") < min || feature.get("podValue") > max)) continue;
       if (geometryHidden && (feature.get("podGeomValue") === -1 || feature.get("podGeomValue") < Number(options.geometryMin) || feature.get("podGeomValue") > Number(options.geometryMax))) continue;
       if (areaGeometry && !geometryInsideArea(feature.getGeometry(), areaGeometry)) continue;
@@ -482,7 +499,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     }
     return result;
   };
-  const clear = () => { closePopup(); clearResultSelection(); geo = null; rendered = []; byIndex = new Map(); heatReady = false; heatShared = false; lastPrepared = ""; lastGeometryValues = null; regexPatterns = []; vectorSource.clear(true); heatSource.clear(true); heatLayer.setSource(heatSource); };
+  const clear = () => { closePopup(); clearResultSelection(); geo = null; rendered = []; byIndex = new Map(); heatReady = false; heatShared = false; lastPrepared = ""; lastGeometryValues = null; lastOutlierFlags = null; regexPatterns = []; vectorSource.clear(true); heatSource.clear(true); heatLayer.setSource(heatSource); };
   heatUI();
   render();
   return { map, draw, clear, render, heatUI, getHeat, setHeat, hasGeo: () => Boolean(geo), applyFilters, getVisibleOsm, hasResultFilter, getShapeReference, getResultSource: () => rendered, isResultMatch, isSelectedResultMatch: () => selectedIndex === null || isResultMatch(byIndex.get(selectedIndex)), clearResultSelection, selectResult, onResultsChanged: (callback) => { resultsChanged = callback; } };
