@@ -2,9 +2,9 @@ import { esc, val, DEFAULT_HEAT } from "./utils.js";
 import { featureTags, matchesTagValue, numericValue, compilePatterns } from "./analysis.js";
 const TYPES = { N: "node", W: "way", R: "relation", node: "node", way: "way", relation: "relation" };
 const COLORS = { default: ["#355f8d", "#3f8f9c", "#79b88d", "#d6b56d", "#e58b68", "#ef5d72"], warm: ["#72543b", "#a26c43", "#d1924f", "#e6b95f", "#ef8262", "#ef4e5d"], cool: ["#324a7a", "#326b98", "#3f98a7", "#63b7a8", "#88d0b4", "#d3f0c0"], fire: ["#3a173d", "#7d2450", "#bd3a45", "#e96d3e", "#f5b747", "#fff2a1"] };
-const hexRgb = (value) => {
+const hexPacked = (value) => {
   const match = /^#([\da-f]{6})$/i.exec(value || "");
-  return match ? [0, 2, 4].map((i) => parseInt(match[1].slice(i, i + 2), 16)) : [141, 182, 232];
+  return match ? parseInt(match[1], 16) : 0x8db6e8;
 };
 const entries = (obj) => obj && typeof obj === "object" && !Array.isArray(obj) ? Object.entries(obj).filter(([, value]) => value != null) : [];
 const rows = (items) => items.sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `<div class="tr"><div class="tk">${esc(key)}</div><div class="tv">${esc(val(value))}</div></div>`).join("");
@@ -52,9 +52,10 @@ const OUTLIER_VALUE = ["all", ["!=", ["get", "podValue"], MISSING_NUMBER], ["any
 const OUTLIER_PASS = ["any", ["!=", ["var", "outlierMode"], 2], OUTLIER_VALUE];
 const OUTLIER_ACTIVE = ["all", ["==", ["var", "outlierMode"], 1], OUTLIER_VALUE];
 const FILTER = ["all", ["==", ["get", "podKeep"], 1], ["any", ["==", ["var", "numericEnabled"], 0], ["==", ["var", "showErrors"], 1], PASS], GEOMETRY_PASS, OUTLIER_PASS];
-const RED = ["case", OUTLIER_ACTIVE, 237, ["all", ["==", ["var", "numericEnabled"], 1], BAD], 239, ["get", "podR"]];
-const GREEN = ["case", OUTLIER_ACTIVE, 153, ["all", ["==", ["var", "numericEnabled"], 1], BAD], 132, ["get", "podG"]];
-const BLUE = ["case", OUTLIER_ACTIVE, 134, ["all", ["==", ["var", "numericEnabled"], 1], BAD], 145, ["get", "podB"]];
+const PACKED_COLOR = ["get", "podColor"];
+const RED = ["case", OUTLIER_ACTIVE, 237, ["all", ["==", ["var", "numericEnabled"], 1], BAD], 239, ["floor", ["/", PACKED_COLOR, 65536]]];
+const GREEN = ["case", OUTLIER_ACTIVE, 153, ["all", ["==", ["var", "numericEnabled"], 1], BAD], 132, ["floor", ["%", ["/", PACKED_COLOR, 256], 256]]];
+const BLUE = ["case", OUTLIER_ACTIVE, 134, ["all", ["==", ["var", "numericEnabled"], 1], BAD], 145, ["%", PACKED_COLOR, 256]];
 const styleColor = (alpha) => ["color", RED, GREEN, BLUE, alpha];
 const geometryInsideArea = (geometry, area) => {
   const bounds = geometry.getExtent();
@@ -169,8 +170,8 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
       const tags = featureTags(original);
       const attrs = basePass(original, opts, regexPatterns);
       const n = numericValue(tags[opts.numericKey]);
-      const [podR, podG, podB] = hexRgb(attrs.color);
-      rendered[i].setProperties({ podKeep: attrs.keep, podValue: Number.isFinite(n) ? n : MISSING_NUMBER, podR, podG, podB }, true);
+      const podColor = hexPacked(attrs.color);
+      rendered[i].setProperties({ podKeep: attrs.keep, podValue: Number.isFinite(n) ? n : MISSING_NUMBER, podColor }, true);
     }
     vectorSource.changed();
     if (heatReady && !heatShared) {
@@ -381,7 +382,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
       try { geometry = format.readGeometry(item.geometry, { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }); } catch { continue; }
       if (!geometry) continue;
       if (geometry.getType() !== "Point") heatShared = false;
-      const feature = new Feature({ geometry, podIndex: i, podKeep: 1, podValue: MISSING_NUMBER, podGeomValue: -1, podR: 141, podG: 182, podB: 232 });
+      const feature = new Feature({ geometry, podIndex: i, podKeep: 1, podValue: MISSING_NUMBER, podGeomValue: -1, podColor: 0x8db6e8 });
       rendered.push(feature);
       byIndex.set(i, feature);
       features.push(feature);
