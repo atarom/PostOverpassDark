@@ -54,11 +54,12 @@ export const createOutlierAnalysis = ({ anchor, numericEnable, getCollection, ge
   let values = [];
   let q1 = NaN;
   let q3 = NaN;
-  let flags = null;
+  let min = NaN;
+  let max = NaN;
   let count = 0;
   let total = 0;
   const calculate = () => {
-    flags = null;
+    min = max = NaN;
     count = 0;
     total = values.length;
     if (total < 20) {
@@ -71,11 +72,10 @@ export const createOutlierAnalysis = ({ anchor, numericEnable, getCollection, ge
       return;
     }
     const factor = Number(sensitivity.value);
-    const min = q1 - factor * iqr;
-    const max = q3 + factor * iqr;
-    const next = new Uint8Array(collection.features.length);
-    for (const [index, value] of values) if (value < min || value > max) { next[index] = 1; count++; }
-    flags = next;
+    min = q1 - factor * iqr;
+    max = q3 + factor * iqr;
+    if (!Number.isFinite(min) || !Number.isFinite(max)) { status.textContent = "Los valores no permiten calcular límites IQR."; return; }
+    for (const value of values) if (value < min || value > max) count++;
     status.textContent = `${format.format(count)} de ${format.format(total)} valores atípicos (${percent.format(count * 100 / total)} %) · Fuera de ${percent.format(min)} – ${percent.format(max)}`;
   };
   const update = (notify = true) => {
@@ -89,15 +89,15 @@ export const createOutlierAnalysis = ({ anchor, numericEnable, getCollection, ge
         values = [];
         for (let i = 0; i < (collection?.features?.length || 0); i++) {
           const number = getValue(collection.features[i], key);
-          if (Number.isFinite(number)) values.push([i, number]);
+          if (Number.isFinite(number)) values.push(number);
         }
-        const sorted = values.map((item) => item[1]).sort((a, b) => a - b);
+        const sorted = values.slice().sort((a, b) => a - b);
         q1 = sorted.length ? quantile(sorted, 0.25) : NaN;
         q3 = sorted.length ? quantile(sorted, 0.75) : NaN;
       }
       calculate();
-      mode.disabled = !flags;
-      if (!flags) mode.value = "highlight";
+      mode.disabled = !Number.isFinite(min) || !Number.isFinite(max);
+      if (mode.disabled) mode.value = "highlight";
     }
     if (notify) onChange?.();
   };
@@ -111,10 +111,10 @@ export const createOutlierAnalysis = ({ anchor, numericEnable, getCollection, ge
     collection = null;
     key = "";
     values = [];
-    flags = null;
+    min = max = NaN;
     count = total = 0;
     update(false);
   };
   reset();
-  return { refresh: () => update(false), reset, options: () => ({ outlierMode: !root.hidden && enabled.checked && flags ? mode.value : "", outlierFlags: !root.hidden && enabled.checked ? flags : null }) };
+  return { refresh: () => update(false), reset, options: () => ({ outlierMode: !root.hidden && enabled.checked && Number.isFinite(min) && Number.isFinite(max) ? mode.value : "", outlierMin: min, outlierMax: max }) };
 };
