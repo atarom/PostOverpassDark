@@ -51,7 +51,7 @@ const GEOMETRY_PASS = ["any", ["==", ["var", "geometryEnabled"], 0], ["all", ["!
 const OUTLIER_VALUE = ["all", ["!=", ["get", "podValue"], MISSING_NUMBER], ["any", ["<", ["get", "podValue"], ["var", "outlierMin"]], [">", ["get", "podValue"], ["var", "outlierMax"]]]];
 const OUTLIER_PASS = ["any", ["!=", ["var", "outlierMode"], 2], OUTLIER_VALUE];
 const OUTLIER_ACTIVE = ["all", ["==", ["var", "outlierMode"], 1], OUTLIER_VALUE];
-const FILTER = ["all", ["==", ["get", "podKeep"], 1], ["any", ["==", ["var", "numericEnabled"], 0], ["==", ["var", "showErrors"], 1], PASS], GEOMETRY_PASS, OUTLIER_PASS];
+const FILTER = ["all", [">=", ["get", "podColor"], 0], ["any", ["==", ["var", "numericEnabled"], 0], ["==", ["var", "showErrors"], 1], PASS], GEOMETRY_PASS, OUTLIER_PASS];
 const PACKED_COLOR = ["get", "podColor"];
 const RED = ["case", OUTLIER_ACTIVE, 237, ["all", ["==", ["var", "numericEnabled"], 1], BAD], 239, ["floor", ["/", PACKED_COLOR, 65536]]];
 const GREEN = ["case", OUTLIER_ACTIVE, 153, ["all", ["==", ["var", "numericEnabled"], 1], BAD], 132, ["floor", ["%", ["/", PACKED_COLOR, 256], 256]]];
@@ -170,14 +170,14 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
       const tags = featureTags(original);
       const attrs = basePass(original, opts, regexPatterns);
       const n = numericValue(tags[opts.numericKey]);
-      const podColor = hexPacked(attrs.color);
+      const podColor = attrs.keep ? hexPacked(attrs.color) : -1;
       rendered[i].setProperties({ podKeep: attrs.keep, podValue: Number.isFinite(n) ? n : MISSING_NUMBER, podColor }, true);
     }
     vectorSource.changed();
     if (heatReady && !heatShared) {
       for (const feat of heatSource.getFeatures()) {
         const original = rendered[feat.get("podLocalIndex")];
-        if (original) feat.setProperties({ podKeep: original.get("podKeep"), podValue: original.get("podValue") }, true);
+        if (original) feat.setProperties({ podColor: original.get("podColor"), podKeep: original.get("podKeep"), podValue: original.get("podValue") }, true);
       }
       heatSource.changed();
     }
@@ -415,7 +415,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
         center = geometry.getClosestPoint([(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2]);
       }
       if (!center || !center.every(Number.isFinite)) continue;
-      const point = new Feature({ geometry: new Point(center), podLocalIndex: i, podKeep: feature.get("podKeep"), podValue: feature.get("podValue"), podGeomValue: feature.get("podGeomValue") });
+      const point = new Feature({ geometry: new Point(center), podLocalIndex: i, podColor: feature.get("podColor"), podKeep: feature.get("podKeep"), podValue: feature.get("podValue"), podGeomValue: feature.get("podGeomValue") });
       points.push(point);
     }
     heatSource.addFeatures(points);
