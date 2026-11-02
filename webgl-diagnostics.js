@@ -73,6 +73,15 @@
       for (const [name, description] of Object.entries(names)) if (new RegExp(`(?:^|_)${name}(?:$|\\[)`).test(value)) return description;
       return "Atributo interno o geométrico";
     };
+    const programName = (attributes) => {
+      const names = new Set(attributes.map((attribute) => attribute.name.replace(/\[\d+\]$/, "")));
+      if (names.has("a_segmentStart") && names.has("a_segmentEnd")) return "Líneas";
+      if (names.has("a_position") && names.has("a_localPosition") && names.has("a_hitColor")) return "Polígonos";
+      if (names.has("a_position") && names.has("a_hitColor") && !names.has("a_localPosition")) return "Puntos";
+      if (names.has("a_position") && names.size === 1) return "Composición de imagen";
+      if (names.has("a_weight") || names.has("a_prop_weight")) return "Mapa de calor";
+      return "Programa WebGL no identificado";
+    };
     const field = (container, name, value) => {
       const item = entry(container, "div", "wg-field");
       entry(item, "dt", "", name);
@@ -130,17 +139,23 @@
         field(info, "Enlaces fallidos", failed.length);
         lines.push(`${title}: ${version || "No disponible"}`, `GPU: ${renderer || "No disponible"}`, `Límite: ${limit ?? "No disponible"}`, `Máximo usado: ${peak ?? "No disponible"}`, `Margen: ${margin ?? "No disponible"}`);
         const list = entry(group, "div", "wg-programs");
+        const nameCounts = new Map();
         linked.forEach((item, position) => {
           const used = usages[position];
+          const kind = programName(item.attributes);
+          const count = (nameCounts.get(kind) || 0) + 1;
+          nameCounts.set(kind, count);
+          const name = count === 1 ? kind : `${kind} (${count})`;
           const detail = entry(list, "details", "wg-program");
           const summary = entry(detail, "summary", "wg-program-head");
-          entry(summary, "span", "", `Programa ${position + 1}`);
+          entry(summary, "span", "", name);
           entry(summary, "span", "wg-program-count", `${used} / ${limit ?? "?"} atributos · ${item.attributes.length} variables`);
           const table = entry(detail, "table", "wg-table");
           const head = entry(table, "thead");
           const heading = entry(head, "tr");
           ["Atributo activo", "Uso", "Ranuras", "Posición"].forEach((name) => entry(heading, "th", "", name));
           const body = entry(table, "tbody");
+          lines.push(`${name}: ${used}/${limit ?? "?"} ranuras`);
           [...item.attributes].sort((a, b) => a.location - b.location).forEach((attribute) => {
             const row = entry(body, "tr");
             entry(row, "td", "wg-mono", attribute.name);
@@ -149,7 +164,6 @@
             entry(row, "td", "", attribute.location);
             lines.push(`  ${attribute.name}: posición ${attribute.location}, ${slots(gl, attribute)} ranuras`);
           });
-          lines.push(`Programa ${position + 1}: ${used}/${limit ?? "?"} ranuras`);
         });
         failed.forEach((item, position) => {
           const failure = entry(list, "details", "wg-program wg-error");
@@ -159,7 +173,7 @@
         });
         if (!linked.length && !failed.length) entry(group, "p", "wg-empty", "Este contexto todavía no tiene programas registrados.");
       });
-      entry(output, "p", "wg-hint", "El contador muestra las ranuras utilizadas simultáneamente por cada programa, incluyendo los atributos propios de OpenLayers. No representa memoria VRAM ni uso total de GPU.");
+      entry(output, "p", "wg-hint", "Los nombres se deducen de los atributos activos; si no permiten identificar un programa, se indica. El contador muestra las ranuras utilizadas por programa, no memoria VRAM ni uso total de GPU.");
       report = lines.join("\n");
     };
     trigger.addEventListener("click", () => {
