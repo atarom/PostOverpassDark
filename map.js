@@ -139,14 +139,25 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   let byIndex = new Map();
   let selectedIndex = null;
   let resultsChanged = null;
-  let lastPrepared = "";
+  let lastColorSignature = "";
+  let lastNumericKey;
   let lastGeometryValues = null;
+  const lastStyleVars = { ...vars };
+  const vectorStyleVars = { ...vars };
+  const heatStyleVars = { ...vars };
+  const syncStyleVars = (layer, applied) => {
+    const changed = {};
+    for (const [key, value] of Object.entries(lastStyleVars)) if (applied[key] !== value) changed[key] = value;
+    if (Object.keys(changed).length) {
+      Object.assign(applied, changed);
+      layer.updateStyleVariables(changed);
+    }
+  };
   let regexPatterns = [];
   let options = {};
   let heatReady = false;
   let heatShared = false;
-  const basePass = (feature, opts, patterns) => {
-    const tags = featureTags(feature);
+  const basePass = (tags, opts, patterns) => {
     if (opts.onlySelectedKey && opts.selectedKey && !Object.prototype.hasOwnProperty.call(tags, opts.selectedKey)) return { keep: 0, color: "" };
     const selected = opts.selectedValue === null || opts.selectedValue === undefined ? null : matchesTagValue(tags, opts.selectedKey, opts.selectedValue, opts.countMode);
     if (selected === false && opts.hideOtherValues) return { keep: 0, color: "" };
@@ -161,35 +172,49 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     return { keep: 1, color };
   };
   const syncAttributes = (opts, force = false) => {
-    const signature = JSON.stringify([opts.selectedKey, opts.onlySelectedKey, opts.regexEnabled, opts.regexText, opts.regexInsensitive, opts.regexOnly, opts.regexColors, opts.numericKey, opts.selectedValue, opts.countMode, opts.selectedValueColor, opts.otherValueColor, opts.hideOtherValues]);
-    if (!force && signature === lastPrepared) return;
-    lastPrepared = signature;
-    regexPatterns = opts.regexEnabled ? compilePatterns(opts.regexText || "", opts.regexInsensitive) : [];
-    for (let i = 0; i < rendered.length; i++) {
-      const original = geo.features[rendered[i].get("podIndex")];
+    const colorSignature = JSON.stringify([opts.selectedKey, opts.onlySelectedKey, opts.regexEnabled, opts.regexText, opts.regexInsensitive, opts.regexOnly, opts.regexColors, opts.selectedValue, opts.countMode, opts.selectedValueColor, opts.otherValueColor, opts.hideOtherValues]);
+    const colorChanged = force || colorSignature !== lastColorSignature;
+    const numericChanged = force || opts.numericKey !== lastNumericKey;
+    if (!colorChanged && !numericChanged) return;
+    lastColorSignature = colorSignature;
+    lastNumericKey = opts.numericKey;
+    if (colorChanged) regexPatterns = opts.regexEnabled ? compilePatterns(opts.regexText || "", opts.regexInsensitive) : [];
+    for (const feature of rendered) {
+      const original = geo.features[feature.get("podIndex")];
       const tags = featureTags(original);
-      const attrs = basePass(original, opts, regexPatterns);
-      const n = numericValue(tags[opts.numericKey]);
-      const podColor = attrs.keep ? hexPacked(attrs.color) : -1;
-      rendered[i].setProperties({ podKeep: attrs.keep, podValue: Number.isFinite(n) ? n : MISSING_NUMBER, podColor }, true);
+      const update = {};
+      if (colorChanged) {
+        const attrs = basePass(tags, opts, regexPatterns);
+        update.podKeep = attrs.keep;
+        update.podColor = attrs.keep ? hexPacked(attrs.color) : -1;
+      }
+      if (numericChanged) {
+        const n = numericValue(tags[opts.numericKey]);
+        update.podValue = Number.isFinite(n) ? n : MISSING_NUMBER;
+      }
+      feature.setProperties(update, true);
     }
-    vectorSource.changed();
+    if (!force) vectorSource.changed();
     if (heatReady && !heatShared) {
-      for (const feat of heatSource.getFeatures()) {
-        const original = rendered[feat.get("podLocalIndex")];
-        if (original) feat.setProperties({ podColor: original.get("podColor"), podKeep: original.get("podKeep"), podValue: original.get("podValue") }, true);
+      for (const feature of heatSource.getFeatures()) {
+        const original = rendered[feature.get("podLocalIndex")];
+        if (!original) continue;
+        const update = {};
+        if (colorChanged) { update.podKeep = original.get("podKeep"); update.podColor = original.get("podColor"); }
+        if (numericChanged) update.podValue = original.get("podValue");
+        feature.setProperties(update, true);
       }
       heatSource.changed();
     }
   };
-  const syncGeometryAttributes = (values) => {
+  const syncGeometryAttributes = (values, notify = true) => {
     if (values === lastGeometryValues) return;
     lastGeometryValues = values;
     for (const feature of rendered) {
       const value = values?.[feature.get("podIndex")];
       feature.setProperties({ podGeomValue: Number.isFinite(value) ? value : -1 }, true);
     }
-    vectorSource.changed();
+    if (notify) vectorSource.changed();
     if (heatReady && !heatShared) {
       for (const feature of heatSource.getFeatures()) {
         const original = rendered[feature.get("podLocalIndex")];
@@ -205,8 +230,14 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     syncGeometryAttributes(next.geometryValues);
     const active = next.numericEnabled && next.numericKey ? 1 : 0;
     const update = { minEle: Number(next.numericMin) || 0, maxEle: Number(next.numericMax) || 0, numericEnabled: active, showErrors: next.numericShowErrors ? 1 : 0, minGeom: Number(next.geometryMin) || 0, maxGeom: Number(next.geometryMax) || 0, geometryEnabled: next.geometryEnabled ? 1 : 0, outlierMode: next.outlierMode === "only" ? 2 : next.outlierMode === "highlight" ? 1 : 0, outlierMin: Number(next.outlierMin) || 0, outlierMax: Number(next.outlierMax) || 0 };
-    vectorLayer.updateStyleVariables(update);
-    heatLayer.updateStyleVariables(update);
+    let changed = false;
+    for (const [key, value] of Object.entries(update)) {
+      if (lastStyleVars[key] !== value) { lastStyleVars[key] = value; changed = true; }
+    }
+    if (changed) {
+      if (renderMode.value === "heat") syncStyleVars(heatLayer, heatStyleVars);
+      else syncStyleVars(vectorLayer, vectorStyleVars);
+    }
   };
   const isOutlier = (value) => Number.isFinite(value) && value !== MISSING_NUMBER && (value < Number(options.outlierMin) || value > Number(options.outlierMax));
   const hasResultFilter = () => Boolean(geo && (options.onlySelectedKey && options.selectedKey || options.hideOtherValues && options.selectedValue !== null && options.selectedValue !== undefined || options.regexEnabled && options.regexOnly && options.selectedValue == null || options.numericEnabled && options.numericKey && !options.numericShowErrors || options.geometryEnabled || options.outlierMode === "only" || areaGeometry));
@@ -370,7 +401,8 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     clearResultSelection();
     heatReady = false;
     heatShared = true;
-    lastPrepared = "";
+    lastColorSignature = "";
+    lastNumericKey = undefined;
     lastGeometryValues = null;
     heatSource.clear(true);
     vectorSource.clear(true);
@@ -388,7 +420,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
       features.push(feature);
     }
     syncAttributes(options, true);
-    syncGeometryAttributes(options.geometryValues);
+    syncGeometryAttributes(options.geometryValues, false);
     vectorSource.addFeatures(features);
     heatLayer.setSource(heatShared ? vectorSource : heatSource);
     heatReady = heatShared;
@@ -424,6 +456,8 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   const render = () => {
     const isHeat = renderMode.value === "heat";
     if (isHeat && geo) buildHeat();
+    if (isHeat) syncStyleVars(heatLayer, heatStyleVars);
+    else syncStyleVars(vectorLayer, vectorStyleVars);
     vectorLayer.setVisible(!isHeat);
     heatLayer.setVisible(isHeat);
     closePopup();
@@ -485,7 +519,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     }
     return result;
   };
-  const clear = () => { closePopup(); clearResultSelection(); geo = null; rendered = []; byIndex = new Map(); heatReady = false; heatShared = false; lastPrepared = ""; lastGeometryValues = null; regexPatterns = []; vectorSource.clear(true); heatSource.clear(true); heatLayer.setSource(heatSource); };
+  const clear = () => { closePopup(); clearResultSelection(); geo = null; rendered = []; byIndex = new Map(); heatReady = false; heatShared = false; lastColorSignature = ""; lastNumericKey = undefined; lastGeometryValues = null; regexPatterns = []; vectorSource.clear(true); heatSource.clear(true); heatLayer.setSource(heatSource); };
   heatUI();
   render();
   return { map, draw, clear, render, heatUI, getHeat, setHeat, hasGeo: () => Boolean(geo), applyFilters, getVisibleOsm, hasResultFilter, getShapeReference, getResultSource: () => rendered, isResultMatch, isSelectedResultMatch: () => selectedIndex === null || isResultMatch(byIndex.get(selectedIndex)), clearResultSelection, selectResult, onResultsChanged: (callback) => { resultsChanged = callback; } };
