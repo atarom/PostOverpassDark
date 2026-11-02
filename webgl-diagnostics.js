@@ -3,6 +3,7 @@
   const wrap = (prototype) => {
     if (!prototype || typeof prototype.linkProgram !== "function") return;
     const original = prototype.linkProgram;
+    const originalDelete = prototype.deleteProgram;
     try {
       Object.defineProperty(prototype, "linkProgram", { configurable: true, writable: true, value: function (program) {
         const result = original.call(this, program);
@@ -21,16 +22,25 @@
         } catch (exception) {
           error = String(exception.message || exception);
         }
-        if (!programs.has(this)) programs.set(this, new Map());
-        programs.get(this).set(program, { linked, attributes, error });
+        let items = programs.get(this);
+        if (!items) {
+          items = new Map();
+          programs.set(this, items);
+          this.canvas?.addEventListener?.("webglcontextlost", () => items.clear());
+        }
+        items.set(program, { linked, attributes, error });
+        return result;
+      } });
+      Object.defineProperty(prototype, "deleteProgram", { configurable: true, writable: true, value: function (program) {
+        const result = originalDelete.call(this, program);
+        programs.get(this)?.delete(program);
         return result;
       } });
     } catch (error) {
       console.warn("No se ha podido activar el diagnóstico de atributos WebGL", error);
     }
   };
-  if (typeof WebGLRenderingContext !== "undefined") wrap(WebGLRenderingContext.prototype);
-  if (typeof WebGL2RenderingContext !== "undefined") wrap(WebGL2RenderingContext.prototype);
+  for (const context of [globalThis.WebGLRenderingContext, globalThis.WebGL2RenderingContext]) wrap(context?.prototype);
   const init = () => {
     const config = document.getElementById("cfg");
     if (!config || document.getElementById("wgOpen")) return;
@@ -48,7 +58,7 @@
     const dialog = document.createElement("dialog");
     dialog.className = "wg-dialog";
     dialog.setAttribute("aria-labelledby", "wgTitle");
-    dialog.innerHTML = `<div class="wg-head"><div><span class="wg-kicker">INFORMACIÓN TÉCNICA</span><h2 id="wgTitle">GPU y WebGL</h2></div><button id="wgClose" type="button" aria-label="Cerrar diagnóstico">×</button></div><div class="wg-content"><p class="wg-explain">Los atributos se cuentan por programa gráfico, no se suman entre programas. Los datos proceden del controlador WebGL de este navegador.</p><div id="wgOutput" role="status" aria-live="polite">Sin datos.</div></div><div class="wg-footer"><span id="wgActionMessage" aria-live="polite"></span><button id="wgRefresh" type="button">Actualizar</button><button id="wgCopy" type="button">Copiar informe</button></div><textarea id="wgFallback" class="wg-fallback" aria-label="Informe para copiar manualmente" readonly hidden></textarea>`;
+    dialog.innerHTML = `<div class="wg-head"><div><span class="wg-kicker">INFORMACIÓN TÉCNICA</span><h2 id="wgTitle">GPU y WebGL</h2></div><button id="wgClose" type="button" aria-label="Cerrar diagnóstico">×</button></div><div class="wg-content"><p class="wg-explain">Los atributos se cuentan por programa, no se suman entre ellos. Datos obtenidos del controlador WebGL del navegador.</p><div id="wgOutput" role="status" aria-live="polite">Sin datos.</div></div><div class="wg-footer"><span id="wgActionMessage" aria-live="polite"></span><button id="wgRefresh" type="button">Actualizar</button><button id="wgCopy" type="button">Copiar informe</button></div><textarea id="wgFallback" class="wg-fallback" aria-label="Informe para copiar manualmente" readonly hidden></textarea>`;
     document.body.append(dialog);
     const output = dialog.querySelector("#wgOutput");
     const message = dialog.querySelector("#wgActionMessage");
@@ -65,14 +75,11 @@
       try { return gl.getParameter(parameter); } catch { return null; }
     };
     const slots = (gl, attribute) => {
-      const columns = attribute.type === gl.FLOAT_MAT2 || attribute.type === gl.FLOAT_MAT2x3 || attribute.type === gl.FLOAT_MAT2x4 ? 2 : attribute.type === gl.FLOAT_MAT3 || attribute.type === gl.FLOAT_MAT3x2 || attribute.type === gl.FLOAT_MAT3x4 ? 3 : attribute.type === gl.FLOAT_MAT4 || attribute.type === gl.FLOAT_MAT4x2 || attribute.type === gl.FLOAT_MAT4x3 ? 4 : 1;
+      const columns = [2, 3, 4].find((n) => [gl[`FLOAT_MAT${n}`], gl[`FLOAT_MAT${n}x2`], gl[`FLOAT_MAT${n}x3`], gl[`FLOAT_MAT${n}x4`]].includes(attribute.type)) || 1;
       return columns * Math.max(1, attribute.size);
     };
-    const friendlyName = (value) => {
-      const names = { podKeep: "Filtro de etiquetas", podValue: "Valor numérico / IQR", podGeomValue: "Análisis geométrico", podColor: "Color RGB", podR: "Canal rojo", podG: "Canal verde", podB: "Canal azul" };
-      for (const [name, description] of Object.entries(names)) if (new RegExp(`(?:^|_)${name}(?:$|\\[)`).test(value)) return description;
-      return "Atributo interno o geométrico";
-    };
+    const names = { podValue: "Valor numérico / IQR", podGeomValue: "Análisis geométrico", podColor: "Color RGB y visibilidad" };
+    const friendlyName = (name) => names[name.slice(name.lastIndexOf("_") + 1).replace(/\[\d+\]$/, "")] || "Atributo interno o geométrico";
     const programName = (attributes) => {
       const names = new Set(attributes.map((attribute) => attribute.name.replace(/\[\d+\]$/, "")));
       if (names.has("a_segmentStart") && names.has("a_segmentEnd")) return "Líneas";
@@ -91,9 +98,9 @@
       output.replaceChildren();
       fallback.hidden = true;
       message.textContent = "";
+      for (const gl of programs.keys()) if (gl.canvas?.isConnected === false) programs.delete(gl);
       const mapNode = document.getElementById("map");
-      const found = [...programs.entries()].filter(([gl]) => mapNode?.contains(gl.canvas));
-      const contexts = found.length ? found : [...programs.entries()];
+      const contexts = [...programs.entries()].filter(([gl]) => mapNode?.contains(gl.canvas));
       const lines = ["PostOverpassDark · Diagnóstico WebGL", `Fecha: ${new Date().toLocaleString("es-ES")}`, `Contextos registrados: ${contexts.length}`];
       if (!contexts.length) {
         entry(output, "p", "wg-empty", "Aún no se han registrado programas WebGL. Ejecuta una consulta con elementos y pulsa Actualizar.");
@@ -151,18 +158,14 @@
           entry(summary, "span", "", name);
           entry(summary, "span", "wg-program-count", `${used} / ${limit ?? "?"} atributos · ${item.attributes.length} variables`);
           const table = entry(detail, "table", "wg-table");
-          const head = entry(table, "thead");
-          const heading = entry(head, "tr");
-          ["Atributo activo", "Uso", "Ranuras", "Posición"].forEach((name) => entry(heading, "th", "", name));
-          const body = entry(table, "tbody");
+          table.innerHTML = "<thead><tr><th>Atributo activo</th><th>Uso</th><th>Ranuras</th><th>Posición</th></tr></thead><tbody></tbody>";
+          const body = table.tBodies[0];
           lines.push(`${name}: ${used}/${limit ?? "?"} ranuras`);
           [...item.attributes].sort((a, b) => a.location - b.location).forEach((attribute) => {
             const row = entry(body, "tr");
-            entry(row, "td", "wg-mono", attribute.name);
-            entry(row, "td", "", friendlyName(attribute.name));
-            entry(row, "td", "", slots(gl, attribute));
-            entry(row, "td", "", attribute.location);
-            lines.push(`  ${attribute.name}: posición ${attribute.location}, ${slots(gl, attribute)} ranuras`);
+            const count = slots(gl, attribute);
+            [attribute.name, friendlyName(attribute.name), count, attribute.location].forEach((value, i) => entry(row, "td", i ? "" : "wg-mono", value));
+            lines.push(`  ${attribute.name}: posición ${attribute.location}, ${count} ranuras`);
           });
         });
         failed.forEach((item, position) => {
@@ -173,7 +176,7 @@
         });
         if (!linked.length && !failed.length) entry(group, "p", "wg-empty", "Este contexto todavía no tiene programas registrados.");
       });
-      entry(output, "p", "wg-hint", "Los nombres se deducen de los atributos activos; si no permiten identificar un programa, se indica. El contador muestra las ranuras utilizadas por programa, no memoria VRAM ni uso total de GPU.");
+      entry(output, "p", "wg-hint", "Los nombres se deducen de los atributos activos. Las ranuras no representan memoria VRAM ni uso total de GPU.");
       report = lines.join("\n");
     };
     trigger.addEventListener("click", () => {
