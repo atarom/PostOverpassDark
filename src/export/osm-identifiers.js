@@ -2,8 +2,9 @@ const TYPES = ["node", "way", "rel"];
 const TYPE = { N: "node", W: "way", R: "rel", n: "node", w: "way", r: "rel", node: "node", way: "way", relation: "rel", rel: "rel" };
 export const getIdentifier = (feature) => {
   const properties = feature?.properties || feature || {};
-  const rawType = String(properties.osm_type ?? properties.type ?? "").trim();
-  let type = TYPE[rawType] || TYPE[rawType.toLowerCase()];
+  const rawType = String(properties.osm_type ?? "").trim();
+  const fallbackType = String(properties.type ?? "").trim();
+  let type = TYPE[rawType] || TYPE[rawType.toLowerCase()] || TYPE[fallbackType] || TYPE[fallbackType.toLowerCase()];
   let id = properties.osm_id ?? properties.id;
   if (!type || !/^\d+$/.test(String(id ?? ""))) {
     for (const value of [properties.osm_url, feature?.id, properties["@id"], properties.id]) {
