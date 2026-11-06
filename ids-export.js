@@ -195,7 +195,7 @@ export const createIdsExporter = ({ getAllFeatures, getFilteredFeatures, getSele
   };
   const open = () => { if (!hasData) return; dialog.showModal(); refresh(); };
   const finish = () => { busy = false; syncButtons(); };
-  const getBlob = () => new Blob([formatIds(cache.groups, preset.select.value, domain.select.value)], { type: "text/plain;charset=utf-8" });
+  const getBlob = (clipboard = false) => new Blob([formatIds(cache.groups, preset.select.value, domain.select.value)], { type: clipboard ? "text/plain" : "text/plain;charset=utf-8" });
   const copyAll = async () => {
     if (!cache?.count || busy) return;
     busy = true;
@@ -203,7 +203,7 @@ export const createIdsExporter = ({ getAllFeatures, getFilteredFeatures, getSele
     const job = revision;
     try {
       if (!navigator.clipboard?.write && !navigator.clipboard?.writeText) throw Error("Portapapeles no disponible");
-      if (navigator.clipboard.write && typeof ClipboardItem !== "undefined") await navigator.clipboard.write([new ClipboardItem({ "text/plain": getBlob() })]);
+      if (navigator.clipboard.write && typeof ClipboardItem !== "undefined") await navigator.clipboard.write([new ClipboardItem({ "text/plain": getBlob(true) })]);
       else await navigator.clipboard.writeText(await getBlob().text());
       if (job === revision) notify(`${cache.count.toLocaleString("es-ES")} IDs copiados.`);
     } catch (error) { if (job === revision) notify(`No se pudieron copiar los IDs: ${error.message || String(error)}`, true); }
