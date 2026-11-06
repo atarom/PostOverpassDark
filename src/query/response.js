@@ -1,4 +1,4 @@
-import { esc } from "./utils.js";
+import { esc } from "../core/utils.js";
 export const OSM_TYPES = ["node", "way", "relation"];
 const originalPostpass = new WeakMap();
 export const originalPostpassGeoJSON = (geo) => geo && originalPostpass.get(geo) || null;

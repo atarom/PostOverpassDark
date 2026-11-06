@@ -46,7 +46,7 @@
     if (!config || document.getElementById("wgOpen")) return;
     const stylesheet = document.createElement("link");
     stylesheet.rel = "stylesheet";
-    stylesheet.href = "./webgl-diagnostics.css";
+    stylesheet.href = "./src/map/webgl-diagnostics.css";
     document.head.append(stylesheet);
     const trigger = document.createElement("button");
     trigger.type = "button";

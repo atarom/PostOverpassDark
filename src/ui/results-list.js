@@ -1,6 +1,6 @@
-import { featureTags, numericValue } from "./analysis.js";
-import { shapeReason } from "./shape-analysis.js";
-import { createIdsExporter } from "./ids-export.js";
+import { featureTags, numericValue } from "../analysis/analysis.js";
+import { shapeReason } from "../analysis/shape-analysis.js";
+import { createIdsExporter } from "../export/ids-export.js";
 const HEIGHT = 48;
 const OVERSCAN = 5;
 const format = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 });

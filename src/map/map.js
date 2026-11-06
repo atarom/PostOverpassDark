@@ -1,5 +1,5 @@
-import { esc, val, DEFAULT_HEAT } from "./utils.js";
-import { featureTags, matchesTagValue, numericValue, compilePatterns } from "./analysis.js";
+import { esc, val, DEFAULT_HEAT } from "../core/utils.js";
+import { featureTags, matchesTagValue, numericValue, compilePatterns } from "../analysis/analysis.js";
 const TYPES = { N: "node", W: "way", R: "relation", node: "node", way: "way", relation: "relation" };
 const COLORS = { default: ["#355f8d", "#3f8f9c", "#79b88d", "#d6b56d", "#e58b68", "#ef5d72"], warm: ["#72543b", "#a26c43", "#d1924f", "#e6b95f", "#ef8262", "#ef4e5d"], cool: ["#324a7a", "#326b98", "#3f98a7", "#63b7a8", "#88d0b4", "#d3f0c0"], fire: ["#3a173d", "#7d2450", "#bd3a45", "#e96d3e", "#f5b747", "#fff2a1"] };
 const hexPacked = (value) => {

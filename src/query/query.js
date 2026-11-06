@@ -1,4 +1,4 @@
-import { abortError } from "./utils.js";
+import { abortError } from "../core/utils.js";
 const postpassSegments = (input) => {
   const parts = [];
   let start = 0;

@@ -1,5 +1,5 @@
-import { PUBLIC_SERVERS, DEFAULT_ENDPOINT } from "./servers.js";
-import { DEFAULT_HEAT } from "./utils.js";
+import { PUBLIC_SERVERS, DEFAULT_ENDPOINT } from "../core/servers.js";
+import { DEFAULT_HEAT } from "../core/utils.js";
 import { encodeIdLists, decodeIdLists } from "./ids-codec.js";
 const PALETTES = ["default", "warm", "cool", "fire"];
 const HEAT_FIELDS = [["intensity", 20], ["radius", 20], ["opacity", 100], ["weight", 10]];

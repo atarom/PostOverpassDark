@@ -1,6 +1,6 @@
 const searchStylesheet = document.createElement("link");
 searchStylesheet.rel = "stylesheet";
-searchStylesheet.href = new URL("./codemirror-search.css", import.meta.url).href;
+searchStylesheet.href = new URL("../query/codemirror-search.css", import.meta.url).href;
 document.head.append(searchStylesheet);
 const loadOl = async () => {
   if (window.ol?.layer?.WebGLVector) return window.ol;

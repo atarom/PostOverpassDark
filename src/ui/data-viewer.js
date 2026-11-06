@@ -1,4 +1,4 @@
-import { originalPostpassGeoJSON } from "./response.js";
+import { originalPostpassGeoJSON } from "../query/response.js";
 const stylesheet = document.createElement("link");
 stylesheet.rel = "stylesheet";
 stylesheet.href = new URL("./data-viewer.css", import.meta.url).href;

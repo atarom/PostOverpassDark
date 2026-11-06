@@ -1,4 +1,4 @@
-import { $ } from "./utils.js";
+import { $ } from "../core/utils.js";
 import { createDataViewer } from "./data-viewer.js";
 export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLog, copyButton }) => {
   const data = { query: "", raw: "" };
