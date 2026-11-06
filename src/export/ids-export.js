@@ -1,4 +1,4 @@
-import { getIdentifier } from "./ids-to-pod.js";
+import { collectOsmIds } from "./osm-identifiers.js";
 const TYPES = ["node", "way", "rel"];
 const NAMES = { node: "node", way: "way", rel: "relation" };
 const PREFIX = { node: "n", way: "w", rel: "r" };
@@ -33,17 +33,7 @@ const optionsFromStorage = () => {
     };
   } catch { return { ...defaults }; }
 };
-export const collectIds = (features, enabled = { node: true, way: true, rel: true }) => {
-  const sets = { node: new Set(), way: new Set(), rel: new Set() };
-  let omitted = 0;
-  for (const feature of features) {
-    const item = getIdentifier(feature);
-    if (!item) { omitted++; continue; }
-    if (enabled[item.type]) sets[item.type].add(item.id);
-  }
-  const groups = Object.fromEntries(TYPES.map((type) => [type, [...sets[type]].sort((a, b) => a - b)]));
-  return { groups, count: TYPES.reduce((count, type) => count + groups[type].length, 0), omitted };
-};
+export const collectIds = collectOsmIds;
 export const formatIds = (groups, preset, domain = "www.openstreetmap.org") => {
   const present = TYPES.filter((type) => groups[type]?.length);
   if (!present.length) return "";

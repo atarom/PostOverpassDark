@@ -1,38 +1,15 @@
-const TYPE = { N: "node", W: "way", R: "rel", node: "node", way: "way", relation: "rel", rel: "rel" };
+import { collectOsmIds } from "./osm-identifiers.js";
 const ORIGIN = location.origin;
 const READY = "pod-idstopod-ready";
 const DATA = "pod-idstopod-data";
 const DONE = "pod-idstopod-done";
 const TOKEN = /^#idstopod=([a-z0-9-]{12,})$/;
-export const getIdentifier = (feature) => {
-  const properties = feature?.properties || {};
-  let type = TYPE[properties.osm_type] || TYPE[properties.type];
-  let id = properties.osm_id ?? properties.id;
-  if (!type || id === undefined || id === null || !/^\d+$/.test(String(id))) {
-    for (const value of [properties.osm_url, feature?.id, properties["@id"], properties.id]) {
-      const match = String(value ?? "").match(/(?:node|way|relation)[/:]\d+$/i)?.[0]?.match(/^(node|way|relation)[/:](\d+)$/i) || String(value ?? "").match(/^([nwr])(\d+)$/i);
-      if (!match) continue;
-      type = TYPE[match[1]] || TYPE[match[1].toUpperCase()];
-      id = match[2];
-      break;
-    }
-  }
-  if (!type || !/^\d+$/.test(String(id))) return null;
-  const number = Number(id);
-  return Number.isSafeInteger(number) && number > 0 ? { type, id: number } : null;
-};
 export const buildIdsToPodQuery = (features) => {
-  const groups = { node: new Set(), way: new Set(), rel: new Set() };
-  for (const feature of features) {
-    const item = getIdentifier(feature);
-    if (item) groups[item.type].add(item.id);
-  }
+  const { groups, count } = collectOsmIds(features);
   const lines = [];
-  let count = 0;
   for (const type of ["node", "way", "rel"]) {
-    const ids = [...groups[type]].sort((a, b) => a - b);
+    const ids = groups[type];
     if (!ids.length) continue;
-    count += ids.length;
     lines.push(`  ${type}(id:${ids.join(",")});`);
   }
   if (!count) return { query: "", count: 0 };

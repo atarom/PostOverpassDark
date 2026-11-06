@@ -1,27 +1,18 @@
-const PREFIX = { N: "n", W: "w", R: "r", node: "n", way: "w", relation: "r" };
+import { getIdentifier } from "./osm-identifiers.js";
+const PREFIX = { node: "n", way: "w", rel: "r" };
 const JOSM = "http://127.0.0.1:8111/";
 const URL_LIMIT = 1700;
 const identifiers = (entries) => {
   const found = new Set();
   let omitted = 0;
   for (const entry of entries) {
-    const type = String(entry?.type ?? "").trim();
-    const prefix = PREFIX[type] || PREFIX[type.toUpperCase()];
-    const rawId = entry?.id;
-    const validId = typeof rawId === "string" ? /^\d+$/.test(rawId) : typeof rawId === "number";
-    const id = validId ? Number(rawId) : NaN;
-    if (!prefix || !Number.isSafeInteger(id) || id <= 0) {
-      omitted++;
-      continue;
-    }
-    found.add(`${prefix}${id}`);
+    const item = getIdentifier(entry);
+    if (!item) { omitted++; continue; }
+    found.add(`${PREFIX[item.type]}${item.id}`);
   }
   return { ids: [...found], omitted };
 };
-const osmIdentifiers = (geo) => identifiers((geo?.features || []).map((feature) => {
-  const properties = feature?.properties || {};
-  return { type: properties.osm_type ?? properties.type, id: properties.osm_id ?? properties.id };
-}));
+const osmIdentifiers = (geo) => identifiers(geo?.features || []);
 const overpassIdentifiers = (raw) => {
   const source = String(raw ?? "").trim();
   if (!source) return { ids: [], omitted: 0 };
