@@ -4,7 +4,7 @@ const READY = "pod-idstopod-ready";
 const DATA = "pod-idstopod-data";
 const DONE = "pod-idstopod-done";
 const TOKEN = /^#idstopod=([a-z0-9-]{12,})$/;
-const getIdentifier = (feature) => {
+export const getIdentifier = (feature) => {
   const properties = feature?.properties || {};
   let type = TYPE[properties.osm_type] || TYPE[properties.type];
   let id = properties.osm_id ?? properties.id;

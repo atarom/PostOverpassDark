@@ -1,5 +1,6 @@
 import { featureTags, numericValue } from "./analysis.js";
 import { shapeReason } from "./shape-analysis.js";
+import { createIdsExporter } from "./ids-export.js";
 const HEIGHT = 48;
 const OVERSCAN = 5;
 const format = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 });
@@ -77,6 +78,11 @@ export const createResultsList = ({ container, controller }) => {
   let first = -1;
   let last = -1;
   let selected = null;
+  const idsExporter = createIdsExporter({
+    getAllFeatures: () => collection?.features || [],
+    getFilteredFeatures: () => controller.getResultSource().filter((feature) => controller.isResultMatch(feature)).map((feature) => collection?.features[feature.get("podIndex")]).filter(Boolean),
+    getSelectedFeatures: () => selected === null ? [] : [collection?.features[selected]].filter(Boolean)
+  });
   const modeNames = { length: "Longitud", area: "Superficie", perimeter: "Perímetro", vertices: "Vértices", shape: "Forma" };
   const availableMetrics = () => [
     ...(opts.geometryEnabled && opts.geometryValues ? [{ key: "geometry", label: opts.geometryMode === "shape" ? { anomaly: "Forma · Anomalías", compactness: "Forma · Compacidad", irregularity: "Forma · Irregularidad" }[opts.geometryShapeType] || "Forma" : modeNames[opts.geometryMode] || "Geometría" }] : []),
@@ -229,9 +235,11 @@ export const createResultsList = ({ container, controller }) => {
       scroller.replaceChildren(upper, lower);
       first = last = -1;
       if (selected !== null) { controller.clearResultSelection(); selected = null; }
+      idsExporter.refresh();
       return;
     }
     if (selected !== null && !controller.isSelectedResultMatch()) { controller.clearResultSelection(); selected = null; }
+    idsExporter.refresh();
     if (details.open) calculate(true);
     else {
       amount.textContent = " · …";
@@ -248,6 +256,7 @@ export const createResultsList = ({ container, controller }) => {
     direction.value = "asc";
     selected = null;
     details.open = false;
+    idsExporter.setData(Boolean(collection));
     refresh(nextOpts);
   };
   const clear = () => {
@@ -256,6 +265,7 @@ export const createResultsList = ({ container, controller }) => {
     cancelAnimationFrame(paint);
     scan = paint = countTimer = 0;
     collection = null;
+    idsExporter.setData(false);
     entries = [];
     selected = null;
     details.open = false;
@@ -274,6 +284,7 @@ export const createResultsList = ({ container, controller }) => {
     const index = entries[Number(row.dataset.position)];
     if (index === undefined) return;
     selected = controller.selectResult(index);
+    idsExporter.refresh();
     render();
   });
   scroller.addEventListener("keydown", (event) => {
@@ -286,6 +297,6 @@ export const createResultsList = ({ container, controller }) => {
     scroller.scrollTop = Math.max(0, Math.min((entries.length - 1) * HEIGHT, pos * HEIGHT - scroller.clientHeight / 2));
     render(pos);
   });
-  all.onclick = () => { controller.clearResultSelection(true); selected = null; render(); };
+  all.onclick = () => { controller.clearResultSelection(true); selected = null; idsExporter.refresh(); render(); };
   return { refresh, setData, clear };
 };
