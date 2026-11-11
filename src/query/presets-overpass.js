@@ -20,6 +20,17 @@ rel(bn.n)->.r;
 out meta;`
   },
   {
+    title: "Nodos huérfanos por bbox",
+    description: "Busca nodos sin etiquetas dentro del área visible que no pertenecen a ninguna vía ni relación, descartando primero los miembros de vías.",
+    query: `[out:xml][maxsize:2048Mi][timeout:60][bbox:{{bbox}}];
+node(if:count_tags()==0)->.n;
+way(bn.n)->.w;
+(.n;-node.n(w.w);)->.rest;
+rel(bn.rest)->.r;
+(.rest;-node(r.r););
+out meta;`
+  },
+  {
     title: "Elementos con un solo tag",
     description: "Busca en España elementos con la etiqueta distance cuyo único tag sea distance, e incluye los elementos necesarios para completar su geometría.",
     query: `[out:xml][timeout:48][maxsize:16Mi];
