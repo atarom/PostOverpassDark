@@ -12,6 +12,10 @@
       href="https://cdn.jsdelivr.net/npm/ol@10.11.0/ol.css"
     />
     <link rel="stylesheet" href="./style.css" />
+    <style>
+#query{position:relative}
+#queryLoading{position:absolute;inset:0;z-index:1;padding:8px 10px;background:#0e1713;color:var(--m);font:13px var(--mono)}
+    </style>
     <script type="importmap">
 {
   "imports": {
@@ -138,6 +142,7 @@
 {{geocodeArea:spain}}->.sA;
 nwr["automatic"](area.sA);
 out center;</textarea>
+            <div id="queryLoading" role="status" aria-live="polite">Cargando editor…</div>
           </div>
         </div>
         <div id="panelResize" class="panel-resizer" role="separator" aria-orientation="horizontal" title="Arrastrar para ajustar la altura; doble clic para restablecer" aria-label="Ajustar altura del panel inferior" aria-controls="statusPanel dataPanel analysisPanel" aria-valuemin="64" aria-valuemax="390" aria-valuenow="64" tabindex="0"></div>
