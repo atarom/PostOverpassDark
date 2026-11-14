@@ -1,5 +1,6 @@
 import { esc, val, DEFAULT_HEAT } from "../core/utils.js";
 import { featureTags, matchesTagValue, numericValue, compilePatterns } from "../analysis/analysis.js";
+import { ShaderBuilder } from "https://cdn.jsdelivr.net/npm/ol@10.11.0/render/webgl/ShaderBuilder.js/+esm";
 const TYPES = { N: "node", W: "way", R: "relation", node: "node", way: "way", relation: "relation" };
 const COLORS = { default: ["#355f8d", "#3f8f9c", "#79b88d", "#d6b56d", "#e58b68", "#ef5d72"], warm: ["#72543b", "#a26c43", "#d1924f", "#e6b95f", "#ef8262", "#ef4e5d"], cool: ["#324a7a", "#326b98", "#3f98a7", "#63b7a8", "#88d0b4", "#d3f0c0"], fire: ["#3a173d", "#7d2450", "#bd3a45", "#e96d3e", "#f5b747", "#fff2a1"] };
 const hexPacked = (value) => {
@@ -107,11 +108,36 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   const vars = { minEle: -1000000, maxEle: 1000000, numericEnabled: 0, showErrors: 0, minGeom: 0, maxGeom: 0, geometryEnabled: 0, outlierMode: 0, outlierMin: 0, outlierMax: 0 };
   const vectorSource = new Vector({ wrapX: false });
   const heatSource = new Vector({ wrapX: false });
-  const vectorLayer = new WebGLVector({ source: vectorSource, variables: { ...vars }, style: [{ filter: FILTER, style: { "circle-radius": 13, "circle-fill-color": styleColor(0.15) } }, { filter: FILTER, style: { "circle-radius": 7, "circle-fill-color": styleColor(0.45), "circle-stroke-color": "#e5edf8", "circle-stroke-width": 1.4, "stroke-color": styleColor(1), "stroke-width": 3, "fill-color": styleColor(0.18) } }] });
+  const glowStyleVars = { ...vars };
+  const glowShader = () => {
+    const builder = new ShaderBuilder();
+    for (const key of Object.keys(glowStyleVars)) builder.addUniform(`u_${key}`, "float");
+    builder.addVertexShaderFunction(`vec3 podGlowColor(float packed, float value) {
+  if (u_outlierMode > 0.5 && u_outlierMode < 1.5 && value != -1.0e20 && (value < u_outlierMin || value > u_outlierMax)) return vec3(237.0, 153.0, 134.0) / 255.0;
+  if (u_numericEnabled > 0.5 && (value == -1.0e20 || value < u_minEle || value > u_maxEle)) return vec3(239.0, 132.0, 145.0) / 255.0;
+  return vec3(mod(floor(packed / 65536.0), 256.0), mod(floor(packed / 256.0), 256.0), mod(packed, 256.0)) / 255.0;
+}`);
+    builder.addAttribute("a_podColor", "float", "podGlowColor(a_podColor, a_podValue)", "vec3");
+    builder.addAttribute("a_podValue", "float");
+    builder.addAttribute("a_podGeomValue", "float");
+    builder.setSymbolSizeExpression("vec2(28.0)");
+    builder.setShapeDiscardExpression("a_podColor < 0.0 || (u_numericEnabled > 0.5 && u_showErrors < 0.5 && (a_podValue == -1.0e20 || a_podValue < u_minEle || a_podValue > u_maxEle)) || (u_geometryEnabled > 0.5 && (a_podGeomValue == -1.0 || a_podGeomValue < u_minGeom || a_podGeomValue > u_maxGeom)) || (u_outlierMode > 1.5 && (a_podValue == -1.0e20 || (a_podValue >= u_outlierMin && a_podValue <= u_outlierMax)))");
+    builder.setSymbolColorExpression("vec4(a_podColor, 0.33 * (1.0 - smoothstep(12.5, 13.5, length((v_texCoord - vec2(0.5)) * v_quadSizePx))))");
+    return { builder, attributes: { podColor: { callback: (feature) => feature.get("podColor") }, podValue: { callback: (feature) => feature.get("podValue") }, podGeomValue: { callback: (feature) => feature.get("podGeomValue") } }, uniforms: Object.fromEntries(Object.keys(glowStyleVars).map((key) => [`u_${key}`, () => glowStyleVars[key]])) };
+  };
+  class ReducedGlowLayer extends WebGLVector {
+    createRenderer() {
+      const renderer = super.createRenderer();
+      renderer.setPostProcesses([{ scaleRatio: 0.25 }]);
+      return renderer;
+    }
+  }
+  const glowLayer = new ReducedGlowLayer({ source: vectorSource, className: "ol-layer pod-glow-quarter-layer", style: glowShader(), disableHitDetection: true });
+  const vectorLayer = new WebGLVector({ source: vectorSource, className: "ol-layer pod-vector-core-layer", variables: { ...vars }, style: [{ filter: FILTER, style: { "circle-radius": 6, "circle-fill-color": styleColor(0.73), "circle-stroke-color": "#e5edf8", "circle-stroke-width": 1.8, "stroke-color": styleColor(1), "stroke-width": 3, "fill-color": styleColor(0.18) } }] });
   const heatWeight = ["clamp", ["*", 0.75, ["var", "weight"], ["var", "intensity"], ["case", OUTLIER_ACTIVE, 1.8, 1], ["case", FILTER, 1, 0]], 0, 1];
   const heatLayer = new Heatmap({ source: heatSource, radius: ["*", 20, ["var", "radius"]], blur: ["*", 13, ["var", "radius"]], weight: heatWeight, variables: { ...vars, radius: heat.radius, weight: heat.weight, intensity: heat.intensity }, opacity: heat.opacity, gradient: COLORS[heat.palette], visible: false });
   const baseLayer = new Tile({ className: "dark-base-layer", source: new OSM({ referrerPolicy: "strict-origin-when-cross-origin" }) });
-  const map = new OlMap({ target: "map", layers: [baseLayer, vectorLayer, heatLayer], view: new View({ center: fromLonLat([-3.70379, 40.416775]), zoom: 5.5, minZoom: 0, maxZoom: 19 }) });
+  const map = new OlMap({ target: "map", layers: [baseLayer, glowLayer, vectorLayer, heatLayer], view: new View({ center: fromLonLat([-3.70379, 40.416775]), zoom: 5.5, minZoom: 0, maxZoom: 19 }) });
   const popupElement = document.createElement("div");
   popupElement.className = "pod-ol-popup";
   popupElement.hidden = true;
@@ -164,6 +190,14 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
       Object.assign(applied, changed);
       layer.updateStyleVariables(changed);
     }
+  };
+  const syncVectorStyles = () => {
+    syncStyleVars(vectorLayer, vectorStyleVars);
+    let changed = false;
+    for (const [key, value] of Object.entries(lastStyleVars)) {
+      if (glowStyleVars[key] !== value) { glowStyleVars[key] = value; changed = true; }
+    }
+    if (changed) glowLayer.changed();
   };
   let regexPatterns = [];
   let options = {};
@@ -258,7 +292,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     }
     if (changed) {
       if (renderMode.value === "heat") syncStyleVars(heatLayer, heatStyleVars);
-      else syncStyleVars(vectorLayer, vectorStyleVars);
+      else syncVectorStyles();
     }
   };
   const isOutlier = (value) => Number.isFinite(value) && value !== MISSING_NUMBER && (value < Number(options.outlierMin) || value > Number(options.outlierMax));
@@ -480,8 +514,9 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     if (isHeat) { flushHeat(); syncStyleVars(heatLayer, heatStyleVars); }
     else {
       if (vectorDirty) notifyVector();
-      syncStyleVars(vectorLayer, vectorStyleVars);
+      syncVectorStyles();
     }
+    glowLayer.setVisible(!isHeat);
     vectorLayer.setVisible(!isHeat);
     heatLayer.setVisible(isHeat);
     closePopup();
