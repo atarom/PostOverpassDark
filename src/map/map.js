@@ -42,7 +42,7 @@ const popupHtml = (feature) => {
   const body = section("Tags OSM", "tag", entries(tags)) + section("Relaciones", "rel", relations) + section("Metadatos", "meta", meta);
   const links = osm ? [["osm", "Ver en OSM", osm], ["id", "Editar con iD", `https://www.openstreetmap.org/edit?editor=id&${type}=${id}`], ["rapid", "Editar con Rapid", `https://rapideditor.org/edit#id=${shortId}`], ["level0", "Editar con Level0", `https://level0.osmz.ru/?url=${encodeURIComponent(osm)}`], ["josm", "Editar con JOSM", `http://127.0.0.1:8111/load_object?objects=${shortId}`]] : [];
   const actions = links.map(([icon, title, url]) => `<button type="button" class="pop-action" style="width:auto;height:38px;flex:1 1 0;min-width:0" data-url="${esc(url)}" title="${esc(title)}" aria-label="${esc(title)}">${POPUP_ICONS[icon]}</button>`).join("");
-  return `<div class="pp"><div class="ph"><div class="pt">${esc(name)}</div></div><div class="tags">${body || '<div class="tr"><div class="tk">info</div><div class="tv">Sin información visible</div></div>'}</div>${actions ? `<div class="acts">${actions}</div>` : ""}</div>`;
+  return `<div class="pp" style="grid-template-rows:auto auto minmax(0,1fr)"><div class="ph"><div class="pt">${esc(name)}</div></div>${actions ? `<div class="acts" style="grid-row:2;padding:10px 13px;border-top:0;border-bottom:1px solid var(--b)">${actions}</div>` : ""}<div class="tags" style="grid-row:3">${body || '<div class="tr"><div class="tk">info</div><div class="tv">Sin información visible</div></div>'}</div></div>`;
 };
 const MISSING_NUMBER = -1e20;
 const PASS = ["all", ["!=", ["get", "podValue"], MISSING_NUMBER], ["between", ["get", "podValue"], ["var", "minEle"], ["var", "maxEle"]]];
