@@ -111,18 +111,15 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   const glowStyleVars = { ...vars };
   const glowShader = () => {
     const builder = new ShaderBuilder();
-    for (const key of Object.keys(glowStyleVars)) builder.addUniform(`u_${key}`, "float");
-    builder.addVertexShaderFunction(`vec3 podGlowColor(float packed, float value) {
-  if (u_outlierMode > 0.5 && u_outlierMode < 1.5 && value != -1.0e20 && (value < u_outlierMin || value > u_outlierMax)) return vec3(237.0, 153.0, 134.0) / 255.0;
-  if (u_numericEnabled > 0.5 && (value == -1.0e20 || value < u_minEle || value > u_maxEle)) return vec3(239.0, 132.0, 145.0) / 255.0;
-  return vec3(mod(floor(packed / 65536.0), 256.0), mod(floor(packed / 256.0), 256.0), mod(packed, 256.0)) / 255.0;
-}`);
-    builder.addAttribute("a_podColor", "float", "podGlowColor(a_podColor, a_podValue)", "vec3");
+    builder.addAttribute("a_podColor", "float", "vec3(mod(floor(a_podColor / 65536.0), 256.0), mod(floor(a_podColor / 256.0), 256.0), mod(a_podColor, 256.0)) / 255.0", "vec3");
     builder.addAttribute("a_podValue", "float");
     builder.addAttribute("a_podGeomValue", "float");
+    for (const key of Object.keys(glowStyleVars)) builder.addUniform(`u_${key}`, "float");
     builder.setSymbolSizeExpression("vec2(28.0)");
     builder.setShapeDiscardExpression("a_podColor < 0.0 || (u_numericEnabled > 0.5 && u_showErrors < 0.5 && (a_podValue == -1.0e20 || a_podValue < u_minEle || a_podValue > u_maxEle)) || (u_geometryEnabled > 0.5 && (a_podGeomValue == -1.0 || a_podGeomValue < u_minGeom || a_podGeomValue > u_maxGeom)) || (u_outlierMode > 1.5 && (a_podValue == -1.0e20 || (a_podValue >= u_outlierMin && a_podValue <= u_outlierMax)))");
-    builder.setSymbolColorExpression("vec4(a_podColor, 0.33 * (1.0 - smoothstep(12.5, 13.5, length((v_texCoord - vec2(0.5)) * v_quadSizePx))))");
+    const outlier = "u_outlierMode > 0.5 && u_outlierMode < 1.5 && a_podValue != -1.0e20 && (a_podValue < u_outlierMin || a_podValue > u_outlierMax)";
+    const invalid = "u_numericEnabled > 0.5 && (a_podValue == -1.0e20 || a_podValue < u_minEle || a_podValue > u_maxEle)";
+    builder.setSymbolColorExpression(`vec4((${outlier}) ? vec3(237.0, 153.0, 134.0) / 255.0 : ((${invalid}) ? vec3(239.0, 132.0, 145.0) / 255.0 : a_podColor), 0.33 * (1.0 - smoothstep(12.5, 13.5, length((v_texCoord - vec2(0.5)) * v_quadSizePx))))`);
     return { builder, attributes: { podColor: { callback: (feature) => feature.get("podColor") }, podValue: { callback: (feature) => feature.get("podValue") }, podGeomValue: { callback: (feature) => feature.get("podGeomValue") } }, uniforms: Object.fromEntries(Object.keys(glowStyleVars).map((key) => [`u_${key}`, () => glowStyleVars[key]])) };
   };
   class ReducedGlowLayer extends WebGLVector {
@@ -132,8 +129,8 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
       return renderer;
     }
   }
-  const glowLayer = new ReducedGlowLayer({ source: vectorSource, className: "ol-layer pod-glow-quarter-layer", style: glowShader(), disableHitDetection: true });
-  const vectorLayer = new WebGLVector({ source: vectorSource, className: "ol-layer pod-vector-core-layer", variables: { ...vars }, style: [{ filter: FILTER, style: { "circle-radius": 6, "circle-fill-color": styleColor(0.73), "circle-stroke-color": "#e5edf8", "circle-stroke-width": 1.8, "stroke-color": styleColor(1), "stroke-width": 3, "fill-color": styleColor(0.18) } }] });
+  const glowLayer = new ReducedGlowLayer({ source: vectorSource, className: "ol-layer halo-low-layer", style: glowShader(), disableHitDetection: true });
+  const vectorLayer = new WebGLVector({ source: vectorSource, className: "ol-layer halo-core-layer", variables: { ...vars }, style: [{ filter: FILTER, style: { "circle-radius": 6, "circle-fill-color": styleColor(0.73), "circle-stroke-color": "#e5edf8", "circle-stroke-width": 1.8, "stroke-color": styleColor(1), "stroke-width": 3, "fill-color": styleColor(0.18) } }] });
   const heatWeight = ["clamp", ["*", 0.75, ["var", "weight"], ["var", "intensity"], ["case", OUTLIER_ACTIVE, 1.8, 1], ["case", FILTER, 1, 0]], 0, 1];
   const heatLayer = new Heatmap({ source: heatSource, radius: ["*", 20, ["var", "radius"]], blur: ["*", 13, ["var", "radius"]], weight: heatWeight, variables: { ...vars, radius: heat.radius, weight: heat.weight, intensity: heat.intensity }, opacity: heat.opacity, gradient: COLORS[heat.palette], visible: false });
   const baseLayer = new Tile({ className: "dark-base-layer", source: new OSM({ referrerPolicy: "strict-origin-when-cross-origin" }) });
