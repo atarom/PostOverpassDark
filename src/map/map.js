@@ -125,7 +125,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   class ReducedGlowLayer extends WebGLVector {
     createRenderer() {
       const renderer = super.createRenderer();
-      renderer.setPostProcesses([{ scaleRatio: 0.35 }]);
+      renderer.setPostProcesses([{ scaleRatio: 0.50 }]);
       return renderer;
     }
   }
