@@ -544,7 +544,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   reset.onclick = () => { heat = { ...DEFAULT_HEAT }; heatSave(); heatUI(); heatPaint(); };
   map.on("singleclick", (event) => {
     if (measuring || areaDrawing || renderMode.value === "heat") return;
-    const selected = map.forEachFeatureAtPixel(event.pixel, (feature, layer) => layer === vectorLayer ? feature : null, { hitTolerance: 3 });
+    const selected = map.forEachFeatureAtPixel(event.pixel, (feature) => feature, { hitTolerance: 3, layerFilter: (layer) => layer === vectorLayer });
     const index = selected?.get("podIndex");
     if (index == null || !geo?.features[index]) { closePopup(); return; }
     const raw = geo.features[index];
