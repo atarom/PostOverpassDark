@@ -55,7 +55,7 @@ if (endpoint) {
   save.textContent = "Guardar URL";
   const notice = document.createElement("small");
   notice.setAttribute("role", "status");
-  notice.textContent = "Solo se guarda en este navegador. No se incluye en enlaces compartidos.";
+  notice.textContent = "Guardado localmente. No se incluye en enlaces.";
   box.append(label, input, save, notice);
   endpoint.after(box);
   const style = document.createElement("style");
@@ -85,7 +85,7 @@ if (endpoint) {
     customOption.value = value;
     value === emptyEndpoint ? storage.removeItem(customKey) : storage.setItem(customKey, value);
     if (customOption.selected) endpoint.dispatchEvent(new Event("change", { bubbles: true }));
-    notice.textContent = value === emptyEndpoint ? "Servidor borrado. Introduce una URL HTTPS para ejecutar consultas." : "Servidor guardado en este navegador. Los enlaces compartidos usarán un servidor público.";
+    notice.textContent = value === emptyEndpoint ? "Servidor borrado. Introduce una URL HTTPS para ejecutar consultas." : "Guardado localmente. No se incluye en enlaces.";
   });
   input.addEventListener("input", () => input.setCustomValidity(""));
   input.addEventListener("keydown", (event) => {

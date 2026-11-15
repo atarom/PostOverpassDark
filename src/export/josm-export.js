@@ -48,7 +48,7 @@ export const createJosmExporter = ({ container, sendButton, message, getIds }) =
   const setData = (loaded) => {
     reset();
     hasData = Boolean(loaded);
-    if (hasData) notify("IDs de la selección actual listos para JOSM.");
+    if (hasData) notify("IDs listos para exportar.");
     sync();
   };
   const checkResponse = async (response) => {

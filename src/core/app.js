@@ -16,6 +16,10 @@ import { encodeShare, encodeShareDetailed, encodeShareDeflateIds, encodeShareZop
 import { $, esc, abortError } from "./utils.js";
 import { OVERPASS_PRESETS } from "../query/presets-overpass.js";
 import { POSTPASS_PRESETS } from "../query/presets-postpass.js";
+const configStylesheet = document.createElement("link");
+configStylesheet.rel = "stylesheet";
+configStylesheet.href = new URL("../ui/config-panel.css", import.meta.url).href;
+document.head.append(configStylesheet);
 const STORE = { endpoint: "postoverpassdark:endpoint", wrap: "postoverpassdark:wrap", mode: "postoverpassdark:render", heat: "postoverpassdark:heat", areas: "postoverpassdark:geocode-areas", sidebar: "postoverpassdark:sidebar-width" };
 const PRESETS = { overpass: OVERPASS_PRESETS, postpass: POSTPASS_PRESETS };
 const initializeApp = (deps) => {
@@ -88,6 +92,18 @@ const initializeApp = (deps) => {
   cooldown = createQueryCooldown({ editor, endpoint, map, ol: deps.ol, button: runButton, isBusy: () => busy });
   const cfg = $("cfg");
   const cfgToggle = $("cfgToggle");
+  const cfgHeader = document.createElement("div");
+  cfgHeader.className = "pod-cfg-head";
+  const cfgTitle = document.createElement("strong");
+  cfgTitle.className = "pod-cfg-title";
+  cfgTitle.textContent = "Configuración";
+  const cfgClose = document.createElement("button");
+  cfgClose.type = "button";
+  cfgClose.className = "pod-cfg-close";
+  cfgClose.setAttribute("aria-label", "Cerrar configuración");
+  cfgClose.textContent = "×";
+  cfgHeader.append(cfgTitle, cfgClose);
+  cfg.prepend(cfgHeader);
   cfgToggle.onclick = () => {
     closePresets();
     const expanded = cfg.hidden;
@@ -98,6 +114,7 @@ const initializeApp = (deps) => {
     cfg.hidden = true;
     cfgToggle.setAttribute("aria-expanded", "false");
   };
+  cfgClose.onclick = () => { closeConfig(); cfgToggle.focus(); };
   document.addEventListener("pointerdown", (event) => {
     if (!presetPanel.hidden && !presetPanel.contains(event.target) && !presetToggle.contains(event.target)) closePresets();
     if (!cfg.hidden && !cfg.contains(event.target) && !cfgToggle.contains(event.target)) closeConfig();
