@@ -147,12 +147,46 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   const popupContent = document.createElement("div");
   popupElement.append(popupClose, popupContent);
   map.getTargetElement().append(popupElement);
-  const popup = new Overlay({ element: popupElement, offset: [0, -10], positioning: "bottom-center", autoPan: { animation: { duration: 180 }, margin: 15 } });
+  const popup = new Overlay({ element: popupElement, offset: [0, -10], positioning: "bottom-center" });
   map.addOverlay(popup);
   let popupIndex = null;
+  let popupAnchor = null;
   let purgeRequested = null;
-  const closePopup = () => { popupIndex = null; popup.setPosition(undefined); popupElement.hidden = true; };
+  const closePopup = () => { popupIndex = null; popupAnchor = null; popup.setPosition(undefined); popupElement.hidden = true; };
+  const positionPopup = () => {
+    if (popupIndex === null || !popupAnchor) return;
+    const size = map.getSize();
+    if (!size?.[0] || !size?.[1]) return;
+    const mobile = window.matchMedia("(max-width: 850px)").matches;
+    const width = Math.max(1, Math.min(460, size[0] - 24, window.innerWidth * (mobile ? 0.88 : 0.82)));
+    const height = Math.max(1, Math.min(390, size[1] - 24, window.innerHeight - 24));
+    popupElement.style.minWidth = `${Math.min(280, width)}px`;
+    popupElement.style.maxWidth = `${width}px`;
+    popupElement.style.maxHeight = `${height}px`;
+    popupContent.firstElementChild.style.maxHeight = `${height}px`;
+    if (mobile) {
+      popup.setPositioning("center-center");
+      popup.setOffset([0, 0]);
+      popup.setPosition(map.getCoordinateFromPixel([size[0] / 2, size[1] / 2]));
+      return;
+    }
+    const pixel = map.getPixelFromCoordinate(popupAnchor);
+    if (!pixel) return;
+    const offsetY = pixel[1] > size[1] / 2 ? -10 : 10;
+    popup.setPositioning(offsetY < 0 ? "bottom-center" : "top-center");
+    popup.setOffset([0, offsetY]);
+    popup.setPosition(popupAnchor);
+    const bounds = map.getTargetElement().getBoundingClientRect();
+    const rect = popupElement.getBoundingClientRect();
+    const margin = 12;
+    const dx = rect.left < bounds.left + margin ? bounds.left + margin - rect.left : rect.right > bounds.right - margin ? bounds.right - margin - rect.right : 0;
+    const dy = rect.top < bounds.top + margin ? bounds.top + margin - rect.top : rect.bottom > bounds.bottom - margin ? bounds.bottom - margin - rect.bottom : 0;
+    if (dx || dy) popup.setOffset([dx, offsetY + dy]);
+  };
   popupClose.onclick = closePopup;
+  map.on("moveend", positionPopup);
+  map.on("change:size", () => requestAnimationFrame(positionPopup));
+  window.addEventListener("resize", () => requestAnimationFrame(positionPopup));
   popupElement.addEventListener("click", (event) => {
     const button = event.target.closest(".pop-action");
     if (!button || !popupElement.contains(button)) return;
@@ -585,8 +619,9 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     if (!isResultMatch(selected)) { closePopup(); return; }
     popupContent.innerHTML = popupHtml(raw);
     popupIndex = index;
+    popupAnchor = event.coordinate;
     popupElement.hidden = false;
-    popup.setPosition(event.coordinate);
+    positionPopup();
   });
   map.on("pointermove", (event) => {
     if (event.dragging || measuring || areaDrawing || renderMode.value === "heat") return;
