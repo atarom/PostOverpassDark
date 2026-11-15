@@ -475,6 +475,18 @@ const initializeApp = (deps) => {
     const ms = performance.now() - start;
     return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toLocaleString("es-ES", { maximumFractionDigits: 2 })} s`;
   };
+  const dataAge = (timestamp) => {
+    if (typeof timestamp !== "string") return "";
+    const date = Date.parse(timestamp);
+    if (!Number.isFinite(date) || date > Date.now()) return "";
+    const minutes = Math.floor((Date.now() - date) / 60000);
+    if (minutes < 1) return "menos de 1 minuto";
+    if (minutes < 60) return `${minutes} ${minutes === 1 ? "minuto" : "minutos"}`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} ${hours === 1 ? "hora" : "horas"}` + (minutes % 60 ? ` y ${minutes % 60} min` : "");
+    const days = Math.floor(hours / 24);
+    return `${days} ${days === 1 ? "día" : "días"}` + (hours % 24 ? ` y ${hours % 24} h` : "");
+  };
   const textResult = (result, start) => {
     const time = elapsed(start);
     dataView.value = "raw";
@@ -502,7 +514,8 @@ const initializeApp = (deps) => {
     const hasResults = hasOSM || (postpass && featureCount);
     const title = hasOSM ? `${formatter.format(result.cnt.total)} elementos OSM` : hasResults ? `${formatter.format(featureCount)} resultados Postpass` : "Consulta válida sin resultados";
     const counts = ["Nodos", "Vías", "Relaciones"].map((label, index) => [label, result.cnt[OSM_TYPES[index]]]);
-    const summary = `<strong>${title}</strong><br>` + (hasOSM ? counts.map(([label, count]) => `${label}: ${formatter.format(count)}`).join(" · ") + "<br>" : "") + (!postpass && !hasOSM ? "Elementos OSM: 0 · " : "") + `GeoJSON: ${formatter.format(featureCount)}` + (!postpass && !hasOSM ? "<br>" : " · ") + `Tiempo: ${time}`;
+    const age = dataAge(result.timestamp);
+    const summary = `<strong>${title}</strong><br>` + (hasOSM ? counts.map(([label, count]) => `${label}: ${formatter.format(count)}`).join(" · ") + "<br>" : "") + (!postpass && !hasOSM ? "Elementos OSM: 0 · " : "") + `GeoJSON: ${formatter.format(featureCount)}` + (!postpass && !hasOSM ? "<br>" : " · ") + `Tiempo: ${time}` + (age ? `<br>Antigüedad OSM: ${age}` : "");
     const done = [hasResults ? "Mapa actualizado" : `Consulta${postpass ? " Postpass" : ""} completada correctamente`, hasOSM ? `${result.cnt.total} elementos OSM` : hasResults ? `${featureCount} resultados Postpass` : `Sin resultados${postpass ? "" : " OSM"}`, ...(hasOSM ? counts.map(([label, count]) => `${label}: ${count}`) : []), ...(!postpass || hasOSM ? [`GeoJSON: ${featureCount}`] : []), `Tiempo: ${time}`].join("\n");
     ui.setStatus(summary, "ok");
     showTab("status");

@@ -80,9 +80,9 @@ export const parseResponse = (text, contentType, engine, query, postpassTextOnly
     }
     if (postpass && (value?.type !== "FeatureCollection" || !Array.isArray(value.features))) throw Error("Postpass no devolvió un GeoJSON FeatureCollection");
     if (postpass) originalPostpass.set(value, text);
-    return { geo: postpass ? value : window.osmtogeojson(value), cnt: postpass ? countPostpass(value) : count(value), raw: text };
+    return { geo: postpass ? value : window.osmtogeojson(value), cnt: postpass ? countPostpass(value) : count(value), raw: text, timestamp: postpass ? value.postpass_properties?.timestamp : value.osm3s?.timestamp_osm_base };
   }
   const value = new DOMParser().parseFromString(text, "text/xml");
   if (value.querySelector("parsererror")) throw Error("Respuesta XML inválida");
-  return { geo: window.osmtogeojson(value), cnt: count(value), raw: text };
+  return { geo: window.osmtogeojson(value), cnt: count(value), raw: text, timestamp: value.querySelector("osm > meta[osm_base]")?.getAttribute("osm_base") };
 };

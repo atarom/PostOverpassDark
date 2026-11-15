@@ -38,7 +38,7 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
     if (!headline || !/^(?:[\d.,]+ elementos OSM|[\d.,]+ resultados Postpass|Consulta válida sin resultados)$/.test(headline[1])) return null;
     const stats = new Map();
     for (const item of lines.slice(1).flatMap((line) => line.split(/\s+·\s+/))) {
-      const match = item.match(/^(Nodos|Vías|Relaciones|Elementos OSM|GeoJSON|Tiempo): (.+)$/);
+      const match = item.match(/^(Nodos|Vías|Relaciones|Elementos OSM|GeoJSON|Tiempo|Antigüedad OSM): (.+)$/);
       if (!match || stats.has(match[1])) return null;
       stats.set(match[1], match[2]);
     }
@@ -67,6 +67,12 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
     for (const label of ["Nodos", "Vías", "Relaciones", "Elementos OSM"]) if (stats.has(label)) addStat(label, stats.get(label));
     addStat("GeoJSON", stats.get("GeoJSON"), true);
     result.append(head, details);
+    if (stats.has("Antigüedad OSM")) {
+      const age = document.createElement("div");
+      age.className = "pod-status-details";
+      age.textContent = `Antigüedad de los datos OSM: ${stats.get("Antigüedad OSM")}`;
+      result.append(age);
+    }
     return result;
   };
   const setStatus = (html, cls = "") => {
