@@ -512,8 +512,21 @@ const initializeApp = (deps) => {
     const hours = Math.floor(minutes / 60);
     if (hours < 24) return `${hours} ${hours === 1 ? "hora" : "horas"}` + (minutes % 60 ? ` y ${minutes % 60} min` : "");
     const days = Math.floor(hours / 24);
-    return `${days} ${days === 1 ? "día" : "días"}` + (hours % 24 ? ` y ${hours % 24} h` : "");
+    return `${days} ${days === 1 ? "día" : "días"}` + (hours % 24 ? ` y ${hours % 24} h` : "") + (minutes % 60 ? ` y ${minutes % 60} min` : "");
   };
+  let ageTimer;
+  const refreshDataAge = () => {
+    clearTimeout(ageTimer);
+    const ageNode = status.querySelector(".pod-status-result > .pod-status-details:last-child");
+    if (!ageNode?.textContent.startsWith("Antigüedad de los datos OSM: ") || !currentResult) return;
+    const timestamp = currentResult.timestamp;
+    const date = typeof timestamp === "string" ? Date.parse(timestamp) : NaN;
+    if (!Number.isFinite(date) || date > Date.now()) return;
+    const age = `Antigüedad de los datos OSM: ${dataAge(timestamp)}`;
+    if (ageNode.textContent !== age) ageNode.textContent = age;
+    ageTimer = setTimeout(refreshDataAge, 60000 - ((Date.now() - date) % 60000) + 35);
+  };
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshDataAge(); });
   const textResult = (result, start) => {
     const time = elapsed(start);
     dataView.value = "raw";
@@ -552,6 +565,7 @@ const initializeApp = (deps) => {
     resultsList.setData(result.geo, analysis.options());
     const { summary, done } = statusForGeo(result, postpass);
     ui.setStatus(summary, "ok");
+    refreshDataAge();
     showTab("status");
     ui.log(done);
     ui.overlayDone();
