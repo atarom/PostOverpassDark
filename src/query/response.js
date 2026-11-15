@@ -1,4 +1,15 @@
 import { esc } from "../core/utils.js";
+import { overpassJosmIdentifiers } from "../export/osm-identifiers.js";
+let preparedOverpass = null;
+export const takePreparedOverpassIds = (raw) => {
+  const entry = preparedOverpass;
+  preparedOverpass = null;
+  return entry?.raw === raw ? entry.result : null;
+};
+const prepareOverpassIds = (raw, parsed) => {
+  try { preparedOverpass = { raw, result: overpassJosmIdentifiers(parsed) }; }
+  catch (error) { preparedOverpass = { raw, result: { error: error?.message || String(error) } }; }
+};
 export const OSM_TYPES = ["node", "way", "relation"];
 const originalPostpass = new WeakMap();
 export const originalPostpassGeoJSON = (geo) => geo && originalPostpass.get(geo) || null;
@@ -66,6 +77,7 @@ const outputFormat = (query) => {
   return format?.toLowerCase() || "xml";
 };
 export const parseResponse = (text, contentType, engine, query, postpassTextOnly = false, decoded = null) => {
+  preparedOverpass = null;
   const postpass = engine === "postpass";
   const format = postpass ? "json" : outputFormat(query);
   if (postpass && postpassTextOnly) return { geo: null, cnt: null, raw: text, textOnly: true, format: "raw" };
@@ -80,9 +92,13 @@ export const parseResponse = (text, contentType, engine, query, postpassTextOnly
     }
     if (postpass && (value?.type !== "FeatureCollection" || !Array.isArray(value.features))) throw Error("Postpass no devolvió un GeoJSON FeatureCollection");
     if (postpass) originalPostpass.set(value, text);
-    return { geo: postpass ? value : window.osmtogeojson(value), cnt: postpass ? countPostpass(value) : count(value), raw: text };
+    const result = { geo: postpass ? value : window.osmtogeojson(value), cnt: postpass ? countPostpass(value) : count(value), raw: text };
+    if (!postpass) prepareOverpassIds(text, value);
+    return result;
   }
   const value = new DOMParser().parseFromString(text, "text/xml");
   if (value.querySelector("parsererror")) throw Error("Respuesta XML inválida");
-  return { geo: window.osmtogeojson(value), cnt: count(value), raw: text };
+  const result = { geo: window.osmtogeojson(value), cnt: count(value), raw: text };
+  prepareOverpassIds(text, value);
+  return result;
 };

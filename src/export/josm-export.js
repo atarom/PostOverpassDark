@@ -1,17 +1,7 @@
-import { getIdentifier } from "./osm-identifiers.js";
-const PREFIX = { node: "n", way: "w", rel: "r" };
+import { collectJosmIdentifiers as identifiers, overpassJosmIdentifiers } from "./osm-identifiers.js";
+import { takePreparedOverpassIds } from "../query/response.js";
 const JOSM = "http://127.0.0.1:8111/";
 const URL_LIMIT = 1700;
-const identifiers = (entries) => {
-  const found = new Set();
-  let omitted = 0;
-  for (const entry of entries) {
-    const item = getIdentifier(entry);
-    if (!item) { omitted++; continue; }
-    found.add(`${PREFIX[item.type]}${item.id}`);
-  }
-  return { ids: [...found], omitted };
-};
 const osmIdentifiers = (geo) => identifiers(geo?.features || []);
 const overpassIdentifiers = (raw) => {
   const source = String(raw ?? "").trim();
@@ -19,13 +9,9 @@ const overpassIdentifiers = (raw) => {
   if (source.startsWith("<")) {
     const xml = new DOMParser().parseFromString(source, "application/xml");
     if (xml.querySelector("parsererror")) throw Error("XML de Overpass inválido");
-    if (xml.documentElement?.localName !== "osm") throw Error("El XML no contiene una respuesta OSM");
-    const objects = [...xml.documentElement.children].filter((element) => ["node", "way", "relation"].includes(element.localName));
-    return identifiers(objects.map((element) => ({ type: element.localName, id: element.getAttribute("id") })));
+    return overpassJosmIdentifiers(xml);
   }
-  const json = JSON.parse(source);
-  if (!Array.isArray(json?.elements)) throw Error("JSON de Overpass sin elementos OSM");
-  return identifiers(json.elements);
+  return overpassJosmIdentifiers(JSON.parse(source));
 };
 const josmUrl = (ids, first = true) => {
   const url = new URL("load_object", JOSM);
@@ -75,7 +61,8 @@ export const createJosmExporter = ({ container, sendButton, message, getVisibleO
     reset();
     let result;
     try {
-      result = engine === "postpass" ? osmIdentifiers(data) : overpassIdentifiers(data);
+      result = engine === "postpass" ? osmIdentifiers(data) : takePreparedOverpassIds(data) ?? overpassIdentifiers(data);
+      if (result.error) throw Error(result.error);
     } catch (error) {
       notify(`No se pudieron identificar los objetos OSM: ${error.message}`, true);
       return;
