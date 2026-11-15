@@ -1,4 +1,5 @@
 import { loadDependencies } from "./deps.js";
+import { createQueryCooldown } from "./query-cooldown.js";
 import { storage } from "./storage.js";
 import { createOverpassRequester } from "../query/overpass-de-request.js";
 import { createEditor } from "../query/editor.js";
@@ -30,6 +31,7 @@ const initializeApp = (deps) => {
   const defaults = { overpass: PRESETS.overpass[0]?.query ?? "", postpass: PRESETS.postpass[0]?.query ?? "" };
   let editor;
   let busy = false;
+  let cooldown;
   const closePresets = () => {
     presetPanel.hidden = true;
     presetToggle.setAttribute("aria-expanded", "false");
@@ -68,7 +70,7 @@ const initializeApp = (deps) => {
     });
     syncPreset();
   };
-  editor = createEditor({ deps, queryNode, wrapMode: wrap, engine: getEngine(), defaults, onChange: syncPreset });
+  editor = createEditor({ deps, queryNode, wrapMode: wrap, engine: getEngine(), defaults, onChange: () => { syncPreset(); cooldown?.sync(); } });
   renderPresets();
   presetToggle.onclick = () => {
     if (presetPanel.hidden) {
@@ -83,6 +85,7 @@ const initializeApp = (deps) => {
   };
   const mapController = createMapController({ ol: deps.ol, storage, heatStoreKey: STORE.heat, renderMode, heatElements: { config: $("heatCfg"), radius: $("heatRadius"), intensity: $("heatIntensity"), opacity: $("heatOpacity"), weight: $("heatWeight"), palette: $("heatPalette"), radiusValue: $("heatRadiusVal"), intensityValue: $("heatIntensityVal"), opacityValue: $("heatOpacityVal"), weightValue: $("heatWeightVal"), reset: $("heatReset") } });
   const map = mapController.map;
+  cooldown = createQueryCooldown({ editor, endpoint, map, ol: deps.ol, button: runButton, isBusy: () => busy });
   const cfg = $("cfg");
   const cfgToggle = $("cfgToggle");
   cfgToggle.onclick = () => {
@@ -491,7 +494,7 @@ const initializeApp = (deps) => {
     if (active && !active.signal.aborted) active.abort(abortError(message));
     ui.overlayClose();
     setOverlayButton(false);
-    runButton.disabled = false;
+    cooldown.sync();
     ui.setStatus(`<strong>Consulta cancelada</strong><br>${esc(message)}`, "err");
     showTab("status");
   };
@@ -627,7 +630,7 @@ const initializeApp = (deps) => {
     }
   });
   const run = async () => {
-    if (busy) return;
+    if (busy || cooldown.locked()) return;
     const runId = ++runSeq;
     const queryText = editor.getQuery();
     const runEngine = editor.getEngine();
@@ -653,6 +656,7 @@ const initializeApp = (deps) => {
       if (postpassTextOnly) body.set("options[geojson]", "false");
       bookmarkRun = { query: queryText, endpoint: url };
       updateBookmark(0);
+      cooldown.start(queryText, url);
       const response = await overpassRequester.read(url, body, active.signal);
       const { text, contentType } = response;
       if (runId !== runSeq) return;
@@ -683,7 +687,9 @@ const initializeApp = (deps) => {
         textResult(result, start);
         return;
       }
+      const rebase = cooldown.locked();
       geoResult(result, start, runEngine === "postpass");
+      cooldown.rebaseAfterFit(queryText, url, rebase);
     } catch (error) {
       if (runId !== runSeq) return;
       ui.overlayClose();
@@ -704,7 +710,7 @@ const initializeApp = (deps) => {
         if (controller === active) controller = null;
         busy = false;
         setOverlayButton(false);
-        runButton.disabled = false;
+        cooldown.sync();
       }
     }
   };
@@ -718,6 +724,7 @@ const initializeApp = (deps) => {
       ui.setStatus(`Modo <strong>${next === "postpass" ? "Postpass SQL" : "Overpass QL"}</strong> listo para ejecutar.`);
       showTab("status");
     }
+    cooldown.sync();
   };
   wrapLines.onchange = () => {
     const value = wrapLines.value === "wrap" ? "wrap" : "scroll";

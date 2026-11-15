@@ -1,0 +1,3 @@
+.action-bar #runBtn.pod-run-cooldown{position:relative;overflow:hidden;opacity:1;background:#24382b;border-color:var(--b2);color:var(--m);cursor:not-allowed}
+.action-bar #runBtn.pod-run-cooldown::after{content:"";position:absolute;inset:auto 0 0;height:4px;background:var(--a);transform:scaleX(var(--pod-cooldown-progress,1));transform-origin:left;transition:transform 1s linear;pointer-events:none}
+@media(prefers-reduced-motion:reduce){.action-bar #runBtn.pod-run-cooldown::after{transition:none}}
