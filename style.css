@@ -119,6 +119,9 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
 #map .ol-control{background:#101c16ed;border:1px solid #355040;border-radius:5px}
 #map .ol-control button{width:32px;height:32px;margin:0;background:#0e1713;color:#e0eee0;border-radius:0}
 #map .ol-control button:hover{background:#283e30}
+#map .pod-sidebar-control{top:.5em;left:3.4em}
+#map .pod-sidebar-toggle{display:grid;place-items:center;padding:0}
+#map .pod-sidebar-toggle[aria-expanded="false"] svg{transform:scaleX(-1)}
 #map .ol-attribution{background:#101c16ed;color:var(--m)}
 #map .ol-attribution a, a{color:var(--a)!important}
 .pod-ol-popup{position:absolute;min-width:280px;max-width:min(460px, 82vw);max-height:min(390px, calc(100dvh - 24px));background:var(--pop);border:1px solid var(--b);border-radius:12px;box-shadow:0 18px 45px #000b;font-size:13px;line-height:1.35;overflow:hidden;color:var(--t)}
@@ -320,3 +323,5 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
 .pod-shape-tools label{flex:1 1 135px;min-width:0;margin:0;color:var(--m);font-size:10px}
 .pod-shape-tools select{width:100%;margin-top:5px;padding:7px;font-size:11px;text-transform:none;letter-spacing:0;font-weight:600}
 .pod-shape-hint{flex:1 1 100%;font-size:11px;line-height:1.4;color:var(--m)}
+.app.pod-sidebar-hidden,.app.pod-sidebar-hidden:has(#analysisPanel.on){grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+.app.pod-sidebar-hidden > .side,.app.pod-sidebar-hidden > .sidebar-resizer{display:none}

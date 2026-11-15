@@ -106,6 +106,27 @@ const initializeApp = (deps) => {
   });
   const app = document.querySelector(".app");
   const splitter = $("sidebarResize");
+  const sidebar = app.querySelector(".side");
+  sidebar.id = "podSidebar";
+  const sidebarToggle = document.createElement("button");
+  sidebarToggle.type = "button";
+  sidebarToggle.className = "pod-sidebar-toggle";
+  sidebarToggle.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15m6-10-3 2.5 3 2.5"/></svg>';
+  sidebarToggle.setAttribute("aria-controls", "podSidebar");
+  const sidebarControl = document.createElement("div");
+  sidebarControl.className = "ol-unselectable ol-control pod-sidebar-control";
+  sidebarControl.append(sidebarToggle);
+  map.addControl(new deps.ol.control.Control({ element: sidebarControl }));
+  const setSidebarVisible = (visible) => {
+    app.classList.toggle("pod-sidebar-hidden", !visible);
+    sidebarToggle.setAttribute("aria-expanded", String(visible));
+    const label = visible ? "Ocultar columna lateral" : "Mostrar columna lateral";
+    sidebarToggle.setAttribute("aria-label", label);
+    sidebarToggle.title = label;
+    requestAnimationFrame(() => map.updateSize());
+  };
+  sidebarToggle.onclick = () => setSidebarVisible(app.classList.contains("pod-sidebar-hidden"));
+  setSidebarVisible(true);
   const savedWidth = Number(storage.getItem(STORE.sidebar));
   let desiredWidth = Number.isFinite(savedWidth) && savedWidth >= 320 ? savedWidth : 430;
   let dragging = null;
