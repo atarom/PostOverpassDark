@@ -83,6 +83,7 @@
     const programName = (attributes) => {
       const names = new Set(attributes.map((attribute) => attribute.name.replace(/\[\d+\]$/, "")));
       if (names.has("a_segmentStart") && names.has("a_segmentEnd")) return "Líneas";
+      if (names.has("a_position") && names.has("a_localPosition") && names.has("a_podColor")) return "Puntos (glow)";
       if (names.has("a_position") && names.has("a_localPosition") && names.has("a_hitColor")) return "Polígonos";
       if (names.has("a_position") && names.has("a_hitColor") && !names.has("a_localPosition")) return "Puntos";
       if (names.has("a_position") && names.size === 1) return "Composición de imagen";
