@@ -288,8 +288,6 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
 .pod-geometry-statusline button{flex:none;width:auto;padding:6px 9px;font-size:11px}
 .pod-geometry-status{min-width:0;color:var(--m);font-size:11px;line-height:1.4}
 .pod-geometry #podGeometryPanel > label{display:block;margin-top:9px}
-.pod-geometry .analysis-body label output{float:right;color:var(--a);font-family:var(--mono);text-transform:none}
-.pod-geometry .analysis-body input[type=range]{width:100%;height:24px;margin:0;accent-color:var(--a);cursor:pointer}
 .pod-geometry .analysis-body input[type=range]:disabled{opacity:.5;cursor:not-allowed}
 .pod-results[hidden]{display:none}
 .pod-results{margin-top:10px}
