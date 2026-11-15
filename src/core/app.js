@@ -10,6 +10,7 @@ import { createAnalysis } from "../analysis/analysis.js";
 import { createResultsList } from "../ui/results-list.js";
 import { createJosmExporter } from "../export/josm-export.js";
 import { createIdsToPod } from "../export/ids-to-pod.js";
+import { collectOsmIds } from "../export/osm-identifiers.js";
 import { encodeShare, encodeShareDetailed, encodeShareDeflateIds, encodeShareZopfli, encodeShareBrotli, decodeShare, sharedFragment, createShareComparison } from "../share/share.js";
 import { $, esc, abortError } from "./utils.js";
 import { OVERPASS_PRESETS } from "../query/presets-overpass.js";
@@ -400,7 +401,6 @@ const initializeApp = (deps) => {
   const analysisElements = { ...groupNodes("key onlyKey countMode values valueTools valueSelectedColor valueOtherColor valueHideOthers summary", "analysis"), ...groupNodes("numericEnable numericKey numericErrors numericMin numericMax numericMinValue numericMaxValue regexEnable regexText regexInsensitive regexOnly regexColors"), reset: $("analysisReset") };
   let resultsList = null;
   const analysis = createAnalysis({ elements: analysisElements, getShapeReference: () => mapController.getShapeReference(), onChange: (options) => { mapController.applyFilters(options); resultsList?.refresh(options); analysis.refreshShapeReference(options); } });
-  resultsList = createResultsList({ container: $("analysisPanel").querySelector(".analysis-scroll"), controller: mapController });
   mapController.onResultsChanged(() => { resultsList.refresh(analysis.options()); analysis.refreshShapeReference(analysis.options(), true); });
   let selectedResultIndex = null;
   let currentGeo = null;
@@ -408,11 +408,24 @@ const initializeApp = (deps) => {
   mapController.selectResult = (index) => { selectedResultIndex = originalSelectResult(index); return selectedResultIndex; };
   const originalClearResultSelection = mapController.clearResultSelection;
   mapController.clearResultSelection = (...args) => { selectedResultIndex = null; return originalClearResultSelection(...args); };
-  const josm = createJosmExporter({ container: $("josmTools"), sendButton: $("josmSend"), message: $("josmMessage"), getVisibleOsm: () => mapController.getVisibleOsm() });
+  const getExportIds = () => {
+    function* filteredFeatures() {
+      for (const feature of mapController.getResultSource()) {
+        const index = feature.get("podIndex");
+        if (selectedResultIndex !== null && selectedResultIndex !== index) continue;
+        if (!mapController.isResultMatch(feature)) continue;
+        const original = currentGeo?.features[index];
+        if (original) yield original;
+      }
+    }
+    return collectOsmIds(filteredFeatures());
+  };
+  resultsList = createResultsList({ container: $("analysisPanel").querySelector(".analysis-scroll"), controller: mapController, getIds: getExportIds });
+  const josm = createJosmExporter({ container: $("josmTools"), sendButton: $("josmSend"), message: $("josmMessage"), getIds: getExportIds });
   josm.setEngine(getEngine());
   const idsToPod = createIdsToPod({
     anchor: $("josmTools"),
-    getFeatures: () => mapController.getResultSource().filter((feature) => mapController.isResultMatch(feature) && (selectedResultIndex === null || feature.get("podIndex") === selectedResultIndex)).map((feature) => currentGeo?.features[feature.get("podIndex")]).filter(Boolean),
+    getIds: getExportIds,
     getPosition: () => {
       const [longitude, latitude] = deps.ol.proj.toLonLat(map.getView().getCenter());
       return { longitude, latitude, zoom: map.getView().getZoom() };
@@ -474,7 +487,7 @@ const initializeApp = (deps) => {
   const geoResult = (result, start, postpass) => {
     currentGeo = result.geo;
     selectedResultIndex = null;
-    josm.setData(postpass ? result.geo : result.raw, postpass ? "postpass" : "overpass");
+    josm.setData(true);
     ui.setGeojson(result.geo);
     analysis.setData(result.geo, true);
     ui.log(`${postpass ? "GeoJSON recibido" : "Conversión GeoJSON completada"}\nDibujando ${result.geo.features.length} entidades GeoJSON…`);

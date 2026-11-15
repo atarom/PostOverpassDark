@@ -14,7 +14,7 @@ const labelOf = (feature) => {
   const ref = String(id).includes("/") ? String(id) : type && id !== "" ? `${type}/${id}` : String(id);
   return { name: String(name), ref };
 };
-export const createResultsList = ({ container, controller }) => {
+export const createResultsList = ({ container, controller, getIds }) => {
   const details = document.createElement("details");
   details.className = "analysis-box pod-results";
   details.hidden = true;
@@ -78,11 +78,7 @@ export const createResultsList = ({ container, controller }) => {
   let first = -1;
   let last = -1;
   let selected = null;
-  const idsExporter = createIdsExporter({
-    getAllFeatures: () => collection?.features || [],
-    getFilteredFeatures: () => controller.getResultSource().filter((feature) => controller.isResultMatch(feature)).map((feature) => collection?.features[feature.get("podIndex")]).filter(Boolean),
-    getSelectedFeatures: () => selected === null ? [] : [collection?.features[selected]].filter(Boolean)
-  });
+  const idsExporter = createIdsExporter({ getIds });
   const modeNames = { length: "Longitud", area: "Superficie", perimeter: "Perímetro", vertices: "Vértices", shape: "Forma" };
   const availableMetrics = () => [
     ...(opts.geometryEnabled && opts.geometryValues ? [{ key: "geometry", label: opts.geometryMode === "shape" ? { anomaly: "Forma · Anomalías", compactness: "Forma · Compacidad", irregularity: "Forma · Irregularidad" }[opts.geometryShapeType] || "Forma" : modeNames[opts.geometryMode] || "Geometría" }] : []),

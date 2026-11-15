@@ -32,22 +32,4 @@ export const collectOsmIds = (features, enabled = { node: true, way: true, rel: 
   return { groups, count: TYPES.reduce((total, type) => total + groups[type].length, 0), omitted };
 };
 const JOSM_PREFIX = { node: "n", way: "w", rel: "r" };
-export const collectJosmIdentifiers = (entries) => {
-  const found = new Set();
-  let omitted = 0;
-  for (const entry of entries) {
-    const item = getIdentifier(entry);
-    if (!item) { omitted++; continue; }
-    found.add(`${JOSM_PREFIX[item.type]}${item.id}`);
-  }
-  return { ids: [...found], omitted };
-};
-export const overpassJosmIdentifiers = (value) => {
-  if (value?.nodeType) {
-    if (value.documentElement?.localName !== "osm") throw Error("El XML no contiene una respuesta OSM");
-    const objects = [...value.documentElement.children].filter((element) => ["node", "way", "relation"].includes(element.localName));
-    return collectJosmIdentifiers(objects.map((element) => ({ type: element.localName, id: element.getAttribute("id") })));
-  }
-  if (!Array.isArray(value?.elements)) throw Error("JSON de Overpass sin elementos OSM");
-  return collectJosmIdentifiers(value.elements);
-};
+export const formatJosmIds = (groups) => ["node", "way", "rel"].flatMap((type) => (groups[type] || []).map((id) => `${JOSM_PREFIX[type]}${id}`));

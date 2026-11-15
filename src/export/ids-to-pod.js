@@ -1,11 +1,9 @@
-import { collectOsmIds } from "./osm-identifiers.js";
 const ORIGIN = location.origin;
 const READY = "pod-idstopod-ready";
 const DATA = "pod-idstopod-data";
 const DONE = "pod-idstopod-done";
 const TOKEN = /^#idstopod=([a-z0-9-]{12,})$/;
-export const buildIdsToPodQuery = (features) => {
-  const { groups, count } = collectOsmIds(features);
+export const buildIdsToPodQuery = ({ groups, count }) => {
   const lines = [];
   for (const type of ["node", "way", "rel"]) {
     const ids = groups[type];
@@ -15,7 +13,7 @@ export const buildIdsToPodQuery = (features) => {
   if (!count) return { query: "", count: 0 };
   return { query: `[out:json][timeout:180][maxsize:16Mi];\n(\n${lines.join("\n")}\n);\nout center;`, count };
 };
-export const createIdsToPod = ({ anchor, getFeatures, getPosition, receive }) => {
+export const createIdsToPod = ({ anchor, getIds, getPosition, receive }) => {
   const stylesheet = document.createElement("link");
   stylesheet.rel = "stylesheet";
   stylesheet.href = new URL("./ids-to-pod.css", import.meta.url).href;
@@ -83,7 +81,7 @@ export const createIdsToPod = ({ anchor, getFeatures, getPosition, receive }) =>
   }
   button.onclick = () => {
     let built;
-    try { built = buildIdsToPodQuery(getFeatures()); }
+    try { built = buildIdsToPodQuery(getIds()); }
     catch (error) { notify(`No se pudieron obtener los IDs: ${error?.message || String(error)}`, true); return; }
     if (!built.count) { notify("No hay objetos OSM visibles o seleccionados con IDs válidos.", true); return; }
     const token = crypto.randomUUID();

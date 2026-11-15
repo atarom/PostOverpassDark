@@ -1,18 +1,6 @@
-import { collectJosmIdentifiers as identifiers, overpassJosmIdentifiers } from "./osm-identifiers.js";
-import { takePreparedOverpassIds } from "../query/response.js";
+import { formatJosmIds } from "./osm-identifiers.js";
 const JOSM = "http://127.0.0.1:8111/";
 const URL_LIMIT = 1700;
-const osmIdentifiers = (geo) => identifiers(geo?.features || []);
-const overpassIdentifiers = (raw) => {
-  const source = String(raw ?? "").trim();
-  if (!source) return { ids: [], omitted: 0 };
-  if (source.startsWith("<")) {
-    const xml = new DOMParser().parseFromString(source, "application/xml");
-    if (xml.querySelector("parsererror")) throw Error("XML de Overpass inválido");
-    return overpassJosmIdentifiers(xml);
-  }
-  return overpassJosmIdentifiers(JSON.parse(source));
-};
 const josmUrl = (ids, first = true) => {
   const url = new URL("load_object", JOSM);
   url.searchParams.set("objects", ids.join(","));
@@ -34,12 +22,12 @@ const josmBatches = (ids, maxLength = URL_LIMIT) => {
   if (batch.length) batches.push(batch);
   return batches;
 };
-export const createJosmExporter = ({ container, sendButton, message, getVisibleOsm }) => {
-  let ids = [];
+export const createJosmExporter = ({ container, sendButton, message, getIds }) => {
+  let hasData = false;
   let active = null;
   let revision = 0;
   let working = false;
-  const sync = () => { sendButton.disabled = working || !ids.length; };
+  const sync = () => { sendButton.disabled = working || !hasData; };
   const notify = (value, error = false) => {
     message.textContent = value;
     message.classList.toggle("err", error);
@@ -48,7 +36,7 @@ export const createJosmExporter = ({ container, sendButton, message, getVisibleO
     revision++;
     active?.abort();
     active = null;
-    ids = [];
+    hasData = false;
     working = false;
     notify("");
     sync();
@@ -57,19 +45,10 @@ export const createJosmExporter = ({ container, sendButton, message, getVisibleO
     container.hidden = false;
     reset();
   };
-  const setData = (data, engine) => {
+  const setData = (loaded) => {
     reset();
-    let result;
-    try {
-      result = engine === "postpass" ? osmIdentifiers(data) : takePreparedOverpassIds(data) ?? overpassIdentifiers(data);
-      if (result.error) throw Error(result.error);
-    } catch (error) {
-      notify(`No se pudieron identificar los objetos OSM: ${error.message}`, true);
-      return;
-    }
-    const warning = result.omitted ? ` · ${result.omitted} sin ID OSM válido, excluidos` : "";
-    ids = result.ids;
-    notify(ids.length ? `${ids.length} objetos OSM listos para JOSM${warning}` : "La consulta no devuelve identificadores OSM válidos.");
+    hasData = Boolean(loaded);
+    if (hasData) notify("IDs de la selección actual listos para JOSM.");
     sync();
   };
   const checkResponse = async (response) => {
@@ -77,13 +56,11 @@ export const createJosmExporter = ({ container, sendButton, message, getVisibleO
     throw Error(`JOSM devolvió HTTP ${response.status}`);
   };
   const send = async () => {
-    if (working || !ids.length) return;
-    let target = ids;
-    try {
-      const visible = getVisibleOsm?.();
-      if (visible !== null && visible !== undefined) target = identifiers(visible).ids;
-    } catch (error) {
-      notify(`No se pudieron obtener los elementos visibles: ${error?.message || String(error)}`, true);
+    if (working || !hasData) return;
+    let target;
+    try { target = formatJosmIds(getIds().groups); }
+    catch (error) {
+      notify(`No se pudieron obtener los IDs: ${error?.message || String(error)}`, true);
       return;
     }
     if (!target.length) {
