@@ -2,6 +2,7 @@ import { esc } from "../core/utils.js";
 export const OSM_TYPES = ["node", "way", "relation"];
 const originalPostpass = new WeakMap();
 export const originalPostpassGeoJSON = (geo) => geo && originalPostpass.get(geo) || null;
+export const updateOriginalPostpassGeoJSON = (geo, raw) => { if (geo) originalPostpass.set(geo, raw); };
 const PP_TYPES = { N: "node", W: "way", R: "relation", node: "node", way: "way", relation: "relation" };
 const postpassType = (properties) => {
   const raw = String(properties.osm_type || properties.type || "").trim();
@@ -85,4 +86,31 @@ export const parseResponse = (text, contentType, engine, query, postpassTextOnly
   const value = new DOMParser().parseFromString(text, "text/xml");
   if (value.querySelector("parsererror")) throw Error("Respuesta XML inválida");
   return { geo: window.osmtogeojson(value), cnt: count(value), raw: text, timestamp: value.querySelector("osm > meta[osm_base]")?.getAttribute("osm_base") };
+};
+export const purgeResponseRaw = (raw, engine, type, id, indices) => {
+  if (engine === "postpass") {
+    const value = JSON.parse(raw);
+    if (!Array.isArray(value.features)) throw Error("Respuesta Postpass sin entidades");
+    for (const index of indices) {
+      if (!value.features[index]) throw Error("Entidad Postpass no encontrada");
+      value.features.splice(index, 1);
+    }
+    return { raw: JSON.stringify(value), removed: indices.length };
+  }
+  if (/^\s*</.test(raw)) {
+    const documentValue = new DOMParser().parseFromString(raw, "text/xml");
+    if (documentValue.querySelector("parsererror")) throw Error("Respuesta OSM XML inválida");
+    let removed = 0;
+    for (const element of [...documentValue.documentElement.children]) {
+      if (element.localName !== type || element.getAttribute("id") !== id) continue;
+      element.remove();
+      removed++;
+    }
+    return { raw: new XMLSerializer().serializeToString(documentValue), removed };
+  }
+  const value = JSON.parse(raw);
+  if (!Array.isArray(value.elements)) throw Error("Respuesta OSM JSON sin elementos");
+  const before = value.elements.length;
+  value.elements = value.elements.filter((element) => element.type !== type || String(element.id) !== id);
+  return { raw: JSON.stringify(value), removed: before - value.elements.length };
 };

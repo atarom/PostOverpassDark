@@ -36,5 +36,5 @@ export const createOverpassRequester = (storage) => {
     cache.set(query, { at: Date.now(), response });
     if (cache.size > MAX_CACHE_ENTRIES) cache.delete(cache.keys().next().value);
   };
-  return { read, remember };
+  return { read, remember, clearCache: () => cache.clear() };
 };

@@ -28,7 +28,8 @@ const POPUP_ICONS = {
   id: popupIcon('<path d="M4 20h4l11-11-4-4L4 16v4Z"/><path d="m13 7 4 4"/>'),
   rapid: popupIcon('<path d="M13 2 5 13h6l-1 9 9-12h-6l1-8Z"/>'),
   level0: popupIcon('<path d="M4.2 4.5v14.8h7.4"/><rect x="14.2" y="4.5" width="7.1" height="14.8" rx="3.5"/><circle cx="17.75" cy="11.9" r="1.15" fill="currentColor" stroke="none"/>'),
-  josm: popupIcon('<path d="M3 6 9 3l6 3 6-3v10M3 6v14l6-3 4.3 2M9 3v14M15 6v8"/><path d="m14.1 20.4 2.5-.6 4.9-5-1.9-1.9-4.9 5-.6 2.5Z"/>')
+  josm: popupIcon('<path d="M3 6 9 3l6 3 6-3v10M3 6v14l6-3 4.3 2M9 3v14M15 6v8"/><path d="m14.1 20.4 2.5-.6 4.9-5-1.9-1.9-4.9 5-.6 2.5Z"/>'),
+  purge: popupIcon('<circle cx="12" cy="12" r="8.2"/><path d="m9 9 6 6m0-6-6 6"/>')
 };
 const popupHtml = (feature) => {
   const p = feature.properties || {};
@@ -42,7 +43,7 @@ const popupHtml = (feature) => {
   const shortId = short + id;
   const body = section("Tags OSM", "tag", entries(tags)) + section("Relaciones", "rel", relations) + section("Metadatos", "meta", meta);
   const links = osm ? [["osm", "Ver en OSM", osm], ["id", "Editar con iD", `https://www.openstreetmap.org/edit?editor=id&${type}=${id}`], ["rapid", "Editar con Rapid", `https://rapideditor.org/edit#id=${shortId}`], ["level0", "Editar con Level0", `https://level0.osmz.ru/?url=${encodeURIComponent(osm)}`], ["josm", "Editar con JOSM", `http://127.0.0.1:8111/load_object?objects=${shortId}`]] : [];
-  const actions = links.map(([icon, title, url]) => `<button type="button" class="pop-action" style="width:auto;height:38px;flex:1 1 0;min-width:0" data-url="${esc(url)}" title="${esc(title)}" aria-label="${esc(title)}">${POPUP_ICONS[icon]}</button>`).join("");
+  const actions = links.map(([icon, title, url]) => `<button type="button" class="pop-action" style="width:auto;height:38px;flex:1 1 0;min-width:0" data-url="${esc(url)}" title="${esc(title)}" aria-label="${esc(title)}">${POPUP_ICONS[icon]}</button>`).join("") + (osm ? `<button type="button" class="pop-action pop-purge" style="width:auto;height:38px;flex:1 1 0;min-width:0;color:var(--d)!important;border-color:#935849!important" title="Purgar de los resultados de POD (no modifica OSM)" aria-label="Purgar de los resultados de POD">${POPUP_ICONS.purge}</button>` : "");
   return `<div class="pp" style="grid-template-rows:auto auto minmax(0,1fr)"><div class="ph"><div class="pt">${esc(name)}</div></div>${actions ? `<div class="acts" style="grid-row:2;padding:10px 13px;border-top:0;border-bottom:1px solid var(--b)">${actions}</div>` : ""}<div class="tags" style="grid-row:3">${body || '<div class="tr"><div class="tk">info</div><div class="tv">Sin información visible</div></div>'}</div></div>`;
 };
 const MISSING_NUMBER = -1e20;
@@ -148,11 +149,18 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   map.getTargetElement().append(popupElement);
   const popup = new Overlay({ element: popupElement, offset: [0, -10], positioning: "bottom-center", autoPan: { animation: { duration: 180 }, margin: 15 } });
   map.addOverlay(popup);
-  const closePopup = () => { popup.setPosition(undefined); popupElement.hidden = true; };
+  let popupIndex = null;
+  let purgeRequested = null;
+  const closePopup = () => { popupIndex = null; popup.setPosition(undefined); popupElement.hidden = true; };
   popupClose.onclick = closePopup;
   popupElement.addEventListener("click", (event) => {
     const button = event.target.closest(".pop-action");
-    if (button) window.open(button.dataset.url, "_blank", "noopener,noreferrer");
+    if (!button || !popupElement.contains(button)) return;
+    if (button.classList.contains("pop-purge")) {
+      if (popupIndex !== null) purgeRequested?.(popupIndex);
+      return;
+    }
+    if (button.dataset.url) window.open(button.dataset.url, "_blank", "noopener,noreferrer");
   });
   const selectionSource = new Vector({ wrapX: false });
   map.addLayer(new ol.layer.Vector({ source: selectionSource, style: { "stroke-color": "#ffe69d", "stroke-width": 4, "fill-color": "rgba(255,230,157,0.24)", "circle-radius": 10, "circle-fill-color": "#ffe69d", "circle-stroke-color": "#32483a", "circle-stroke-width": 2 } }));
@@ -333,6 +341,32 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     else view.fit(extent, { padding: [65, 65, 65, 65], maxZoom: 19, duration: 250 });
     closePopup();
     return selectedIndex;
+  };
+  const purge = (indices) => {
+    closePopup();
+    clearResultSelection();
+    for (const index of [...new Set(indices)].sort((a, b) => b - a)) {
+      let low = 0;
+      let high = rendered.length;
+      while (low < high) {
+        const middle = (low + high) >>> 1;
+        if (rendered[middle].get("podIndex") < index) low = middle + 1;
+        else high = middle;
+      }
+      if (rendered[low]?.get("podIndex") === index) {
+        vectorSource.removeFeature(rendered[low]);
+        rendered.splice(low, 1);
+        if (heatReady && !heatShared) {
+          for (const point of heatSource.getFeatures()) {
+            const position = point.get("podLocalIndex");
+            if (position === low) heatSource.removeFeature(point);
+            else if (position > low) point.set("podLocalIndex", position - 1, true);
+          }
+        }
+      }
+      for (let i = low; i < rendered.length; i++) rendered[i].set("podIndex", rendered[i].get("podIndex") - 1, true);
+    }
+    map.getTargetElement().style.cursor = "";
   };
   const fit = (features) => {
     if (!features.length) return;
@@ -550,6 +584,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     const raw = geo.features[index];
     if (!isResultMatch(selected)) { closePopup(); return; }
     popupContent.innerHTML = popupHtml(raw);
+    popupIndex = index;
     popupElement.hidden = false;
     popup.setPosition(event.coordinate);
   });
@@ -560,5 +595,5 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   const clear = () => { closePopup(); clearResultSelection(); geo = null; rendered = []; heatReady = false; heatShared = false; heatDirty = 0; vectorDirty = false; lastColorSignature = ""; lastNumericKey = undefined; lastGeometryValues = null; regexPatterns = []; vectorSource.clear(true); heatSource.clear(true); heatLayer.setSource(heatSource); };
   heatUI();
   render();
-  return { map, draw, clear, render, heatUI, getHeat, setHeat, hasGeo: () => Boolean(geo), applyFilters, hasResultFilter, getShapeReference, getResultSource: () => rendered, isResultMatch, isSelectedResultMatch: () => selectedIndex === null || isResultMatch(featureByIndex(selectedIndex)), clearResultSelection, selectResult, onResultsChanged: (callback) => { resultsChanged = callback; } };
+  return { map, draw, clear, purge, onPurge: (callback) => { purgeRequested = callback; }, render, heatUI, getHeat, setHeat, hasGeo: () => Boolean(geo), applyFilters, hasResultFilter, getShapeReference, getResultSource: () => rendered, isResultMatch, isSelectedResultMatch: () => selectedIndex === null || isResultMatch(featureByIndex(selectedIndex)), clearResultSelection, selectResult, onResultsChanged: (callback) => { resultsChanged = callback; } };
 };

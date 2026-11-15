@@ -294,5 +294,6 @@ export const createResultsList = ({ container, controller, getIds }) => {
     render(pos);
   });
   all.onclick = () => { controller.clearResultSelection(true); selected = null; idsExporter.refresh(); render(); };
-  return { refresh, setData, clear };
+  const clearSelected = () => { selected = null; render(); };
+  return { refresh, setData, clear, clearSelected };
 };

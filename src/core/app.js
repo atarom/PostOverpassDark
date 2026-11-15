@@ -3,14 +3,14 @@ import { storage } from "./storage.js";
 import { createOverpassRequester } from "../query/overpass-de-request.js";
 import { createEditor } from "../query/editor.js";
 import { createQueryPreparer, isPostpassTextOnly } from "../query/query.js";
-import { readResponseJson, parseResponse, responseError, errorStatusHtml, OSM_TYPES } from "../query/response.js";
+import { readResponseJson, parseResponse, responseError, errorStatusHtml, purgeResponseRaw, updateOriginalPostpassGeoJSON, OSM_TYPES } from "../query/response.js";
 import { createMapController } from "../map/map.js";
 import { createUI } from "../ui/ui.js";
-import { createAnalysis } from "../analysis/analysis.js";
+import { createAnalysis, featureTags } from "../analysis/analysis.js";
 import { createResultsList } from "../ui/results-list.js";
 import { createJosmExporter } from "../export/josm-export.js";
 import { createIdsToPod } from "../export/ids-to-pod.js";
-import { collectOsmIds } from "../export/osm-identifiers.js";
+import { collectOsmIds, getIdentifier } from "../export/osm-identifiers.js";
 import { encodeShare, encodeShareDetailed, encodeShareDeflateIds, encodeShareZopfli, encodeShareBrotli, decodeShare, sharedFragment, createShareComparison } from "../share/share.js";
 import { $, esc, abortError } from "./utils.js";
 import { OVERPASS_PRESETS } from "../query/presets-overpass.js";
@@ -404,6 +404,9 @@ const initializeApp = (deps) => {
   mapController.onResultsChanged(() => { resultsList.refresh(analysis.options()); analysis.refreshShapeReference(analysis.options(), true); });
   let selectedResultIndex = null;
   let currentGeo = null;
+  let currentResult = null;
+  let currentPostpass = false;
+  let currentTime = "";
   const originalSelectResult = mapController.selectResult;
   mapController.selectResult = (index) => { selectedResultIndex = originalSelectResult(index); return selectedResultIndex; };
   const originalClearResultSelection = mapController.clearResultSelection;
@@ -496,7 +499,23 @@ const initializeApp = (deps) => {
     ui.log(`Respuesta ${result.format.toUpperCase()} recibida\nSin representación en el mapa\nTiempo: ${time}`);
     ui.overlayDone();
   };
+  const statusForGeo = (result, postpass) => {
+    const formatter = new Intl.NumberFormat("es-ES");
+    const time = currentTime;
+    const featureCount = result.geo.features.length;
+    const hasOSM = result.cnt.total && (!postpass || featureCount);
+    const hasResults = hasOSM || (postpass && featureCount);
+    const title = hasOSM ? `${formatter.format(result.cnt.total)} elementos OSM` : hasResults ? `${formatter.format(featureCount)} resultados Postpass` : "Consulta válida sin resultados";
+    const counts = ["Nodos", "Vías", "Relaciones"].map((label, index) => [label, result.cnt[OSM_TYPES[index]]]);
+    const age = dataAge(result.timestamp);
+    const summary = `<strong>${title}</strong><br>` + (hasOSM ? counts.map(([label, count]) => `${label}: ${formatter.format(count)}`).join(" · ") + "<br>" : "") + (!postpass && !hasOSM ? "Elementos OSM: 0 · " : "") + `GeoJSON: ${formatter.format(featureCount)}` + (!postpass && !hasOSM ? "<br>" : " · ") + `Tiempo: ${time}` + (age ? `<br>Antigüedad OSM: ${age}` : "");
+    const done = [hasResults ? "Mapa actualizado" : `Consulta${postpass ? " Postpass" : ""} completada correctamente`, hasOSM ? `${result.cnt.total} elementos OSM` : hasResults ? `${featureCount} resultados Postpass` : `Sin resultados${postpass ? "" : " OSM"}`, ...(hasOSM ? counts.map(([label, count]) => `${label}: ${count}`) : []), ...(!postpass || hasOSM ? [`GeoJSON: ${featureCount}`] : []), `Tiempo: ${time}`].join("\n");
+    return { summary, done };
+  };
   const geoResult = (result, start, postpass) => {
+    currentResult = result;
+    currentPostpass = postpass;
+    currentTime = elapsed(start);
     currentGeo = result.geo;
     selectedResultIndex = null;
     josm.setData(true);
@@ -507,21 +526,85 @@ const initializeApp = (deps) => {
     idsToPod.setData(true);
     mapController.applyFilters(analysis.options());
     resultsList.setData(result.geo, analysis.options());
-    const formatter = new Intl.NumberFormat("es-ES");
-    const time = elapsed(start);
-    const featureCount = result.geo.features.length;
-    const hasOSM = result.cnt.total && (!postpass || featureCount);
-    const hasResults = hasOSM || (postpass && featureCount);
-    const title = hasOSM ? `${formatter.format(result.cnt.total)} elementos OSM` : hasResults ? `${formatter.format(featureCount)} resultados Postpass` : "Consulta válida sin resultados";
-    const counts = ["Nodos", "Vías", "Relaciones"].map((label, index) => [label, result.cnt[OSM_TYPES[index]]]);
-    const age = dataAge(result.timestamp);
-    const summary = `<strong>${title}</strong><br>` + (hasOSM ? counts.map(([label, count]) => `${label}: ${formatter.format(count)}`).join(" · ") + "<br>" : "") + (!postpass && !hasOSM ? "Elementos OSM: 0 · " : "") + `GeoJSON: ${formatter.format(featureCount)}` + (!postpass && !hasOSM ? "<br>" : " · ") + `Tiempo: ${time}` + (age ? `<br>Antigüedad OSM: ${age}` : "");
-    const done = [hasResults ? "Mapa actualizado" : `Consulta${postpass ? " Postpass" : ""} completada correctamente`, hasOSM ? `${result.cnt.total} elementos OSM` : hasResults ? `${featureCount} resultados Postpass` : `Sin resultados${postpass ? "" : " OSM"}`, ...(hasOSM ? counts.map(([label, count]) => `${label}: ${count}`) : []), ...(!postpass || hasOSM ? [`GeoJSON: ${featureCount}`] : []), `Tiempo: ${time}`].join("\n");
+    const { summary, done } = statusForGeo(result, postpass);
     ui.setStatus(summary, "ok");
     showTab("status");
     ui.log(done);
     ui.overlayDone();
   };
+  mapController.onPurge((index) => {
+    if (!currentGeo || !currentResult || busy) return;
+    const item = getIdentifier(currentGeo.features[index]);
+    if (!item) return;
+    const type = item.type === "rel" ? "relation" : item.type;
+    const id = String(item.id);
+    const indices = [];
+    for (let i = 0; i < currentGeo.features.length; i++) {
+      const match = getIdentifier(currentGeo.features[i]);
+      if (match?.type === item.type && match.id === item.id) indices.push(i);
+    }
+    if (!indices.length) return;
+    indices.reverse();
+    try {
+      const updated = purgeResponseRaw(currentResult.raw, currentPostpass ? "postpass" : "overpass", type, id, indices);
+      if (!currentPostpass && !updated.removed) throw Error("El objeto no figura en la respuesta original");
+      currentResult.raw = updated.raw;
+      for (const position of indices) currentGeo.features.splice(position, 1);
+      if (currentPostpass) updateOriginalPostpassGeoJSON(currentGeo, updated.raw);
+      const included = currentPostpass ? Boolean(currentResult.cnt[type] && currentResult.cnt.total) : updated.removed > 0;
+      if (included && currentResult.cnt[type] > 0) { currentResult.cnt[type]--; currentResult.cnt.total--; }
+      const previous = analysis.options();
+      const numericRange = [analysisElements.numericMin.value, analysisElements.numericMax.value];
+      const geometryToggle = document.querySelector(".pod-geometry summary input[type=checkbox]");
+      const geometryRange = [...document.querySelectorAll(".pod-geometry input[type=range]")];
+      const geometryValues = geometryRange.map((input) => input.value);
+      const geometryWasActive = Boolean(geometryToggle?.checked);
+      mapController.purge(indices);
+      analysis.setData(currentGeo, true);
+      for (const [input, old] of [[analysisElements.numericMin, numericRange[0]], [analysisElements.numericMax, numericRange[1]]]) if (Number.isFinite(Number(old))) input.value = String(Math.max(Number(input.min), Math.min(Number(input.max), Number(old))));
+      analysisElements.numericMinValue.value = analysisElements.numericMin.value;
+      analysisElements.numericMaxValue.value = analysisElements.numericMax.value;
+      if (previous.selectedValue !== null && previous.selectedKey === analysis.options().selectedKey) {
+        const counts = new Map();
+        for (const feature of currentGeo.features) {
+          const tags = featureTags(feature);
+          if (!Object.prototype.hasOwnProperty.call(tags, previous.selectedKey)) continue;
+          const raw = String(tags[previous.selectedKey] ?? "").trim();
+          const parts = previous.countMode === "word" ? raw.normalize("NFC").toLocaleLowerCase("es").normalize("NFC").match(/\p{L}[\p{L}\p{M}\p{N}]*/gu) || [] : previous.countMode === "semicolon" ? raw.split(";").map((part) => part.trim()).filter(Boolean) : [raw];
+          for (const part of parts) counts.set(part, (counts.get(part) || 0) + 1);
+        }
+        const ordered = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "es"));
+        const position = ordered.findIndex(([value]) => value === previous.selectedValue);
+        if (position >= 0) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "analysis-value";
+          button.dataset.index = String(position);
+          analysisElements.values.append(button);
+          button.click();
+          button.remove();
+        }
+      }
+      if (geometryWasActive && geometryToggle) {
+        geometryRange.forEach((input, i) => { if (geometryValues[i] !== undefined && Number.isFinite(Number(geometryValues[i]))) input.value = String(Math.max(Number(input.min), Math.min(Number(input.max), Number(geometryValues[i])))); });
+        geometryToggle.checked = true;
+        geometryRange[0]?.dispatchEvent(new Event("input"));
+      }
+      mapController.applyFilters(analysis.options());
+      resultsList.clearSelected();
+      resultsList.refresh(analysis.options());
+      ui.setOriginal(updated.raw);
+      ui.setGeojson(currentGeo);
+      const loaded = currentGeo.features.length > 0;
+      josm.setData(loaded);
+      idsToPod.setData(loaded);
+      overpassRequester.clearCache();
+      ui.setStatus(statusForGeo(currentResult, currentPostpass).summary, "ok");
+      ui.log(`Purgado de POD: ${type}/${id}`);
+    } catch (error) {
+      ui.setStatus(`<strong>No se pudo purgar</strong><br>${esc(error.message || String(error))}`, "err");
+    }
+  });
   const run = async () => {
     if (busy) return;
     const runId = ++runSeq;
@@ -566,6 +649,7 @@ const initializeApp = (deps) => {
       map.getView().cancelAnimations();
       mapController.clear();
       currentGeo = null;
+      currentResult = null;
       selectedResultIndex = null;
       idsToPod.setData(false);
       josm.reset();
