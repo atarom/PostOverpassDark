@@ -557,30 +557,8 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     if (event.dragging || measuring || areaDrawing || renderMode.value === "heat") return;
     map.getTargetElement().style.cursor = map.hasFeatureAtPixel(event.pixel, { layerFilter: (layer) => layer === vectorLayer }) ? "pointer" : "";
   });
-  const getVisibleOsm = () => {
-    if (!geo) return null;
-    if (areaDrawing) return [];
-    const valueHidden = options.selectedValue !== null && options.selectedValue !== undefined && options.hideOtherValues;
-    const regexHidden = options.regexEnabled && options.regexOnly && !valueHidden && (options.selectedValue === null || options.selectedValue === undefined);
-    const numericHidden = Boolean(options.numericEnabled && options.numericKey && !options.numericShowErrors);
-    const geometryHidden = Boolean(options.geometryEnabled);
-    const outlierHidden = Boolean(options.outlierMode === "only");
-    if (!areaGeometry && !(options.onlySelectedKey && options.selectedKey) && !valueHidden && !regexHidden && !numericHidden && !geometryHidden && !outlierHidden) return null;
-    const min = Number(options.numericMin) || 0;
-    const max = Number(options.numericMax) || 0;
-    const result = [];
-    for (const feature of rendered) {
-      if (feature.get("podColor") < 0) continue;
-      if (outlierHidden && !isOutlier(feature.get("podValue"))) continue;
-      if (numericHidden && (feature.get("podValue") === MISSING_NUMBER || feature.get("podValue") < min || feature.get("podValue") > max)) continue;
-      if (geometryHidden && (feature.get("podGeomValue") === -1 || feature.get("podGeomValue") < Number(options.geometryMin) || feature.get("podGeomValue") > Number(options.geometryMax))) continue;
-      if (areaGeometry && !geometryInsideArea(feature.getGeometry(), areaGeometry)) continue;
-      result.push(oid(geo.features[feature.get("podIndex")]));
-    }
-    return result;
-  };
   const clear = () => { closePopup(); clearResultSelection(); geo = null; rendered = []; heatReady = false; heatShared = false; heatDirty = 0; vectorDirty = false; lastColorSignature = ""; lastNumericKey = undefined; lastGeometryValues = null; regexPatterns = []; vectorSource.clear(true); heatSource.clear(true); heatLayer.setSource(heatSource); };
   heatUI();
   render();
-  return { map, draw, clear, render, heatUI, getHeat, setHeat, hasGeo: () => Boolean(geo), applyFilters, getVisibleOsm, hasResultFilter, getShapeReference, getResultSource: () => rendered, isResultMatch, isSelectedResultMatch: () => selectedIndex === null || isResultMatch(featureByIndex(selectedIndex)), clearResultSelection, selectResult, onResultsChanged: (callback) => { resultsChanged = callback; } };
+  return { map, draw, clear, render, heatUI, getHeat, setHeat, hasGeo: () => Boolean(geo), applyFilters, hasResultFilter, getShapeReference, getResultSource: () => rendered, isResultMatch, isSelectedResultMatch: () => selectedIndex === null || isResultMatch(featureByIndex(selectedIndex)), clearResultSelection, selectResult, onResultsChanged: (callback) => { resultsChanged = callback; } };
 };

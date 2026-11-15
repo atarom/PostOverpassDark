@@ -594,7 +594,6 @@ const initializeApp = (deps) => {
     endpoints.includes(endpoint.value) ? storage.setItem(STORE.endpoint, endpoint.value) : storage.removeItem(STORE.endpoint);
     if (busy) stop("Consulta cancelada al cambiar de servidor");
     const next = getEngine();
-    josm.setEngine(next);
     if (next !== editor.getEngine()) {
       editor.setMode(next);
       renderPresets();
