@@ -123,6 +123,7 @@ export const createIdsExporter = ({ getIds }) => {
   resultHead.append(caption, count);
   const preview = document.createElement("textarea");
   preview.id = "podIdsPreview";
+  preview.rows = 4;
   preview.readOnly = true;
   preview.spellcheck = false;
   preview.wrap = "off";
@@ -176,6 +177,7 @@ export const createIdsExporter = ({ getIds }) => {
     const sampleText = formatIds(sample, options.preset, options.domain);
     preview.value = sampleText.slice(0, MAX_CHARS);
     if (!cache.count) preview.value = "No hay identificadores OSM para esta selección.";
+    preview.rows = Math.max(4, Math.min(16, preview.value.split("\n").length + 1));
     note.textContent = shortened || sampleText.length > MAX_CHARS ? "Vista previa limitada. Copiar y Descargar incluyen todos los IDs." : "";
     count.textContent = `${cache.count.toLocaleString("es-ES")} IDs${cache.omitted ? ` · ${cache.omitted.toLocaleString("es-ES")} sin identificador válido` : ""}`;
     syncButtons();
