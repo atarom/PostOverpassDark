@@ -26,6 +26,17 @@ const countPostpass = (geo) => countElements((geo.features || []).map((feature) 
   const properties = feature.properties || {};
   return [postpassType(properties), properties.osm_id ?? properties.id];
 }));
+const preferCenter = (geo) => {
+  const centerIds = new Set(geo.features.filter((feature) => feature.id != null && feature.geometry?.type === "Point" && feature.properties?.geometry === "center").map((feature) => feature.id));
+  const seen = new Set();
+  geo.features = geo.features.filter((feature) => {
+    if (!centerIds.has(feature.id)) return true;
+    if (feature.geometry?.type !== "Point" || feature.properties?.geometry !== "center" || seen.has(feature.id)) return false;
+    seen.add(feature.id);
+    return true;
+  });
+  return geo;
+};
 const cleanText = (value) => String(value ?? "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
 const ERROR_RX = /\berror\b|parse error|static error|runtime error|timeout|time-out|timed out|out of memory|rate limit|too many requests|bad request|failed|gateway|service unavailable/i;
 export const readResponseJson = (text, contentType) => {
@@ -81,11 +92,11 @@ export const parseResponse = (text, contentType, engine, query, postpassTextOnly
     }
     if (postpass && (value?.type !== "FeatureCollection" || !Array.isArray(value.features))) throw Error("Postpass no devolvió un GeoJSON FeatureCollection");
     if (postpass) originalPostpass.set(value, text);
-    return { geo: postpass ? value : window.osmtogeojson(value), cnt: postpass ? countPostpass(value) : count(value), raw: text, timestamp: postpass ? value.postpass_properties?.timestamp : value.osm3s?.timestamp_osm_base };
+    return { geo: postpass ? value : preferCenter(window.osmtogeojson(value)), cnt: postpass ? countPostpass(value) : count(value), raw: text, timestamp: postpass ? value.postpass_properties?.timestamp : value.osm3s?.timestamp_osm_base };
   }
   const value = new DOMParser().parseFromString(text, "text/xml");
   if (value.querySelector("parsererror")) throw Error("Respuesta XML inválida");
-  return { geo: window.osmtogeojson(value), cnt: count(value), raw: text, timestamp: value.querySelector("osm > meta[osm_base]")?.getAttribute("osm_base") };
+  return { geo: preferCenter(window.osmtogeojson(value)), cnt: count(value), raw: text, timestamp: value.querySelector("osm > meta[osm_base]")?.getAttribute("osm_base") };
 };
 export const purgeResponseRaw = (raw, engine, type, id, indices) => {
   if (engine === "postpass") {
