@@ -472,6 +472,48 @@ const initializeApp = (deps) => {
       showTab("status");
     }
   });
+  const idsPanel = document.createElement("div");
+  idsPanel.id = "idsPanel";
+  idsPanel.className = "ids-panel";
+  idsPanel.hidden = true;
+  idsPanel.setAttribute("role", "region");
+  idsPanel.setAttribute("aria-label", "Acciones con IDs");
+  const idsToggle = document.createElement("button");
+  idsToggle.id = "idsToggle";
+  idsToggle.type = "button";
+  idsToggle.className = "action-button pod-ids-toggle";
+  idsToggle.title = "Acciones con IDs";
+  idsToggle.setAttribute("aria-controls", idsPanel.id);
+  idsToggle.setAttribute("aria-expanded", "false");
+  const idsArrow = document.createElement("span");
+  idsArrow.textContent = "▾";
+  idsArrow.setAttribute("aria-hidden", "true");
+  idsToggle.append("IDs", idsArrow);
+  const idsActions = [$("josmSend"), idsToPod.button, $("exportIdsBtn")];
+  idsActions.forEach((button, index) => button.textContent = ["ToJOSM", "ToPOD", "ToCopy"][index]);
+  idsActions[2].title = "Copiar o exportar IDs";
+  idsActions[2].setAttribute("aria-label", "Copiar o exportar IDs");
+  const idsTools = $("josmTools");
+  const idsBar = idsTools.parentElement;
+  idsBar.insertBefore(idsToggle, idsTools);
+  idsBar.after(idsPanel);
+  idsPanel.append(idsTools, idsActions[1], idsActions[2]);
+  const idsMenu = { panel: idsPanel, toggle: idsToggle };
+  panels.push(idsMenu);
+  idsToggle.onclick = () => {
+    if (togglePanel(idsMenu)) idsActions.find((button) => !button.disabled)?.focus();
+    else idsToggle.focus();
+  };
+  idsPanel.addEventListener("click", (event) => {
+    if (idsActions.some((button) => button === event.target)) closePanel(idsMenu);
+  });
+  const syncIdsToggle = () => {
+    idsToggle.disabled = idsActions.every((button) => button.disabled);
+    if (idsToggle.disabled && !idsPanel.hidden) closePanel(idsMenu);
+  };
+  const idsObserver = new MutationObserver(syncIdsToggle);
+  idsActions.forEach((button) => idsObserver.observe(button, { attributes: true, attributeFilter: ["disabled"] }));
+  syncIdsToggle();
   const preparer = createQueryPreparer({ map, storage, areaStoreKey: STORE.areas, log: ui.log });
   const overpassRequester = createOverpassRequester(storage);
   let controller;
