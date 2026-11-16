@@ -205,6 +205,7 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
 .sidebar-resizer:focus-visible{outline:2px solid var(--a);outline-offset:-1px}
 .app.is-resizing{user-select:none}
 .action-bar .cfg-toggle{margin-left:0;font:25px/1 "Segoe UI Symbol", "Noto Sans Symbols 2", sans-serif;color:var(--m)}
+.action-bar .cfg-toggle span{position:relative;top:-2px}
 .action-bar .cfg-toggle[aria-expanded="true"]{border-color:var(--a);background:#304e38;color:var(--ah)}
 .action-bar .preset-toggle{margin-left:auto;font-size:11px;color:var(--m)}
 .action-bar .preset-toggle[aria-expanded="true"]{border-color:var(--a);background:#304e38;color:var(--ah)}
