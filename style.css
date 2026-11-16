@@ -208,7 +208,7 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
 .action-bar .cfg-toggle[aria-expanded="true"]{border-color:var(--a);background:#304e38;color:var(--ah)}
 .cfg-panel{position:absolute;z-index:7;top:100%;right:14px;left:14px;max-height:min(48dvh, 420px);padding:12px;overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--b);border-radius:var(--r);background:var(--p3)}
 .cfg-panel[hidden]{display:none}
-.action-bar .preset-toggle{flex:0 0 76px;width:76px;margin-left:auto;font-size:11px;font-weight:800}
+.action-bar .preset-toggle{flex:0 0 76px;width:76px;margin-left:auto;font-size:11px;font-weight:800;color:var(--m)}
 .action-bar .preset-toggle[aria-expanded="true"]{border-color:var(--a);background:#304e38;color:var(--ah)}
 .preset-panel{position:absolute;z-index:7;top:100%;right:14px;left:14px;max-height:min(56dvh, 430px);overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--b2);border-radius:var(--r);background:var(--p3)}
 .preset-panel[hidden]{display:none}
