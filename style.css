@@ -206,12 +206,11 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
 .app.is-resizing{user-select:none}
 .action-bar .cfg-toggle{margin-left:0;font:25px/1 "Segoe UI Symbol", "Noto Sans Symbols 2", sans-serif;color:var(--m)}
 .action-bar .cfg-toggle[aria-expanded="true"]{border-color:var(--a);background:#304e38;color:var(--ah)}
-.cfg-panel{position:absolute;z-index:7;top:100%;right:14px;left:14px;max-height:min(48dvh, 420px);padding:12px;overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--b);border-radius:var(--r);background:var(--p3)}
-.cfg-panel[hidden]{display:none}
-.action-bar .preset-toggle{flex:0 0 76px;width:76px;margin-left:auto;font-size:11px;font-weight:800;color:var(--m)}
+.action-bar .preset-toggle{margin-left:auto;font-size:11px;color:var(--m)}
 .action-bar .preset-toggle[aria-expanded="true"]{border-color:var(--a);background:#304e38;color:var(--ah)}
-.preset-panel{position:absolute;z-index:7;top:100%;right:14px;left:14px;max-height:min(56dvh, 430px);overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--b2);border-radius:var(--r);background:var(--p3)}
-.preset-panel[hidden]{display:none}
+.cfg-panel,.preset-panel{position:absolute;z-index:7;top:100%;right:14px;left:14px;overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--b2);border-radius:var(--r);background:var(--p3)}
+.cfg-panel{padding:12px;border-color:var(--b)}
+.cfg-panel[hidden],.preset-panel[hidden]{display:none}
 .preset-list{display:grid;gap:0}
 .preset-item{display:grid;gap:4px;width:100%;min-height:54px;padding:11px 12px;border:0;border-bottom:1px solid var(--b);border-radius:0;background:transparent;text-align:left}
 .preset-item:last-child{border-bottom:0}
@@ -258,8 +257,7 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
   .tr{grid-template-columns:minmax(80px, 38%) minmax(0, 1fr)}
   .cm-tooltip-autocomplete > ul > li{min-width:180px}
   .cm-tooltip-lint{max-width:88vw!important}
-  .cfg-panel{right:10px;left:10px;max-height:min(32dvh, calc(48dvh - 105px))}
-  .preset-panel{right:10px;left:10px;max-height:min(42dvh, 330px)}
+  .cfg-panel,.preset-panel{right:10px;left:10px}
 }
 @media (max-height: 600px){
   .pan{padding:7px 10px}
@@ -275,8 +273,6 @@ button:disabled, select:disabled, input:disabled{opacity:0.55;cursor:not-allowed
   .app, .app:has(#analysisPanel.on){grid-template-columns:minmax(320px, 46%) minmax(0, 1fr);grid-template-rows:1fr}
   .side{height:100%;border-right:1px solid var(--b);border-bottom:0}
   #analysisPanel.on{flex-basis:min(125px, 32dvh)}
-  .cfg-panel{max-height:min(42dvh, calc(100dvh - 110px))}
-  .preset-panel{max-height:min(52dvh, 230px)}
 }
 @media (max-width:480px){
   #shareDialog .share-head{top:-12px}
