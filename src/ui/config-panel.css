@@ -1,10 +1,10 @@
 .side{position:relative}
-.side:has(.cfg-panel:not([hidden]))::after{content:"";position:absolute;inset:0;z-index:4;background:rgba(0,0,0,.46)}
-.cfg-panel{max-height:calc(100dvh - 100px - env(safe-area-inset-bottom, 0px));border-color:#648b70;background:#1c2924;box-shadow:0 18px 40px #000b,0 0 0 1px #648b7030}
+.side:has(.cfg-panel:not([hidden]),.preset-panel:not([hidden]))::after{content:"";position:absolute;inset:0;z-index:4;background:rgba(0,0,0,.46)}
+:is(.cfg-panel,.preset-panel){max-height:calc(100dvh - 100px - env(safe-area-inset-bottom, 0px));border-color:#648b70;background:#1c2924;box-shadow:0 18px 40px #000b,0 0 0 1px #648b7030}
 @media (max-width:850px){
-  .cfg-panel{max-height:calc(48dvh - 92px - env(safe-area-inset-bottom, 0px))}
-  .app:has(#analysisPanel.on) .cfg-panel{max-height:calc(62dvh - 92px - env(safe-area-inset-bottom, 0px))}
+  :is(.cfg-panel,.preset-panel){max-height:calc(48dvh - 92px - env(safe-area-inset-bottom, 0px))}
+  .app:has(#analysisPanel.on) :is(.cfg-panel,.preset-panel){max-height:calc(62dvh - 92px - env(safe-area-inset-bottom, 0px))}
 }
 @media (max-width:850px) and (max-height:600px) and (orientation:landscape){
-  .cfg-panel,.app:has(#analysisPanel.on) .cfg-panel{max-height:calc(100dvh - 90px - env(safe-area-inset-bottom, 0px))}
+  :is(.cfg-panel,.preset-panel),.app:has(#analysisPanel.on) :is(.cfg-panel,.preset-panel){max-height:calc(100dvh - 90px - env(safe-area-inset-bottom, 0px))}
 }

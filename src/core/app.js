@@ -36,9 +36,21 @@ const initializeApp = (deps) => {
   let editor;
   let busy = false;
   let cooldown;
-  const closePresets = () => {
-    presetPanel.hidden = true;
-    presetToggle.setAttribute("aria-expanded", "false");
+  const cfg = $("cfg");
+  const cfgToggle = $("cfgToggle");
+  const panels = [{ panel: presetPanel, toggle: presetToggle }, { panel: cfg, toggle: cfgToggle }];
+  const closePanel = ({ panel, toggle }) => {
+    panel.hidden = true;
+    toggle.setAttribute("aria-expanded", "false");
+  };
+  const togglePanel = (target) => {
+    const opening = target.panel.hidden;
+    for (const item of panels) closePanel(item);
+    if (opening) {
+      target.panel.hidden = false;
+      target.toggle.setAttribute("aria-expanded", "true");
+    }
+    return opening;
   };
   const syncPreset = () => {
     if (!editor) return;
@@ -67,7 +79,7 @@ const initializeApp = (deps) => {
       button.onclick = () => {
         editor.setQuery(preset.query);
         syncPreset();
-        closePresets();
+        closePanel(panels[0]);
         presetToggle.focus();
       };
       presetList.append(button);
@@ -77,39 +89,22 @@ const initializeApp = (deps) => {
   editor = createEditor({ deps, queryNode, wrapMode: wrap, engine: getEngine(), defaults, onChange: () => { syncPreset(); cooldown?.sync(); } });
   renderPresets();
   presetToggle.onclick = () => {
-    if (presetPanel.hidden) {
-      closeConfig();
-      presetPanel.hidden = false;
-      presetToggle.setAttribute("aria-expanded", "true");
-      (presetList.querySelector('[aria-pressed="true"]') || presetList.firstElementChild)?.focus();
-    } else {
-      closePresets();
-      presetToggle.focus();
-    }
+    if (togglePanel(panels[0])) (presetList.querySelector('[aria-pressed="true"]') || presetList.firstElementChild)?.focus();
+    else presetToggle.focus();
   };
   const mapController = createMapController({ ol: deps.ol, storage, heatStoreKey: STORE.heat, renderMode, heatElements: { config: $("heatCfg"), radius: $("heatRadius"), intensity: $("heatIntensity"), opacity: $("heatOpacity"), weight: $("heatWeight"), palette: $("heatPalette"), radiusValue: $("heatRadiusVal"), intensityValue: $("heatIntensityVal"), opacityValue: $("heatOpacityVal"), weightValue: $("heatWeightVal"), reset: $("heatReset") } });
   const map = mapController.map;
   cooldown = createQueryCooldown({ editor, endpoint, map, ol: deps.ol, button: runButton, isBusy: () => busy });
-  const cfg = $("cfg");
-  const cfgToggle = $("cfgToggle");
-  cfgToggle.onclick = () => {
-    closePresets();
-    const expanded = cfg.hidden;
-    cfg.hidden = !expanded;
-    cfgToggle.setAttribute("aria-expanded", String(expanded));
-  };
-  const closeConfig = () => {
-    cfg.hidden = true;
-    cfgToggle.setAttribute("aria-expanded", "false");
-  };
+  cfgToggle.onclick = () => togglePanel(panels[1]);
   document.addEventListener("pointerdown", (event) => {
-    if (!presetPanel.hidden && !presetPanel.contains(event.target) && !presetToggle.contains(event.target)) closePresets();
-    if (!cfg.hidden && !cfg.contains(event.target) && !cfgToggle.contains(event.target)) closeConfig();
+    for (const item of panels) if (!item.panel.hidden && !item.panel.contains(event.target) && !item.toggle.contains(event.target)) closePanel(item);
   });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
-    if (!presetPanel.hidden) { closePresets(); presetToggle.focus(); }
-    if (!cfg.hidden) { closeConfig(); cfgToggle.focus(); }
+    for (const item of panels) if (!item.panel.hidden) {
+      closePanel(item);
+      item.toggle.focus();
+    }
   });
   const app = document.querySelector(".app");
   const splitter = $("sidebarResize");
