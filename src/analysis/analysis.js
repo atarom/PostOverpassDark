@@ -21,9 +21,9 @@ export const numericValue = (value) => {
   return Number.isFinite(number) ? number : NaN;
 };
 const own = (value, key) => Boolean(key) && Object.prototype.hasOwnProperty.call(value, key);
-const tagValueParts = (value, mode = "value") => {
+export const tagValueParts = (value, mode = "value") => {
   const raw = textValue(value);
-  return mode === "word" ? raw.normalize("NFC").toLocaleLowerCase("es").normalize("NFC").match(/\p{L}[\p{L}\p{M}\p{N}]*/gu) || [] : mode === "semicolon" ? raw.split(";").map((item) => item.trim()).filter(Boolean) : [raw];
+  return mode === "word" ? raw.normalize("NFC").match(/\p{L}[\p{L}\p{M}\p{N}]*/gu) || [] : mode === "semicolon" ? raw.split(";").map((item) => item.trim()).filter(Boolean) : [raw];
 };
 export const matchesTagValue = (tags, key, selectedValue, mode = "value") => own(tags, key) && tagValueParts(tags[key], mode).includes(selectedValue);
 const analyzeCollection = (collection) => {

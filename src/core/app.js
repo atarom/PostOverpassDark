@@ -8,7 +8,7 @@ import { readResponseJson, parseResponse, responseError, errorStatusHtml, update
 import { purgeResponseBatch } from "../query/purge-batch.js";
 import { createMapController } from "../map/map.js";
 import { createUI } from "../ui/ui.js";
-import { createAnalysis, featureTags, matchesTagValue } from "../analysis/analysis.js";
+import { createAnalysis, featureTags, matchesTagValue, tagValueParts } from "../analysis/analysis.js";
 import { createResultsList } from "../ui/results-list.js";
 import { createJosmExporter } from "../export/josm-export.js";
 import { createIdsToPod } from "../export/ids-to-pod.js";
@@ -654,8 +654,7 @@ const initializeApp = (deps) => {
         for (const feature of currentGeo.features) {
           const tags = featureTags(feature);
           if (!Object.prototype.hasOwnProperty.call(tags, previous.selectedKey)) continue;
-          const raw = String(tags[previous.selectedKey] ?? "").trim();
-          const parts = previous.countMode === "word" ? raw.normalize("NFC").toLocaleLowerCase("es").normalize("NFC").match(/\p{L}[\p{L}\p{M}\p{N}]*/gu) || [] : previous.countMode === "semicolon" ? raw.split(";").map((part) => part.trim()).filter(Boolean) : [raw];
+          const parts = tagValueParts(tags[previous.selectedKey], previous.countMode);
           for (const part of parts) counts.set(part, (counts.get(part) || 0) + 1);
         }
         const ordered = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "es"));
