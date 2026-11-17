@@ -45,7 +45,7 @@ export const createValueCopier = ({ label, getContext }) => {
     const title = `${key} (${total.toLocaleString("es-ES")} elementos, ${rows.length.toLocaleString("es-ES")} ${kind})`;
     const content = format.value === "markdown"
       ? `${title}\n\n| ${markdownCell(key)} | Cantidad |\n| --- | ---: |\n${rows.map(([value, count]) => `| ${markdownCell(value)} | ${count.toLocaleString("es-ES")} |`).join("\n")}`
-      : `${title}\n${rows.map(([value, count]) => `- ${displayValue(value)}: ${count.toLocaleString("es-ES")}`).join("\n")}`;
+      : `${title}\n${rows.map(([value, count]) => `- (${count.toLocaleString("es-ES")}) ${displayValue(value)}`).join("\n")}`;
     resetFeedback();
     try {
       await navigator.clipboard.writeText(content);
