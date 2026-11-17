@@ -8,7 +8,7 @@ import { readResponseJson, parseResponse, responseError, errorStatusHtml, update
 import { purgeResponseBatch } from "../query/purge-batch.js";
 import { createMapController } from "../map/map.js";
 import { createUI } from "../ui/ui.js";
-import { createAnalysis, featureTags, matchesTagValue, tagValueParts } from "../analysis/analysis.js";
+import { createAnalysis, featureTags, matchesTagValue, countTagValues } from "../analysis/analysis.js";
 import { createResultsList } from "../ui/results-list.js";
 import { createJosmExporter } from "../export/josm-export.js";
 import { createIdsToPod } from "../export/ids-to-pod.js";
@@ -650,14 +650,7 @@ const initializeApp = (deps) => {
       analysisElements.numericMinValue.value = analysisElements.numericMin.value;
       analysisElements.numericMaxValue.value = analysisElements.numericMax.value;
       if (previous.selectedValue !== null && previous.selectedKey === analysis.options().selectedKey) {
-        const counts = new Map();
-        for (const feature of currentGeo.features) {
-          const tags = featureTags(feature);
-          if (!Object.prototype.hasOwnProperty.call(tags, previous.selectedKey)) continue;
-          const parts = tagValueParts(tags[previous.selectedKey], previous.countMode);
-          for (const part of parts) counts.set(part, (counts.get(part) || 0) + 1);
-        }
-        const ordered = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "es"));
+        const ordered = countTagValues(currentGeo, previous.selectedKey, previous.countMode);
         const position = ordered.findIndex(([value]) => value === previous.selectedValue);
         if (position >= 0) {
           const button = document.createElement("button");

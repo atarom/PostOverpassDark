@@ -1,7 +1,7 @@
 import { esc, val, DEFAULT_HEAT } from "../core/utils.js";
 import { featureTags, matchesTagValue, numericValue, compilePatterns } from "../analysis/analysis.js";
+import { getOsmReference } from "../export/osm-identifiers.js";
 import { ShaderBuilder } from "https://cdn.jsdelivr.net/npm/ol@10.11.0/render/webgl/ShaderBuilder.js/+esm";
-const TYPES = { N: "node", W: "way", R: "relation", node: "node", way: "way", relation: "relation" };
 const COLORS = { default: ["#355f8d", "#3f8f9c", "#79b88d", "#d6b56d", "#e58b68", "#ef5d72"], warm: ["#72543b", "#a26c43", "#d1924f", "#e6b95f", "#ef8262", "#ef4e5d"], cool: ["#324a7a", "#326b98", "#3f98a7", "#63b7a8", "#88d0b4", "#d3f0c0"], fire: ["#3a173d", "#7d2450", "#bd3a45", "#e96d3e", "#f5b747", "#fff2a1"] };
 const hexPacked = (value) => {
   const match = /^#([\da-f]{6})$/i.exec(value || "");
@@ -10,18 +10,6 @@ const hexPacked = (value) => {
 const entries = (obj) => obj && typeof obj === "object" && !Array.isArray(obj) ? Object.entries(obj).filter(([, value]) => value != null) : [];
 const rows = (items) => items.sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `<div class="tr"><div class="tk">${esc(key)}</div><div class="tv">${esc(val(value))}</div></div>`).join("");
 const section = (title, cls, items) => items.length ? `<section class="ps ${cls}"><div class="psh">${title}</div>${rows(items)}</section>` : "";
-const oid = (feature) => {
-  const p = feature.properties || {};
-  let type = TYPES[p.osm_type] || TYPES[p.type] || "";
-  let id = type && (p.osm_id ?? p.id) != null ? String(p.osm_id ?? p.id) : "";
-  if (!type || !id) {
-    for (const value of [p.osm_url, feature.id, p["@id"], p.id]) {
-      const match = String(value || "").match(/(?:https?:\/\/(?:www\.)?openstreetmap\.org\/)?(node|way|relation)[/:](\d+)$/i) || String(value || "").match(/^([nwr])(\d+)$/i);
-      if (match) { type = TYPES[{ n: "N", w: "W", r: "R" }[match[1]] || match[1]]; id = match[2]; break; }
-    }
-  }
-  return { type, id, short: { node: "n", way: "w", relation: "r" }[type] || "" };
-};
 const popupIcon = (shape) => `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${shape}</svg>`;
 const POPUP_ICONS = {
   osm: popupIcon('<circle cx="10.5" cy="10.5" r="6.3"/><path d="m15.2 15.2 5.2 5.2"/>'),
@@ -34,7 +22,7 @@ const POPUP_ICONS = {
 const popupHtml = (feature) => {
   const p = feature.properties || {};
   const tags = featureTags(feature);
-  const { type, id, short } = oid(feature);
+  const { type = "", id = "", short = "" } = getOsmReference(feature) || {};
   const relationData = p["@relations"] ?? p.relations;
   const relations = Array.isArray(relationData) ? relationData.map((entry, index) => [String(index + 1), entry]) : entries(relationData);
   const meta = [...entries(p.meta), ...Object.entries(p).filter(([key, value]) => value != null && key !== "_podColor" && (p.tags ? !["tags", "relations", "meta", "@id", "id", "type"].includes(key) : key.startsWith("@") && !["@id", "@relations"].includes(key)))];

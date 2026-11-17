@@ -26,6 +26,15 @@ export const tagValueParts = (value, mode = "value") => {
   return mode === "word" ? raw.normalize("NFC").match(/\p{L}[\p{L}\p{M}\p{N}]*/gu) || [] : mode === "semicolon" ? raw.split(";").map((item) => item.trim()).filter(Boolean) : [raw];
 };
 export const matchesTagValue = (tags, key, selectedValue, mode = "value") => own(tags, key) && tagValueParts(tags[key], mode).includes(selectedValue);
+export const countTagValues = (collection, selected, mode = "value") => {
+  const counts = new Map();
+  for (const feature of collection?.features || []) {
+    const tags = featureTags(feature);
+    if (!own(tags, selected)) continue;
+    for (const item of tagValueParts(tags[selected], mode)) counts.set(item, (counts.get(item) || 0) + 1);
+  }
+  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "es"));
+};
 const analyzeCollection = (collection) => {
   const counts = new Map();
   const numeric = new Map();
@@ -103,17 +112,6 @@ export const createAnalysis = ({ elements, onChange, onPurge, getShapeReference 
     used.add(color);
     return color;
   };
-  const valueCounts = () => {
-    const selected = key.value;
-    const counts = new Map();
-    for (const feature of collection.features || []) {
-      const tags = featureTags(feature);
-      if (!own(tags, selected)) continue;
-      const list = tagValueParts(tags[selected], countMode.value);
-      for (const item of list) counts.set(item, (counts.get(item) || 0) + 1);
-    }
-    return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "es"));
-  };
   const virtualValues = createVirtualValues({ root: values, onPurge: (value) => onPurge?.({ key: key.value, value, mode: countMode.value }), onSelect: (next) => {
     selectedValue = next;
     if (selectedValue !== null) regexEnable.checked = false;
@@ -121,7 +119,7 @@ export const createAnalysis = ({ elements, onChange, onPurge, getShapeReference 
     emit();
   } });
   const renderValues = () => {
-    const counts = valueCounts();
+    const counts = countTagValues(collection, key.value, countMode.value);
     valuesLabel.textContent = countMode.value === "word" ? "Palabras únicas" : "Valores únicos";
     virtualValues.setData(counts, selectedValue, countMode.value === "word" ? "Sin palabras." : "Sin valores.");
     valueCopier.setRows(counts);

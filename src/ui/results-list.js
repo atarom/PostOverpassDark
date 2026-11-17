@@ -1,6 +1,7 @@
 import { featureTags, numericValue } from "../analysis/analysis.js";
 import { shapeReason } from "../analysis/shape-analysis.js";
 import { createIdsExporter } from "../export/ids-export.js";
+import { getOsmReference } from "../export/osm-identifiers.js";
 const HEIGHT = 48;
 const OVERSCAN = 5;
 const format = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 });
@@ -9,8 +10,9 @@ const labelOf = (feature) => {
   const p = feature?.properties || {};
   const tags = featureTags(feature);
   const name = tags.name || tags["name:ca"] || tags["name:es"] || tags.ref || fallback(tags);
-  const type = { W: "way", R: "relation", N: "node" }[p.osm_type] || p.osm_type || p.type || "";
-  const id = p.osm_id ?? p.id ?? feature.id ?? "";
+  const reference = getOsmReference(feature);
+  const type = reference?.type || p.osm_type || p.type || "";
+  const id = reference?.id ?? p.osm_id ?? p.id ?? feature.id ?? "";
   const ref = String(id).includes("/") ? String(id) : type && id !== "" ? `${type}/${id}` : String(id);
   return { name: String(name), ref };
 };

@@ -1,24 +1,30 @@
 const TYPES = ["node", "way", "rel"];
-const TYPE = { N: "node", W: "way", R: "rel", n: "node", w: "way", r: "rel", node: "node", way: "way", relation: "rel", rel: "rel" };
-export const getIdentifier = (feature) => {
+const TYPE = Object.assign(Object.create(null), { N: "node", W: "way", R: "relation", n: "node", w: "way", r: "relation", node: "node", way: "way", relation: "relation", rel: "relation" });
+export const normalizeOsmType = (value) => {
+  const raw = String(value ?? "").trim();
+  return TYPE[raw] || TYPE[raw.toLowerCase()] || "";
+};
+export const getOsmReference = (feature, numericOnly = false) => {
   const properties = feature?.properties || feature || {};
-  const rawType = String(properties.osm_type ?? "").trim();
-  const fallbackType = String(properties.type ?? "").trim();
-  let type = TYPE[rawType] || TYPE[rawType.toLowerCase()] || TYPE[fallbackType] || TYPE[fallbackType.toLowerCase()];
-  let id = properties.osm_id ?? properties.id;
-  if (!type || !/^\d+$/.test(String(id ?? ""))) {
+  let type = normalizeOsmType(properties.osm_type) || normalizeOsmType(properties.type);
+  let id = type && (properties.osm_id ?? properties.id) != null ? String(properties.osm_id ?? properties.id) : "";
+  if (!type || !id || numericOnly && !/^\d+$/.test(id)) {
     for (const value of [properties.osm_url, feature?.id, properties["@id"], properties.id]) {
       const source = String(value ?? "");
       const match = source.match(/(node|way|relation)[/:](\d+)$/i) || source.match(/^([nwr])(\d+)$/i);
       if (!match) continue;
-      type = TYPE[match[1].toLowerCase()];
+      type = normalizeOsmType(match[1]);
       id = match[2];
       break;
     }
   }
-  if (!type || !/^\d+$/.test(String(id ?? ""))) return null;
-  const number = Number(id);
-  return Number.isSafeInteger(number) && number > 0 ? { type, id: number } : null;
+  return type && id ? { type, id, short: type[0] } : null;
+};
+export const getIdentifier = (feature) => {
+  const reference = getOsmReference(feature, true);
+  if (!reference || !/^\d+$/.test(reference.id)) return null;
+  const id = Number(reference.id);
+  return Number.isSafeInteger(id) && id > 0 ? { type: reference.type === "relation" ? "rel" : reference.type, id } : null;
 };
 export const collectOsmIds = (features, enabled = { node: true, way: true, rel: true }) => {
   const sets = { node: new Set(), way: new Set(), rel: new Set() };

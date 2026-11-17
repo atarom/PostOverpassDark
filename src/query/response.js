@@ -1,14 +1,11 @@
 import { esc } from "../core/utils.js";
+import { normalizeOsmType } from "../export/osm-identifiers.js";
 export const OSM_TYPES = ["node", "way", "relation"];
 const originalPostpass = new WeakMap();
 export const originalPostpassGeoJSON = (geo) => geo && originalPostpass.get(geo) || null;
 export const updateOriginalPostpassGeoJSON = (geo, raw) => { if (geo) originalPostpass.set(geo, raw); };
-const PP_TYPES = { N: "node", W: "way", R: "relation", node: "node", way: "way", relation: "relation" };
-const postpassType = (properties) => {
-  const raw = String(properties.osm_type || properties.type || "").trim();
-  return PP_TYPES[raw] || PP_TYPES[raw.toUpperCase()];
-};
-const countElements = (elements) => {
+const postpassType = (properties) => normalizeOsmType(properties.osm_type || properties.type);
+export const countOsmPairs = (elements) => {
   const count = { node: 0, way: 0, relation: 0, total: 0 };
   const seen = new Set();
   for (const [type, id] of elements) {
@@ -21,8 +18,8 @@ const countElements = (elements) => {
   }
   return count;
 };
-const count = (value) => countElements(value?.nodeType ? [...value.querySelectorAll("node,way,relation")].map((element) => [element.localName, element.getAttribute("id")]) : (Array.isArray(value?.elements) ? value.elements : Array.isArray(value) ? value : []).map(({ type, id }) => [type, id]));
-const countPostpass = (geo) => countElements((geo.features || []).map((feature) => {
+const count = (value) => countOsmPairs(value?.nodeType ? [...value.querySelectorAll("node,way,relation")].map((element) => [element.localName, element.getAttribute("id")]) : (Array.isArray(value?.elements) ? value.elements : Array.isArray(value) ? value : []).map(({ type, id }) => [type, id]));
+const countPostpass = (geo) => countOsmPairs((geo.features || []).map((feature) => {
   const properties = feature.properties || {};
   return [postpassType(properties), properties.osm_id ?? properties.id];
 }));
