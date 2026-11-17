@@ -1,0 +1,11 @@
+.analysis-values-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:8px 0 6px; }
+.analysis-values-heading #analysisValuesLabel { min-width:0; margin:0; }
+.analysis-values-actions { display:inline-flex; flex-shrink:0; align-items:center; gap:4px; }
+.analysis-values-actions button, .analysis-values-actions select { width:auto; min-height:28px; margin:0; padding:4px 6px; font-size:11px; }
+.analysis-values-actions button[data-state="success"] { color:var(--ok); }
+.analysis-values-actions button[data-state="error"] { color:var(--d); }
+@media (max-width: 420px) {
+  .analysis-values-heading { gap:4px; }
+  .analysis-values-actions { gap:3px; }
+  .analysis-values-actions button, .analysis-values-actions select { padding:4px; font-size:10px; }
+}

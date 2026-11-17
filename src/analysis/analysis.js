@@ -1,4 +1,5 @@
 import { createVirtualValues } from "./virtual-values.js";
+import { createValueCopier } from "./copy-values.js";
 import { createNumericHistogram } from "./numeric-histogram.js";
 import { createGeometryAnalysis } from "./geometry-analysis.js";
 import { createOutlierAnalysis } from "./outlier-analysis.js";
@@ -89,6 +90,7 @@ export const createAnalysis = ({ elements, onChange, getShapeReference }) => {
   valuesLabel.classList.add("analysis-box");
   let collection = { type: "FeatureCollection", features: [] };
   let info = { keys: [], numericKeys: [] };
+  const valueCopier = createValueCopier({ label: valuesLabel, getContext: () => ({ key: key.value, total: info.keys.find(([name]) => name === key.value)?.[1] || 0, mode: countMode.value }) });
   let colors = {};
   let selectedValue = null;
   let timer;
@@ -120,6 +122,7 @@ export const createAnalysis = ({ elements, onChange, getShapeReference }) => {
     const counts = valueCounts();
     valuesLabel.textContent = countMode.value === "word" ? "Palabras únicas" : "Valores únicos";
     virtualValues.setData(counts, selectedValue, countMode.value === "word" ? "Sin palabras." : "Sin valores.");
+    valueCopier.setRows(counts);
     valueTools.hidden = selectedValue === null;
     summary.textContent = `${collection.features.length.toLocaleString("es-ES")} entidades · ${info.keys.length.toLocaleString("es-ES")} keys · ${counts.length.toLocaleString("es-ES")} ${countMode.value === "word" ? "palabras" : "valores"}`;
   };
@@ -419,6 +422,7 @@ export const createAnalysis = ({ elements, onChange, getShapeReference }) => {
     key.replaceChildren();
     numericKey.replaceChildren();
     virtualValues.setData([], null, "Sin datos.");
+    valueCopier.setRows([]);
     summary.textContent = "Ejecuta una consulta para analizar sus tags.";
     renderRegex();
     numericEnable.checked = false;
