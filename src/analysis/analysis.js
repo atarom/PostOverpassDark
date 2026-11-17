@@ -1,4 +1,5 @@
 import { createVirtualValues } from "./virtual-values.js";
+import { createKeyPurge } from "./purge-controls.js";
 import { createValueCopier } from "./copy-values.js";
 import { createNumericHistogram } from "./numeric-histogram.js";
 import { createGeometryAnalysis } from "./geometry-analysis.js";
@@ -52,9 +53,10 @@ export const compilePatterns = (raw, insensitive) => splitRegexPatterns(raw).fla
     return [];
   }
 });
-export const createAnalysis = ({ elements, onChange, getShapeReference }) => {
+export const createAnalysis = ({ elements, onChange, onPurge, getShapeReference }) => {
   const { key, onlyKey, countMode, values, valueTools, valueSelectedColor, valueOtherColor, valueHideOthers, summary, numericEnable, numericKey, numericErrors, numericMin, numericMax, numericMinValue, numericMaxValue, regexEnable, regexText: regexInput, regexInsensitive, regexOnly, regexColors, reset } = elements;
   const regexText = regexInput;
+  createKeyPurge({ select: key, onPurge: (name) => onPurge?.({ key: name }) });
   const compactLabel = (input, value) => {
     const label = input.closest("label");
     const text = [...label.childNodes].find((node) => node.nodeType === 3);
@@ -112,7 +114,7 @@ export const createAnalysis = ({ elements, onChange, getShapeReference }) => {
     }
     return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "es"));
   };
-  const virtualValues = createVirtualValues({ root: values, onSelect: (next) => {
+  const virtualValues = createVirtualValues({ root: values, onPurge: (value) => onPurge?.({ key: key.value, value, mode: countMode.value }), onSelect: (next) => {
     selectedValue = next;
     if (selectedValue !== null) regexEnable.checked = false;
     valueTools.hidden = selectedValue === null;

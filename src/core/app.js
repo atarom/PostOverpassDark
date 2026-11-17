@@ -4,10 +4,11 @@ import { storage } from "./storage.js";
 import { createOverpassRequester } from "../query/overpass-de-request.js";
 import { createEditor } from "../query/editor.js";
 import { createQueryPreparer, isPostpassTextOnly } from "../query/query.js";
-import { readResponseJson, parseResponse, responseError, errorStatusHtml, purgeResponseRaw, updateOriginalPostpassGeoJSON, OSM_TYPES } from "../query/response.js";
+import { readResponseJson, parseResponse, responseError, errorStatusHtml, updateOriginalPostpassGeoJSON, OSM_TYPES } from "../query/response.js";
+import { purgeResponseBatch } from "../query/purge-batch.js";
 import { createMapController } from "../map/map.js";
 import { createUI } from "../ui/ui.js";
-import { createAnalysis, featureTags } from "../analysis/analysis.js";
+import { createAnalysis, featureTags, matchesTagValue } from "../analysis/analysis.js";
 import { createResultsList } from "../ui/results-list.js";
 import { createJosmExporter } from "../export/josm-export.js";
 import { createIdsToPod } from "../export/ids-to-pod.js";
@@ -423,7 +424,7 @@ const initializeApp = (deps) => {
   const groupNodes = (names, prefix = "") => Object.fromEntries(names.split(" ").map((name) => [name, $(prefix ? prefix + name[0].toUpperCase() + name.slice(1) : name)]));
   const analysisElements = { ...groupNodes("key onlyKey countMode values valueTools valueSelectedColor valueOtherColor valueHideOthers summary", "analysis"), ...groupNodes("numericEnable numericKey numericErrors numericMin numericMax numericMinValue numericMaxValue regexEnable regexText regexInsensitive regexOnly regexColors"), reset: $("analysisReset") };
   let resultsList = null;
-  const analysis = createAnalysis({ elements: analysisElements, getShapeReference: () => mapController.getShapeReference(), onChange: (options) => { mapController.applyFilters(options); resultsList?.refresh(options); analysis.refreshShapeReference(options); } });
+  const analysis = createAnalysis({ elements: analysisElements, getShapeReference: () => mapController.getShapeReference(), onPurge: ({ key, value, mode }) => purgeByTag(key, value, mode), onChange: (options) => { mapController.applyFilters(options); resultsList?.refresh(options); analysis.refreshShapeReference(options); } });
   mapController.onResultsChanged(() => { resultsList.refresh(analysis.options()); analysis.refreshShapeReference(analysis.options(), true); });
   let selectedResultIndex = null;
   let currentGeo = null;
@@ -611,34 +612,39 @@ const initializeApp = (deps) => {
     ui.log(done);
     ui.overlayDone();
   };
-  mapController.onPurge((index) => {
-    if (!currentGeo || !currentResult || busy) return;
-    const item = getIdentifier(currentGeo.features[index]);
-    if (!item) return;
-    const type = item.type === "rel" ? "relation" : item.type;
-    const id = String(item.id);
+  const purgeItems = (selected, description) => {
+    if (!currentGeo || !currentResult || busy || !selected.length) return;
+    const identifiers = new Map();
+    const requested = new Set(selected);
+    for (const index of selected) {
+      const item = getIdentifier(currentGeo.features[index]);
+      if (item) identifiers.set(`${item.type}/${item.id}`, item);
+    }
     const indices = [];
     for (let i = 0; i < currentGeo.features.length; i++) {
-      const match = getIdentifier(currentGeo.features[i]);
-      if (match?.type === item.type && match.id === item.id) indices.push(i);
+      const item = getIdentifier(currentGeo.features[i]);
+      if ((currentPostpass && requested.has(i)) || (item && identifiers.has(`${item.type}/${item.id}`))) indices.push(i);
     }
     if (!indices.length) return;
     indices.reverse();
     try {
-      const updated = purgeResponseRaw(currentResult.raw, currentPostpass ? "postpass" : "overpass", type, id, indices);
-      if (!currentPostpass && !updated.removed) throw Error("El objeto no figura en la respuesta original");
+      const updated = purgeResponseBatch(currentResult.raw, currentPostpass, [...identifiers.values()], indices);
+      if (!currentPostpass && !updated.removed) throw Error("Los objetos no figuran en la respuesta original");
       currentResult.raw = updated.raw;
-      for (const position of indices) currentGeo.features.splice(position, 1);
+      currentResult.cnt = updated.cnt;
+      if (indices.length > 100) {
+        const excluded = new Set(indices);
+        currentGeo.features = currentGeo.features.filter((feature, index) => !excluded.has(index));
+      } else for (const position of indices) currentGeo.features.splice(position, 1);
       if (currentPostpass) updateOriginalPostpassGeoJSON(currentGeo, updated.raw);
-      const included = currentPostpass ? Boolean(currentResult.cnt[type] && currentResult.cnt.total) : updated.removed > 0;
-      if (included && currentResult.cnt[type] > 0) { currentResult.cnt[type]--; currentResult.cnt.total--; }
       const previous = analysis.options();
       const numericRange = [analysisElements.numericMin.value, analysisElements.numericMax.value];
       const geometryToggle = document.querySelector(".pod-geometry summary input[type=checkbox]");
       const geometryRange = [...document.querySelectorAll(".pod-geometry input[type=range]")];
       const geometryValues = geometryRange.map((input) => input.value);
       const geometryWasActive = Boolean(geometryToggle?.checked);
-      mapController.purge(indices);
+      if (indices.length > 100) mapController.draw(currentGeo, { fitBounds: false, filters: previous });
+      else mapController.purge(indices);
       analysis.setData(currentGeo, true);
       for (const [input, old] of [[analysisElements.numericMin, numericRange[0]], [analysisElements.numericMax, numericRange[1]]]) if (Number.isFinite(Number(old))) input.value = String(Math.max(Number(input.min), Math.min(Number(input.max), Number(old))));
       analysisElements.numericMinValue.value = analysisElements.numericMin.value;
@@ -679,11 +685,26 @@ const initializeApp = (deps) => {
       idsToPod.setData(loaded);
       overpassRequester.clearCache();
       ui.setStatus(statusForGeo(currentResult, currentPostpass).summary, "ok");
-      ui.log(`Purgado de POD: ${type}/${id}`);
+      ui.log(`Purgado de POD: ${description} · ${indices.length} entidades GeoJSON · ${updated.removed} objetos de la respuesta`);
     } catch (error) {
       ui.setStatus(`<strong>No se pudo purgar</strong><br>${esc(error.message || String(error))}`, "err");
     }
+  };
+  mapController.onPurge((index) => {
+    const feature = currentGeo?.features[index];
+    const identifier = getIdentifier(feature);
+    if (!identifier) return;
+    purgeItems([index], `${identifier.type}/${identifier.id}`);
   });
+  const purgeByTag = (key, value, mode = "value") => {
+    if (!currentGeo || !currentResult || busy || !key) return;
+    const indices = [];
+    for (let i = 0; i < currentGeo.features.length; i++) {
+      const tags = featureTags(currentGeo.features[i]);
+      if (value === undefined ? Object.prototype.hasOwnProperty.call(tags, key) : matchesTagValue(tags, key, value, mode)) indices.push(i);
+    }
+    purgeItems(indices, value === undefined ? `key ${key}` : `${key}=${value || "(vacío)"}`);
+  };
   const run = async () => {
     if (busy || cooldown.locked()) return;
     const runId = ++runSeq;

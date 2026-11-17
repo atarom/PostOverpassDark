@@ -1,5 +1,6 @@
+import { purgeIcon } from "./purge-controls.js";
 const OVERSCAN = 6;
-export const createVirtualValues = ({ root, onSelect }) => {
+export const createVirtualValues = ({ root, onSelect, onPurge }) => {
   let rows = [];
   let selected = null;
   let heights = [];
@@ -48,7 +49,18 @@ export const createVirtualValues = ({ root, onSelect }) => {
     label.className = "analysis-value-text";
     label.textContent = value || "(vacío)";
     button.append(amount, label);
-    return button;
+    const purge = document.createElement("button");
+    purge.type = "button";
+    purge.className = "pod-purge-action";
+    purge.dataset.index = String(index);
+    purge.title = `Purgar objetos con el valor ${value || "(vacío)"}`;
+    purge.setAttribute("aria-label", purge.title);
+    purge.innerHTML = purgeIcon;
+    const row = document.createElement("div");
+    row.className = "analysis-value-row";
+    row.dataset.index = String(index);
+    row.append(button, purge);
+    return row;
   };
   const measured = new ResizeObserver((entries) => {
     let changed = false;
@@ -81,8 +93,9 @@ export const createVirtualValues = ({ root, onSelect }) => {
       if (end - start > 80) { start = Math.max(0, focus - 10); end = Math.min(rows.length, focus + 12); }
     }
     if (start !== first || end !== last) {
-      const existing = new Map([...root.querySelectorAll(".analysis-value")].map((button) => [Number(button.dataset.index), button]));
-      const active = root.contains(document.activeElement) ? Number(document.activeElement.dataset.index) : -1;
+      const existing = new Map([...root.querySelectorAll(".analysis-value-row")].map((row) => [Number(row.dataset.index), row]));
+      const activeRow = root.contains(document.activeElement) ? document.activeElement.closest(".analysis-value-row") : null;
+      const active = activeRow ? Number(activeRow.dataset.index) : -1;
       if (root.firstElementChild !== upper) root.replaceChildren(upper, lower);
       for (const [index, button] of existing) if (index < start || index >= end) { measured.unobserve(button); button.remove(); }
       let reference = lower;
@@ -115,6 +128,12 @@ export const createVirtualValues = ({ root, onSelect }) => {
   };
   root.addEventListener("scroll", schedule, { passive: true });
   root.addEventListener("click", (event) => {
+    const purge = event.target.closest(".pod-purge-action");
+    if (purge && root.contains(purge)) {
+      const value = rows[Number(purge.dataset.index)]?.[0];
+      if (value !== undefined) onPurge?.(value);
+      return;
+    }
     const button = event.target.closest(".analysis-value");
     if (!button || !root.contains(button)) return;
     const value = rows[Number(button.dataset.index)]?.[0];
