@@ -24,7 +24,7 @@ export const createOverpassRequester = (storage) => {
     if (lastRequest + MIN_INTERVAL_MS > now) throw Error(`Overpass: espera ${Math.ceil((lastRequest + MIN_INTERVAL_MS - now) / 1000)} s antes de otra consulta.`);
     storage.setItem(KEY + ":last-request", String(now));
     const referrer = location.protocol === "https:" ? new URL(".", location.href).href : "about:client";
-    const response = await fetch(url, { ...options, referrer, referrerPolicy: "no-referrer-when-downgrade" });
+    const response = await fetch(url, { ...options, referrer, referrerPolicy: "strict-origin-when-cross-origin" });
     if (response.status === 429 || response.status === 406) storage.setItem(KEY + ":blocked-until", String(Date.now() + BACKOFF_MS));
     return { status: response.status, statusText: response.statusText, contentType: response.headers.get("content-type") || "", text: await response.text() };
   };
