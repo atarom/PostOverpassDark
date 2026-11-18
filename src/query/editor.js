@@ -354,7 +354,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
         [{ label: "{{bbox}}", type: "constant", detail: "BBox actual" }],
         /^[^\]]*$/
       ],
-      [/\[\s*([A-Za-z_]*)$/i, COMP.settings],
+      [/^\s*\[\s*([A-Za-z_]*)$/i, COMP.settings],
       [/\bout\s+([A-Za-z_]*)$/i, COMP.out],
       [/\blocal\s+([A-Za-z_]*)$/i, COMP.local],
       [/\bconvert\s+([A-Za-z_]*)$/i, COMP.convert],
@@ -411,6 +411,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       const x = tail(rx, o, v);
       if (x) return x;
     }
+    if (/\[[^\[\]]*$/.test(doc.slice(0, ctx.pos))) return null;
     if (
       /\b(?:node|way|relation|rel|nw|nr|wr|nwr|area)(?:\.[A-Za-z_][\w-]*)+\.[A-Za-z_]*$/i.test(
         text
