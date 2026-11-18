@@ -99,9 +99,9 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
         return z.k === "key" ? "tagkey" : "tagvalue";
       }
       if (s.match(/-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+|Mi)?/i))
-        return z.b === "tag" ? (z.k === "key" ? "tagkey" : "tagvalue") : "number";
+        return z.b === "tag" && z.k === "key" ? "tagkey" : "number";
       if (s.match(/->|::|!~|!=|==|<=|>=|&&|\|\||[=~<>+\-*\/!?]/)) {
-        if (z.b === "tag" && /^(?:=|!=|~|!~)$/.test(s.current()) && (z.h || s.current() !== "~")) z.k = "value";
+        if (z.b === "tag" && /^(?:=|==|!=|~|!~|<|>|<=|>=)$/.test(s.current()) && (z.h || s.current() !== "~")) z.k = "value";
         return "operator";
       }
       if (s.peek() === "." && /[A-Za-z_]/.test(s.string[s.pos + 1])) {
