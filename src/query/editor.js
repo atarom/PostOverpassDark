@@ -105,7 +105,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       }
       if (s.match(/[A-Za-z_][\w-]*/)) {
         const w = s.current().toLowerCase();
-        if (s.current() === "i" && /\[\s*"(?:\\.|[^"\\])*"\s*!?~\s*"(?:\\.|[^"\\])*"\s*,\s*$/.test(s.string.slice(0, s.start))) return "keyword";
+        if (s.current() === "i" && /\[\s*(?:"(?:\\.|[^"\\])*"|[A-Za-z_][\w:-]*)\s*!?~\s*(?:"(?:\\.|[^"\\])*"|[A-Za-z_][\w:-]*)\s*,\s*$/.test(s.string.slice(0, s.start))) return "keyword";
         if (
           (z.x === "out" && OUT.has(w)) ||
           (z.x === "local" && LOCAL.has(w)) ||
@@ -344,7 +344,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
     const selector = String.raw`\b(?:node|way|relation|rel|nw|nr|wr|nwr)(?:\.[A-Za-z_][\w-]*)*(?:\[[^\]]*\]|\([^)]*\))*`;
     const rules = [
       [/\{\{([^{}]*)$/, macroOpts(), /^[^{}]*$/],
-      [/\[\s*"(?:\\.|[^"\\])*"\s*!?~\s*"(?:\\.|[^"\\])*"\s*,\s*(i?)$/i, [{ label: "i", type: "keyword", detail: "Ignorar mayúsculas/minúsculas" }], /^i?$/i],
+      [/\[\s*(?:"(?:\\.|[^"\\])*"|[A-Za-z_][\w:-]*)\s*!?~\s*(?:"(?:\\.|[^"\\])*"|[A-Za-z_][\w:-]*)\s*,\s*(i?)$/i, [{ label: "i", type: "keyword", detail: "Ignorar mayúsculas/minúsculas" }], /^i?$/i],
       [/\[\s*out\s*:\s*([A-Za-z_]*)$/i, COMP.format],
       [/\[\s*maxsize\s*:\s*([0-9A-Za-z]*)$/i, COMP.maxsize, /^[0-9A-Za-z]*$/],
       [/\[\s*timeout\s*:\s*(\d*)$/i, COMP.timeout, /^\d*$/],
