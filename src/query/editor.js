@@ -169,7 +169,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       [t.string, "#b5dc9f"],
       [t.special(t.propertyName), "#ff79c6"],
       [t.special(t.string), "#efc17e"],
-      [t.meta, "#dbc18e"]
+      [t.meta, "#bd93f9"]
     ].map(([tag, color]) => ({ tag, color }))
   );
   const sqlColors = HighlightStyle.define([
