@@ -107,9 +107,9 @@ if (endpoint) {
 .custom-endpoints-body { margin-top: 10px; }
 .custom-endpoints-body[hidden] { display: none; }
 .custom-endpoints-list { display: grid; gap: 5px; margin-bottom: 10px; max-height: 180px; overflow-y: auto; }
-.custom-endpoints-row { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid var(--b); }
-.custom-endpoints-row span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
-.custom-endpoints-row button { flex-shrink: 0; cursor: pointer; }
+.custom-endpoints-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid var(--b); }
+.custom-endpoints-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.custom-endpoints-row button { width: auto; padding: 6px 8px; font-size: 12px; cursor: pointer; }
 .custom-endpoints-form { display: grid; gap: 8px; }
 .custom-endpoints-form label { display: grid; gap: 4px; }
 .custom-endpoints-form input { box-sizing: border-box; width: 100%; padding: 9px 10px; border: 1px solid var(--b); border-radius: var(--r); background: var(--p2); color: var(--t); font: inherit; }
