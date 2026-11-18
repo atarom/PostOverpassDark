@@ -160,7 +160,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       [t.bool, "#d2c3a0"],
       [t.number, "#92c9bb"],
       [t.variableName, "#e7a18b"],
-      [t.special(t.variableName), "#99d3ba"],
+      [t.special(t.variableName), "#66b3ff"],
       [t.constant(t.variableName), "#dbb579"],
       [t.standard(t.variableName), "#92c5ae"],
       [t.operator, "#b9cabc"],
