@@ -70,8 +70,8 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
     "ST_Intersects ST_Contains ST_Within ST_DWithin ST_Distance ST_Length ST_Area ST_Centroid ST_PointOnSurface ST_Buffer ST_MakeEnvelope ST_MakePoint ST_MakeBox2D ST_SetSRID ST_Collect ST_MakeLine ST_Union ST_Difference ST_Intersection ST_IsEmpty ST_Transform ST_MaximumInscribedCircle jsonb_path_query_first jsonb_build_object jsonb_each_text jsonb_object_keys jsonb_array_elements pg_input_is_valid"
   );
   const lang = StreamLanguage.define({
-    tokenTable: { atom: t.bool, opt: t.constant(t.variableName) },
-    startState: () => ({ c: false, x: "", b: "" }),
+    tokenTable: { atom: t.bool, opt: t.constant(t.variableName), tagkey: t.special(t.propertyName), tagvalue: t.special(t.string) },
+    startState: () => ({ c: false, x: "", b: "", k: "key", h: false }),
     token(s, z) {
       if (z.c) {
         while (!s.eol()) {
@@ -93,11 +93,17 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
         return "comment";
       }
       if (s.match(/\{\{[^}]*\}\}/)) return "meta";
-      if (s.match(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/)) return "string";
+      if (s.match(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/)) {
+        if (z.b !== "tag") return "string";
+        if (z.k === "key") z.h = true;
+        return z.k === "key" ? "tagkey" : "tagvalue";
+      }
       if (s.match(/-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+|Mi)?/i))
-        return z.b === "tag" ? "string" : "number";
-      if (s.match(/->|::|!~|!=|==|<=|>=|&&|\|\||[=~<>+\-*\/!?]/))
+        return z.b === "tag" ? (z.k === "key" ? "tagkey" : "tagvalue") : "number";
+      if (s.match(/->|::|!~|!=|==|<=|>=|&&|\|\||[=~<>+\-*\/!?]/)) {
+        if (z.b === "tag" && /^(?:=|!=|~|!~)$/.test(s.current()) && (z.h || s.current() !== "~")) z.k = "value";
         return "operator";
+      }
       if (s.peek() === "." && /[A-Za-z_]/.test(s.string[s.pos + 1])) {
         s.next();
         s.match(/[A-Za-z_][\w-]*/);
@@ -106,7 +112,11 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       if (s.match(z.b === "tag" ? /[A-Za-z_][\w:-]*/ : /[A-Za-z_][\w-]*/)) {
         const w = s.current().toLowerCase();
         if (s.current() === "i" && /\[\s*(?:"(?:\\.|[^"\\])*"|[A-Za-z_][\w:-]*)\s*!?~\s*(?:"(?:\\.|[^"\\])*"|[A-Za-z_][\w:-]*)\s*,\s*$/.test(s.string.slice(0, s.start))) return "keyword";
-        if (z.b === "tag") return "string";
+        if (z.b === "tag") {
+          if (s.current() === "i" && /,\s*$/.test(s.string.slice(0, s.start))) return "keyword";
+          if (z.k === "key") z.h = true;
+          return z.k === "key" ? "tagkey" : "tagvalue";
+        }
         if (
           (z.x === "out" && OUT.has(w)) ||
           (z.x === "local" && LOCAL.has(w)) ||
@@ -130,7 +140,11 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       }
       if (s.match(/[()[\]{},;.:]/)) {
         const c = s.current();
-        if (c === "[") z.b = /^\s*(?:out|timeout|maxsize|bbox|date|diff|adiff|if)\s*:/i.test(s.string.slice(s.pos)) ? "other" : "tag";
+        if (c === "[") {
+          z.b = /^\s*(?:out|timeout|maxsize|bbox|date|diff|adiff|if)\s*:/i.test(s.string.slice(s.pos)) ? "other" : "tag";
+          z.k = "key";
+          z.h = false;
+        }
         if (c === "]") z.b = "";
         if (";{}".includes(c) || (c === ")" && z.x === "count")) z.x = "";
         return "bracket";
@@ -153,6 +167,8 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       [t.bracket, "#b9cabc"],
       [t.comment, "#859e8c"],
       [t.string, "#b5dc9f"],
+      [t.special(t.propertyName), "#8ed4e6"],
+      [t.special(t.string), "#efc17e"],
       [t.meta, "#dbc18e"]
     ].map(([tag, color]) => ({ tag, color }))
   );
