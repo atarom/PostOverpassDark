@@ -343,6 +343,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
     const selector = String.raw`\b(?:node|way|relation|rel|nw|nr|wr|nwr)(?:\.[A-Za-z_][\w-]*)*(?:\[[^\]]*\]|\([^)]*\))*`;
     const rules = [
       [/\{\{([^{}]*)$/, macroOpts(), /^[^{}]*$/],
+      [/\[\s*"(?:\\.|[^"\\])*"\s*!?~\s*"(?:\\.|[^"\\])*"\s*,\s*(i?)$/i, [{ label: "i", type: "keyword", detail: "Ignorar mayúsculas/minúsculas" }], /^i?$/i],
       [/\[\s*out\s*:\s*([A-Za-z_]*)$/i, COMP.format],
       [/\[\s*maxsize\s*:\s*([0-9A-Za-z]*)$/i, COMP.maxsize, /^[0-9A-Za-z]*$/],
       [/\[\s*timeout\s*:\s*(\d*)$/i, COMP.timeout, /^\d*$/],
