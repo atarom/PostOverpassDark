@@ -167,7 +167,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       [t.bracket, "#b9cabc"],
       [t.comment, "#859e8c"],
       [t.string, "#b5dc9f"],
-      [t.special(t.propertyName), "#8ed4e6"],
+      [t.special(t.propertyName), "#ff79c6"],
       [t.special(t.string), "#efc17e"],
       [t.meta, "#dbc18e"]
     ].map(([tag, color]) => ({ tag, color }))
