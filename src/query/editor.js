@@ -71,7 +71,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
   );
   const lang = StreamLanguage.define({
     tokenTable: { atom: t.bool, opt: t.constant(t.variableName) },
-    startState: () => ({ c: false, x: "" }),
+    startState: () => ({ c: false, x: "", b: "" }),
     token(s, z) {
       if (z.c) {
         while (!s.eol()) {
@@ -95,7 +95,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       if (s.match(/\{\{[^}]*\}\}/)) return "meta";
       if (s.match(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/)) return "string";
       if (s.match(/-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+|Mi)?/i))
-        return "number";
+        return z.b === "tag" ? "string" : "number";
       if (s.match(/->|::|!~|!=|==|<=|>=|&&|\|\||[=~<>+\-*\/!?]/))
         return "operator";
       if (s.peek() === "." && /[A-Za-z_]/.test(s.string[s.pos + 1])) {
@@ -103,9 +103,10 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
         s.match(/[A-Za-z_][\w-]*/);
         return "variable-2";
       }
-      if (s.match(/[A-Za-z_][\w-]*/)) {
+      if (s.match(z.b === "tag" ? /[A-Za-z_][\w:-]*/ : /[A-Za-z_][\w-]*/)) {
         const w = s.current().toLowerCase();
         if (s.current() === "i" && /\[\s*(?:"(?:\\.|[^"\\])*"|[A-Za-z_][\w:-]*)\s*!?~\s*(?:"(?:\\.|[^"\\])*"|[A-Za-z_][\w:-]*)\s*,\s*$/.test(s.string.slice(0, s.start))) return "keyword";
+        if (z.b === "tag") return "string";
         if (
           (z.x === "out" && OUT.has(w)) ||
           (z.x === "local" && LOCAL.has(w)) ||
@@ -129,6 +130,8 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       }
       if (s.match(/[()[\]{},;.:]/)) {
         const c = s.current();
+        if (c === "[") z.b = /^\s*(?:out|timeout|maxsize|bbox|date|diff|adiff|if)\s*:/i.test(s.string.slice(s.pos)) ? "other" : "tag";
+        if (c === "]") z.b = "";
         if (";{}".includes(c) || (c === ")" && z.x === "count")) z.x = "";
         return "bracket";
       }
