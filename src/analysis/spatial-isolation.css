@@ -1,0 +1,13 @@
+.pod-spatial-body { display: grid; gap: 9px; }
+.pod-spatial-field { display: grid; gap: 5px; font-size: 12px; }
+.pod-spatial-field select { width: 100%; }
+.pod-spatial-caption { display: flex; justify-content: space-between; align-items: center; }
+.pod-spatial-caption output { color: #a6d8b0; font-variant-numeric: tabular-nums; }
+.pod-spatial-field input[type="range"] { width: 100%; }
+.pod-spatial-state { font-size: 12px; color: #a9b7ab; }
+.pod-spatial-stats { font-size: 12px; font-weight: 600; color: #cde5c6; }
+.pod-spatial-histogram > input { display: none; }
+.pod-spatial-histogram .pod-histogram { margin: 0; }
+.pod-spatial-histogram .pod-histogram-hint { display: none; }
+.pod-spatial-histogram .pod-histogram-canvas { pointer-events: none; }
+.pod-spatial-hint { font-size: 11px; line-height: 1.4; color: #91a493; }

@@ -84,11 +84,13 @@ export const createResultsList = ({ container, controller, getIds }) => {
   const modeNames = { length: "Longitud", area: "Superficie", perimeter: "Perímetro", vertices: "Vértices", shape: "Forma" };
   const availableMetrics = () => [
     ...(opts.geometryEnabled && opts.geometryValues ? [{ key: "geometry", label: opts.geometryMode === "shape" ? { anomaly: "Forma · Anomalías", compactness: "Forma · Compacidad", irregularity: "Forma · Irregularidad" }[opts.geometryShapeType] || "Forma" : modeNames[opts.geometryMode] || "Geometría" }] : []),
-    ...(opts.numericEnabled && opts.numericKey ? [{ key: "numeric", label: opts.numericKey }] : [])
+    ...(opts.numericEnabled && opts.numericKey ? [{ key: "numeric", label: opts.numericKey }] : []),
+    ...(opts.spatialEnabled && opts.spatialScores ? [{ key: "spatial", label: opts.spatialMethod === "knn" ? "Aislamiento · Distancia" : opts.spatialMethod === "lof" ? "Aislamiento · LOF" : "Aislamiento · DBSCAN" }] : [])
   ];
   const selectedMetric = () => availableMetrics().find(({ key }) => key === metric.value)?.key || "";
   const getMetricValue = (index, key = selectedMetric()) => {
     if (key === "geometry") return opts.geometryValues?.[index] ?? NaN;
+    if (key === "spatial") return opts.spatialScores?.[index] ?? NaN;
     if (key === "numeric") return numericValue(featureTags(collection?.features[index])[opts.numericKey]);
     return NaN;
   };
@@ -134,6 +136,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
       if (opts.geometryMode === "shape") return opts.geometryShapeType === "anomaly" ? `${format.format(val)} %` : format.format(val);
       return `${format.format(val)}${opts.geometryMode === "area" ? " m²" : opts.geometryMode === "vertices" ? "" : " m"}`;
     }
+    if (key === "spatial" && opts.spatialMethod === "knn") return `${format.format(val)} m`;
     return format.format(val);
   };
   const makeRow = (pos) => {

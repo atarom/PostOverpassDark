@@ -3,6 +3,7 @@ import { createKeyPurge } from "./purge-controls.js";
 import { createValueCopier } from "./copy-values.js";
 import { createNumericHistogram } from "./numeric-histogram.js";
 import { createGeometryAnalysis } from "./geometry-analysis.js";
+import { createSpatialIsolation } from "./spatial-isolation.js";
 import { createOutlierAnalysis } from "./outlier-analysis.js";
 const PALETTE = ["#e6194b","#3cb44b","#ffe119","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe","#008080","#e6beff","#9a6324","#fffac8","#800000","#aaffc3","#808000","#ffd8b1","#000075","#808080","#ffffff","#000000"];
 const RESERVED = new Set(["id","type","relations","meta","osm_id","osm_type","osm_url"]);
@@ -279,7 +280,8 @@ export const createAnalysis = ({ elements, onChange, onPurge, getShapeReference 
   };
   const outliers = createOutlierAnalysis({ anchor: numericKey, numericEnable, getCollection: () => collection, getValue: (feature, name) => numericValue(featureTags(feature)[name]), onChange: () => onChange?.(options()) });
   const geometry = createGeometryAnalysis({ anchor: numericKey, onChange: () => onChange?.(options()), getShapeReference });
-  const options = () => ({ ...geometry.options(), ...outliers.options(), selectedKey: key.value, onlySelectedKey: onlyKey.checked, selectedValue, countMode: countMode.value, selectedValueColor: valueSelectedColor.value, otherValueColor: valueOtherColor.value, hideOtherValues: valueHideOthers.checked, regexEnabled: regexEnable.checked, regexText: regexText.value, regexInsensitive: regexInsensitive.checked, regexOnly: regexOnly.checked, regexColors: colors, numericEnabled: numericEnable.checked, numericKey: numericKey.value, numericMin: numericMin.value, numericMax: numericMax.value, numericShowErrors: numericErrors.checked });
+  const spatial = createSpatialIsolation({ anchor: document.querySelector(".pod-geometry"), onChange: () => onChange?.(options()) });
+  const options = () => ({ ...geometry.options(), ...spatial.options(), ...outliers.options(), selectedKey: key.value, onlySelectedKey: onlyKey.checked, selectedValue, countMode: countMode.value, selectedValueColor: valueSelectedColor.value, otherValueColor: valueOtherColor.value, hideOtherValues: valueHideOthers.checked, regexEnabled: regexEnable.checked, regexText: regexText.value, regexInsensitive: regexInsensitive.checked, regexOnly: regexOnly.checked, regexColors: colors, numericEnabled: numericEnable.checked, numericKey: numericKey.value, numericMin: numericMin.value, numericMax: numericMax.value, numericShowErrors: numericErrors.checked });
   const emit = () => onChange?.(options());
   const emitFrame = () => {
     cancelAnimationFrame(frame);
@@ -323,6 +325,7 @@ export const createAnalysis = ({ elements, onChange, onPurge, getShapeReference 
     histogram.refresh();
     outliers.reset();
     geometry.reset();
+    spatial.reset();
     renderValues();
     renderRegex();
     emit();
@@ -403,6 +406,7 @@ export const createAnalysis = ({ elements, onChange, onPurge, getShapeReference 
     histogram.refresh();
     outliers.refresh();
     geometry.setData(collection);
+    spatial.setData(collection);
     renderValues();
     renderRegex();
     if (!silent) emit();
@@ -432,6 +436,7 @@ export const createAnalysis = ({ elements, onChange, onPurge, getShapeReference 
     histogram.clear();
     outliers.reset();
     geometry.setData(null);
+    spatial.setData(null);
   };
   clear();
   return { setData, clear, options, refreshShapeReference: geometry.refreshReference };
