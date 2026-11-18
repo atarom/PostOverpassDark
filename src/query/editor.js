@@ -105,6 +105,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       }
       if (s.match(/[A-Za-z_][\w-]*/)) {
         const w = s.current().toLowerCase();
+        if (s.current() === "i" && /\[\s*"(?:\\.|[^"\\])*"\s*!?~\s*"(?:\\.|[^"\\])*"\s*,\s*$/.test(s.string.slice(0, s.start))) return "keyword";
         if (
           (z.x === "out" && OUT.has(w)) ||
           (z.x === "local" && LOCAL.has(w)) ||
