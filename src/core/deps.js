@@ -31,6 +31,5 @@ export const loadDependencies = async () => {
     import("@codemirror/commands"),
     import("@codemirror/search")
   ]);
-  if (typeof window.osmtogeojson !== "function") throw Error("No se pudo cargar osmtogeojson");
   return { ol, ...view, ...state, ...language, ...autocomplete, ...lint, ...highlight, ...sql, ...commands, ...search };
 };

@@ -1,3 +1,4 @@
+import osm2geojson from "https://cdn.jsdelivr.net/npm/osm2geojson-lite@3.0.0/dist/index.mjs";
 import { esc } from "../core/utils.js";
 import { normalizeOsmType } from "../export/osm-identifiers.js";
 export const OSM_TYPES = ["node", "way", "relation"];
@@ -23,15 +24,25 @@ const countPostpass = (geo) => countOsmPairs((geo.features || []).map((feature) 
   const properties = feature.properties || {};
   return [postpassType(properties), properties.osm_id ?? properties.id];
 }));
-const preferCenter = (geo) => {
-  const centerIds = new Set(geo.features.filter((feature) => feature.id != null && feature.geometry?.type === "Point" && feature.properties?.geometry === "center").map((feature) => feature.id));
-  const seen = new Set();
-  geo.features = geo.features.filter((feature) => {
-    if (!centerIds.has(feature.id)) return true;
-    if (feature.geometry?.type !== "Point" || feature.properties?.geometry !== "center" || seen.has(feature.id)) return false;
-    seen.add(feature.id);
-    return true;
-  });
+const OSM_METADATA = new Set(["version", "timestamp", "changeset", "uid", "user"]);
+const convertOverpass = (input) => {
+  const geo = osm2geojson(input, { completeFeature: true, renderTagged: false, excludeWay: true, tainted: true });
+  if (geo?.type !== "FeatureCollection" || !Array.isArray(geo.features)) throw Error("No se pudo convertir la respuesta Overpass a GeoJSON");
+  for (const feature of geo.features) {
+    const reference = String(feature.id ?? feature.properties?.id ?? "").match(/^(node|way|relation)\/(\d+)$/);
+    if (!reference) continue;
+    const source = feature.properties || {};
+    const tags = {};
+    const meta = {};
+    for (const [key, value] of Object.entries(source)) {
+      if (key === "id" || key === "@relations") continue;
+      if (key.startsWith("@")) { meta[key.slice(1)] = value; continue; }
+      if (OSM_METADATA.has(key)) { meta[key] = value; continue; }
+      tags[key] = value;
+    }
+    const numericId = Number(reference[2]);
+    feature.properties = { type: reference[1], id: reference[1] === "node" || !Number.isSafeInteger(numericId) ? reference[2] : numericId, tags, relations: Array.isArray(source["@relations"]) ? source["@relations"] : [], meta };
+  }
   return geo;
 };
 const cleanText = (value) => String(value ?? "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
@@ -89,11 +100,11 @@ export const parseResponse = (text, contentType, engine, query, postpassTextOnly
     }
     if (postpass && (value?.type !== "FeatureCollection" || !Array.isArray(value.features))) throw Error("Postpass no devolvió un GeoJSON FeatureCollection");
     if (postpass) originalPostpass.set(value, text);
-    return { geo: postpass ? value : preferCenter(window.osmtogeojson(value)), cnt: postpass ? countPostpass(value) : count(value), raw: text, timestamp: postpass ? value.postpass_properties?.timestamp : value.osm3s?.timestamp_osm_base };
+    return { geo: postpass ? value : convertOverpass(value), cnt: postpass ? countPostpass(value) : count(value), raw: text, timestamp: postpass ? value.postpass_properties?.timestamp : value.osm3s?.timestamp_osm_base };
   }
   const value = new DOMParser().parseFromString(text, "text/xml");
   if (value.querySelector("parsererror")) throw Error("Respuesta XML inválida");
-  return { geo: preferCenter(window.osmtogeojson(value)), cnt: count(value), raw: text, timestamp: value.querySelector("osm > meta[osm_base]")?.getAttribute("osm_base") };
+  return { geo: convertOverpass(text), cnt: count(value), raw: text, timestamp: value.querySelector("osm > meta[osm_base]")?.getAttribute("osm_base") };
 };
 export const purgeResponseRaw = (raw, engine, type, id, indices) => {
   if (engine === "postpass") {
