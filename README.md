@@ -32,9 +32,8 @@
 - [Overpass API](https://overpass-api.de/) — consultas Overpass QL.
 - [Postpass](https://postpass.geofabrik.de/) — consultas SQL/PostGIS.
 - [CodeMirror](https://codemirror.net/) — editor de consultas.
-- [osmtogeojson](https://github.com/tyrasd/osmtogeojson) — conversión de respuestas OSM a GeoJSON.
+- [osm2geojson-lite](https://github.com/tibetty/osm2geojson-lite) — conversión de respuestas OSM a GeoJSON.
 - [Nominatim](https://nominatim.org/) — resolución de áreas para `{{geocodeArea:...}}`.
 - [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) — datos.
 - [Zopfli](https://github.com/google/zopfli) — compresión URL.
 - [Brotli](https://github.com/google/brotli) — compresión URL.
-
