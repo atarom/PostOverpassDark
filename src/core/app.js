@@ -13,7 +13,7 @@ import { createResultsList } from "../ui/results-list.js";
 import { createJosmExporter } from "../export/josm-export.js";
 import { createIdsToPod } from "../export/ids-to-pod.js";
 import { collectOsmIds, getIdentifier } from "../export/osm-identifiers.js";
-import { encodeShare, encodeShareDetailed, encodeShareDeflateIds, encodeShareZopfli, encodeShareBrotli, decodeShare, sharedFragment, createShareComparison } from "../share/share.js";
+import { encodeShare, encodeShareDetailed, encodeShareDeflateIds, encodeShareBrotli, decodeShare, sharedFragment, createShareComparison } from "../share/share.js";
 import { $, esc, abortError } from "./utils.js";
 import { OVERPASS_PRESETS } from "../query/presets-overpass.js";
 import { POSTPASS_PRESETS } from "../query/presets-postpass.js";
@@ -288,12 +288,11 @@ const initializeApp = (deps) => {
     const controller = new AbortController();
     maximumController = controller;
     const results = {};
-    const tasks = [["DEFLATE + IDs", encodeShareDeflateIds], ["Zopfli", encodeShareZopfli], ["Brotli", encodeShareBrotli]];
+    const tasks = [["DEFLATE + IDs", encodeShareDeflateIds], ["Brotli", encodeShareBrotli]];
     const isCurrent = () => revision === shareRevision && shareDialog.open && !controller.signal.aborted;
     shareMaxResult.textContent = "Probando compresión normal y Delta/Varint…";
     const run = async (group, encode) => {
       try {
-        if (group === "Zopfli" && typeof DecompressionStream !== "function") throw Error("El navegador no admite DEFLATE raw");
         const start = performance.now();
         const candidates = await encode(state, controller.signal);
         if (!isCurrent()) return;

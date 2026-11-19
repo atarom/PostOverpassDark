@@ -179,14 +179,13 @@ const encodeWorker = (state, signal, file, options) => new Promise((resolve, rej
   worker.onerror = (event) => { event.preventDefault(); finish(Error("No se pudo cargar el compresor")); };
   worker.onmessage = ({ data: response }) => {
     if (response?.error) return finish(Error(response.error));
-    if (!Array.isArray(response?.variants) || !response.variants.length || response.variants.some((value) => !["b", "c", "d", "e"].includes(value.prefix) || !(value.bytes instanceof Uint8Array))) return finish(Error("Respuesta inválida del compresor"));
+    if (!Array.isArray(response?.variants) || !response.variants.length || response.variants.some((value) => !["c", "d"].includes(value.prefix) || !(value.bytes instanceof Uint8Array))) return finish(Error("Respuesta inválida del compresor"));
     finish(null, response.variants.map((value) => ({ name: value.name, encoded: `${value.prefix}${toBase64(value.bytes)}`, compressedBytes: value.bytes.length })));
   };
   signal?.addEventListener("abort", cancel, { once: true });
   timeout = setTimeout(() => finish(Error("Se ha superado el límite de 120 segundos")), 120000);
   worker.postMessage({ data, query: state.query }, [data.buffer]);
 });
-export const encodeShareZopfli = (state, signal) => encodeWorker(state, signal, "./zopfli-worker.js");
 export const encodeShareBrotli = (state, signal) => encodeWorker(state, signal, "./brotli-worker.js", { type: "module" });
 const decodeBrotli = async (bytes) => {
   const { default: ready } = await import("https://cdn.jsdelivr.net/npm/brotli-wasm@3.0.1/index.web.js");
@@ -237,7 +236,7 @@ export const createShareComparison = (onSelect) => {
   result.before(section);
   section.append(header, help, bars, result);
   const facts = document.getElementById("shareInfoMethod")?.closest("dl");
-  const names = ["Directo", "DEFLATE", "DEFLATE + IDs", "Zopfli", "Zopfli + IDs", "Brotli", "Brotli + IDs"];
+  const names = ["Directo", "DEFLATE", "DEFLATE + IDs", "Brotli", "Brotli + IDs"];
   const advanced = names.slice(2);
   const extra = {};
   if (facts) for (const name of advanced) {
@@ -303,12 +302,12 @@ export const createShareComparison = (onSelect) => {
     render();
   };
   const setResults = (group, candidates) => {
-    const groupNames = group === "Zopfli" || group === "Brotli" ? [group, `${group} + IDs`] : [group];
+    const groupNames = group === "Brotli" ? [group, `${group} + IDs`] : [group];
     for (const name of groupNames) methods.set(name, candidates.find((candidate) => candidate.name === name) || { status: "No aplicable" });
     render();
   };
   const setFailure = (group) => {
-    const groupNames = group === "Zopfli" || group === "Brotli" ? [group, `${group} + IDs`] : group ? [group] : advanced;
+    const groupNames = group === "Brotli" ? [group, `${group} + IDs`] : group ? [group] : advanced;
     for (const name of groupNames) methods.set(name, { status: "No disponible" });
     render();
   };

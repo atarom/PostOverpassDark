@@ -22,7 +22,7 @@
 - Inspección de la consulta enviada, respuesta original y GeoJSON generado.
 - Acceso directo desde los resultados a OpenStreetMap y distintos editores OSM.
 - Envío directo a JOSM de objetos encontrados con Overpass o Postpass mediante Remote Control.
-- Generación de enlaces compartidos autocontenidos con compresión automática mediante DEFLATE, Zopfli y Brotli 11.
+- Generación de enlaces compartidos autocontenidos con compresión automática mediante DEFLATE y Brotli 11.
 - Optimización de identificadores OSM mediante Delta/Varint.
 
 ## Tecnologías y datos
@@ -35,5 +35,4 @@
 - [osm2geojson-lite](https://github.com/tibetty/osm2geojson-lite) — conversión de respuestas OSM a GeoJSON.
 - [Nominatim](https://nominatim.org/) — resolución de áreas para `{{geocodeArea:...}}`.
 - [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) — datos.
-- [Zopfli](https://github.com/google/zopfli) — compresión URL.
 - [Brotli](https://github.com/google/brotli) — compresión URL.
