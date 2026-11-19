@@ -93,21 +93,20 @@ const calculate = (settings, request) => {
     const total = ks.length * sensitivities.length;
     const ranked = [];
     for (let i = 0; i < count; i++) if (scores[i] > 0) ranked.push(i);
-    ranked.sort((a, b) => intensities[a] - intensities[b] || a - b);
-    const rank = new Float64Array(count);
+    ranked.sort((a, b) => scores[a] - scores[b] || intensities[a] - intensities[b] || a - b);
     let start = 0;
     while (start < ranked.length) {
       let end = start + 1;
-      while (end < ranked.length && intensities[ranked[end]] === intensities[ranked[start]]) end++;
-      const position = (start + end + 1) / 2 / (ranked.length + 1);
-      for (let j = start; j < end; j++) rank[ranked[j]] = position;
+      while (end < ranked.length && scores[ranked[end]] === scores[ranked[start]] && intensities[ranked[end]] === intensities[ranked[start]]) end++;
+      const position = (start + end) / 2;
+      const rarity = 100 * position / ranked.length;
+      for (let j = start; j < end; j++) scores[ranked[j]] = rarity;
       start = end;
     }
-    for (let i = 0; i < count; i++) if (scores[i] > 0) scores[i] = Math.min(99.999, 70 * scores[i] / total + 30 * rank[i]);
     threshold = settings.rarity;
   }
   let isolated = 0;
-  for (let i = 0; i < count; i++) if (auto ? scores[i] >= threshold : scores[i] > threshold) isolated++;
+  for (let i = 0; i < count; i++) if (scores[i] > threshold) isolated++;
   return { type: "result", request, scores, threshold, isolated, total: count, mode: settings.mode, elapsed: Math.round(performance.now() - started), combinations: auto ? ks.length * sensitivities.length : 1 };
 };
 onmessage = ({ data }) => {
