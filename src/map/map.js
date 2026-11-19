@@ -470,6 +470,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     }
   });
   const setMeasuring = (active) => {
+    if (active && circleDrawing) setCircleDrawing(false);
     measuring = active;
     measureDraw.setActive(active);
     measureButton.setAttribute("aria-pressed", String(active));
@@ -486,6 +487,128 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
       measureTooltip = null;
     }
   };
+  const circleSource = new Vector({ wrapX: false });
+  const circleStyle = { "stroke-color": "#a0d2ae", "stroke-width": 2.5, "fill-color": "rgba(160,210,174,0.11)", "circle-radius": 5, "circle-fill-color": "#a0d2ae", "circle-stroke-color": "#0a1511", "circle-stroke-width": 2 };
+  map.addLayer(new ol.layer.Vector({ source: circleSource, style: circleStyle }));
+  const circleButton = document.createElement("button");
+  circleButton.type = "button";
+  circleButton.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><path d="M12 12 19.4 8.8"/></svg>';
+  circleButton.title = "Medir círculo: clic en el centro, mueve el radio y doble clic para fijarlo";
+  circleButton.setAttribute("aria-label", "Medir círculo");
+  circleButton.setAttribute("aria-pressed", "false");
+  Object.assign(circleButton.style, { display: "grid", placeItems: "center", padding: "0" });
+  map.getTargetElement().querySelector(".ol-zoom")?.append(circleButton);
+  const clearCirclesButton = document.createElement("button");
+  clearCirclesButton.type = "button";
+  clearCirclesButton.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="11" r="6.6"/><path d="m16.3 16.3 5 5m0-5-5 5"/></svg>';
+  clearCirclesButton.title = "Borrar círculos medidos";
+  clearCirclesButton.setAttribute("aria-label", "Borrar círculos medidos");
+  Object.assign(clearCirclesButton.style, { display: "grid", placeItems: "center", padding: "0" });
+  clearCirclesButton.disabled = true;
+  map.getTargetElement().querySelector(".ol-zoom")?.append(clearCirclesButton);
+  const doubleClickZoom = map.getInteractions().getArray().find((interaction) => interaction instanceof ol.interaction.DoubleClickZoom);
+  let restoreDoubleClickZoom = true;
+  let circleDrawing = false;
+  let circleCenter = null;
+  let circleCenterLonLat = null;
+  let circlePolygon = null;
+  let circleRadiusLine = null;
+  let circleCenterPoint = null;
+  let circleTooltip = null;
+  const circleTooltips = [];
+  const formatCircleLength = (meters) => meters >= 1000 ? `${(meters / 1000).toLocaleString("es-ES", { maximumFractionDigits: 2 })} km` : `${meters.toLocaleString("es-ES", { maximumFractionDigits: 1 })} m`;
+  const formatCircleArea = (meters) => meters >= 1000000 ? `${(meters / 1000000).toLocaleString("es-ES", { maximumFractionDigits: 2 })} km²` : `${meters.toLocaleString("es-ES", { maximumFractionDigits: 1 })} m²`;
+  const circleRing = (center, radius) => {
+    const lon = center[0] * Math.PI / 180;
+    const lat = center[1] * Math.PI / 180;
+    const angular = radius / 6371008.8;
+    const points = [];
+    for (let i = 0; i <= 96; i++) {
+      const bearing = i * Math.PI * 2 / 96;
+      const latitude = Math.asin(Math.sin(lat) * Math.cos(angular) + Math.cos(lat) * Math.sin(angular) * Math.cos(bearing));
+      const longitude = lon + Math.atan2(Math.sin(bearing) * Math.sin(angular) * Math.cos(lat), Math.cos(angular) - Math.sin(lat) * Math.sin(latitude));
+      points.push(ol.proj.fromLonLat([longitude * 180 / Math.PI, latitude * 180 / Math.PI]));
+    }
+    return points;
+  };
+  const cancelCirclePreview = () => {
+    for (const feature of [circlePolygon, circleRadiusLine, circleCenterPoint]) if (feature) circleSource.removeFeature(feature);
+    if (circleTooltip) { map.removeOverlay(circleTooltip); circleTooltips.splice(circleTooltips.indexOf(circleTooltip), 1); }
+    circleCenter = null;
+    circleCenterLonLat = null;
+    circlePolygon = null;
+    circleRadiusLine = null;
+    circleCenterPoint = null;
+    circleTooltip = null;
+  };
+  const updateCircle = (coordinate) => {
+    if (!circleCenter) return 0;
+    const radius = ol.sphere.getDistance(circleCenterLonLat, ol.proj.toLonLat(coordinate));
+    if (!Number.isFinite(radius) || radius <= 0) return 0;
+    circlePolygon.getGeometry().setCoordinates([circleRing(circleCenterLonLat, radius)]);
+    circleRadiusLine.getGeometry().setCoordinates([circleCenter, coordinate]);
+    const area = 2 * Math.PI * 6371008.8 ** 2 * (1 - Math.cos(radius / 6371008.8));
+    circleTooltip.getElement().textContent = `Radio ${formatCircleLength(radius)} · Diámetro ${formatCircleLength(2 * radius)} · Área ${formatCircleArea(area)}`;
+    circleTooltip.setPosition(coordinate);
+    return radius;
+  };
+  const setCircleDrawing = (active) => {
+    circleDrawing = active;
+    circleButton.setAttribute("aria-pressed", String(active));
+    circleButton.style.background = active ? "#304e38" : "";
+    circleButton.style.color = active ? "#a0d2ae" : "";
+    if (active) {
+      if (measuring) setMeasuring(false);
+      if (areaDrawing) setAreaDrawing(false);
+      closePopup();
+      restoreDoubleClickZoom = doubleClickZoom?.getActive() ?? true;
+      doubleClickZoom?.setActive(false);
+    } else {
+      cancelCirclePreview();
+      doubleClickZoom?.setActive(restoreDoubleClickZoom);
+    }
+    map.getTargetElement().style.cursor = active ? "crosshair" : "";
+  };
+  circleButton.addEventListener("click", () => setCircleDrawing(!circleDrawing));
+  clearCirclesButton.addEventListener("click", () => {
+    cancelCirclePreview();
+    for (const overlay of circleTooltips) map.removeOverlay(overlay);
+    circleTooltips.length = 0;
+    circleSource.clear();
+    clearCirclesButton.disabled = true;
+  });
+  map.on("singleclick", (event) => {
+    if (!circleDrawing || circleCenter) return;
+    circleCenter = event.coordinate.slice();
+    circleCenterLonLat = ol.proj.toLonLat(circleCenter);
+    circlePolygon = new Feature({ geometry: new ol.geom.Polygon([[circleCenter, circleCenter, circleCenter, circleCenter]]) });
+    circleRadiusLine = new Feature({ geometry: new ol.geom.LineString([circleCenter, circleCenter]) });
+    circleCenterPoint = new Feature({ geometry: new ol.geom.Point(circleCenter) });
+    circleSource.addFeatures([circlePolygon, circleRadiusLine, circleCenterPoint]);
+    const label = document.createElement("div");
+    Object.assign(label.style, { padding: "5px 8px", background: "#13221b", border: "1px solid #47634f", borderRadius: "5px", color: "#e1eae2", font: "700 12px system-ui", whiteSpace: "nowrap", pointerEvents: "none", boxShadow: "0 3px 12px #0008" });
+    label.textContent = "Mueve el cursor para definir el radio";
+    circleTooltip = new Overlay({ element: label, offset: [0, -12], positioning: "bottom-center", stopEvent: false, insertFirst: false });
+    map.addOverlay(circleTooltip);
+    circleTooltips.push(circleTooltip);
+    circleTooltip.setPosition(circleCenter);
+    clearCirclesButton.disabled = false;
+  });
+  map.on("pointermove", (event) => { if (circleDrawing && circleCenter && !event.dragging) updateCircle(event.coordinate); });
+  map.on("dblclick", (event) => {
+    if (!circleDrawing) return;
+    event.preventDefault();
+    if (circleCenter && updateCircle(event.coordinate) > 0) {
+      circleTooltip.getElement().style.background = "#203127";
+      circleCenter = null;
+      circleCenterLonLat = null;
+      circlePolygon = null;
+      circleRadiusLine = null;
+      circleCenterPoint = null;
+      circleTooltip = null;
+    }
+    return false;
+  });
   measureButton.addEventListener("click", () => { if (!measuring && areaDrawing) setAreaDrawing(false); setMeasuring(!measuring); });
   const areaSource = new Vector({ wrapX: false });
   const areaStyle = { "stroke-color": "#f4db9b", "stroke-width": 2, "fill-color": "rgba(244,219,155,0.13)", "circle-radius": 5, "circle-fill-color": "#f4db9b", "circle-stroke-color": "#0a1511", "circle-stroke-width": 2 };
@@ -511,7 +634,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     areaDrawing = active;
     areaDraw.setActive(active);
     if (!active) areaDraw.abortDrawing();
-    if (active) { closePopup(); if (measuring) setMeasuring(false); }
+    if (active) { closePopup(); if (measuring) setMeasuring(false); if (circleDrawing) setCircleDrawing(false); }
     map.getTargetElement().style.cursor = active ? "crosshair" : "";
     areaControls();
   };
@@ -622,7 +745,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   palette.onchange = () => { heat.palette = COLORS[palette.value] ? palette.value : "default"; heatSave(); heatPaint(); };
   reset.onclick = () => { heat = { ...DEFAULT_HEAT }; heatSave(); heatUI(); heatPaint(); };
   map.on("singleclick", (event) => {
-    if (measuring || areaDrawing || renderMode.value === "heat") return;
+    if (measuring || circleDrawing || areaDrawing || renderMode.value === "heat") return;
     const selected = map.forEachFeatureAtPixel(event.pixel, (feature) => feature, { hitTolerance: 3, layerFilter: (layer) => layer === vectorLayer });
     const index = selected?.get("podIndex");
     if (index == null || !geo?.features[index]) { closePopup(); return; }
@@ -635,7 +758,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     positionPopup();
   });
   map.on("pointermove", (event) => {
-    if (event.dragging || measuring || areaDrawing || renderMode.value === "heat") return;
+    if (event.dragging || measuring || circleDrawing || areaDrawing || renderMode.value === "heat") return;
     map.getTargetElement().style.cursor = map.hasFeatureAtPixel(event.pixel, { layerFilter: (layer) => layer === vectorLayer }) ? "pointer" : "";
   });
   const clear = () => { closePopup(); clearResultSelection(); geo = null; rendered = []; heatReady = false; heatShared = false; heatDirty = 0; vectorDirty = false; lastColorSignature = ""; lastNumericKey = undefined; lastGeometryValues = null; lastSpatialFlags = null; regexPatterns = []; vectorSource.clear(true); heatSource.clear(true); heatLayer.setSource(heatSource); };
