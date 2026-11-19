@@ -85,7 +85,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
   const availableMetrics = () => [
     ...(opts.geometryEnabled && opts.geometryValues ? [{ key: "geometry", label: opts.geometryMode === "shape" ? { anomaly: "Forma · Anomalías", compactness: "Forma · Compacidad", irregularity: "Forma · Irregularidad" }[opts.geometryShapeType] || "Forma" : modeNames[opts.geometryMode] || "Geometría" }] : []),
     ...(opts.numericEnabled && opts.numericKey ? [{ key: "numeric", label: opts.numericKey }] : []),
-    ...(opts.spatialEnabled && opts.spatialScores ? [{ key: "spatial", label: opts.spatialMethod === "auto" ? "Aislamiento · Rareza" : "Aislamiento · Distancia" }] : [])
+    ...(opts.spatialEnabled && opts.spatialScores ? [{ key: "spatial", label: opts.spatialMethod === "auto" ? "Aislamiento · Rareza" : opts.spatialMethod === "distance" ? "Aislamiento · Distancia mínima" : "Aislamiento · Distancia" }] : [])
   ];
   const selectedMetric = () => availableMetrics().find(({ key }) => key === metric.value)?.key || "";
   const getMetricValue = (index, key = selectedMetric()) => {
@@ -136,7 +136,13 @@ export const createResultsList = ({ container, controller, getIds }) => {
       if (opts.geometryMode === "shape") return opts.geometryShapeType === "anomaly" ? `${format.format(val)} %` : format.format(val);
       return `${format.format(val)}${opts.geometryMode === "area" ? " m²" : opts.geometryMode === "vertices" ? "" : " m"}`;
     }
-    if (key === "spatial") return `${format.format(val)}${opts.spatialMethod === "auto" ? " %" : " m"}`;
+    if (key === "spatial") {
+      if (opts.spatialMethod === "distance") {
+        const meters = opts.spatialDistances?.[index];
+        return Number.isFinite(meters) ? meters >= 1000 ? `${format.format(meters / 1000)} km` : `${format.format(meters)} m` : "";
+      }
+      return `${format.format(val)}${opts.spatialMethod === "auto" ? " %" : " m"}`;
+    }
     return format.format(val);
   };
   const makeRow = (pos) => {

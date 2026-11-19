@@ -96,7 +96,7 @@ export const createSpatialIsolation = ({ anchor, onChange }) => {
     return label;
   };
   const mode = document.createElement("select");
-  for (const [value, label] of [["auto", "Automático · Rareza"], ["manual", "Manual · k-NN + IQR"]]) {
+  for (const [value, label] of [["auto", "Automático · Rareza"], ["manual", "Manual · k-NN + IQR"], ["distance", "Distancia absoluta · Vecino próximo"]]) {
     const option = document.createElement("option");
     option.value = value;
     option.textContent = label;
@@ -177,6 +177,8 @@ export const createSpatialIsolation = ({ anchor, onChange }) => {
   let ready = false;
   let busy = false;
   let scores = null;
+  let distances = null;
+  let sortedDistances = null;
   let cutoff = NaN;
   let timer = 0;
   let progressTimer = 0;
@@ -187,8 +189,10 @@ export const createSpatialIsolation = ({ anchor, onChange }) => {
   let rarityFrame = 0;
   const histogram = createNumericHistogram({ anchor: anchorInput, minInput: lower, maxInput: upper, getCollection: () => histogramSource, getValue: (index) => scores?.[pointIndices[index]], onRange: () => {} });
   const automatic = () => mode.value === "auto";
-  const threshold = () => automatic() ? Number(rarity.input.value) : cutoff;
-  const options = () => ({ spatialEnabled: Boolean(enabled.checked && scores), spatialDisplay: display.value, spatialScores: scores, spatialThreshold: threshold(), spatialMethod: automatic() ? "auto" : "knn" });
+  const distanceMode = () => mode.value === "distance";
+  const percentMode = () => automatic() || distanceMode();
+  const threshold = () => percentMode() ? Number(rarity.input.value) : cutoff;
+  const options = () => ({ spatialEnabled: Boolean(enabled.checked && scores), spatialDisplay: display.value, spatialScores: scores, spatialDistances: distances, spatialThreshold: threshold(), spatialMethod: mode.value === "manual" ? "knn" : mode.value });
   const emit = () => onChange?.(options());
   const rarityDisplay = () => { rarity.output.textContent = format.format(Number(rarity.input.value)); };
   const emitRarity = () => {
@@ -196,10 +200,11 @@ export const createSpatialIsolation = ({ anchor, onChange }) => {
     rarityFrame = requestAnimationFrame(() => { rarityFrame = 0; updateStats(); emit(); });
   };
   const controls = () => {
-    rarity.label.hidden = !automatic();
-    neighbors.label.hidden = automatic();
-    sensitivity.label.hidden = automatic();
-    hint.textContent = automatic() ? "Rareza: ordena candidatos por consistencia e intensidad del aislamiento. En 100 no quedan candidatos. No implica un error OSM." : "Distancia al k-ésimo vecino y umbral Q3 + IQR. No implica un error OSM.";
+    rarity.label.hidden = !percentMode();
+    neighbors.label.hidden = percentMode();
+    sensitivity.label.hidden = percentMode();
+    rarity.label.querySelector(".pod-spatial-caption").firstChild.textContent = distanceMode() ? "Percentil mínimo" : "Rareza mínima";
+    hint.textContent = distanceMode() ? "Distancia real al vecino más cercano (k=1). El percentil selecciona los objetos más alejados: 99 conserva aproximadamente el 1 % y 100 ninguno." : automatic() ? "Rareza: ordena candidatos por consistencia e intensidad del aislamiento. En 100 no quedan candidatos. No implica un error OSM." : "Distancia al k-ésimo vecino y umbral Q3 + IQR. No implica un error OSM.";
   };
   const stopIndicator = () => {
     clearTimeout(progressTimer);
@@ -217,6 +222,8 @@ export const createSpatialIsolation = ({ anchor, onChange }) => {
     cancelAnimationFrame(rarityFrame);
     rarityFrame = 0;
     sortedScores = null;
+    distances = null;
+    sortedDistances = null;
     scores = null;
     cutoff = NaN;
     combinations = 0;
@@ -240,13 +247,14 @@ export const createSpatialIsolation = ({ anchor, onChange }) => {
     if (!scores) return;
     const isolated = countIsolated();
     const total = pointIndices.length;
-    const suffix = automatic() ? ` · ${combinations} ajustes` : ` · Límite ${format.format(cutoff)} m`;
+    const minDistance = distanceMode() && isolated && sortedDistances ? sortedDistances[Math.max(0, sortedDistances.length - isolated)] : null;
+    const suffix = distanceMode() ? ` · Distancia mínima ${minDistance === null ? "—" : `${format.format(minDistance)} m`}` : automatic() ? ` · ${combinations} ajustes` : ` · Límite ${format.format(cutoff)} m`;
     stats.textContent = `${format.format(isolated)} aislados de ${format.format(total)} (${format.format(isolated / total * 100)} %)${suffix}`;
     if (elapsed !== null) state.textContent = `${format.format(total)} geometrías · ${format.format(elapsed)} ms`;
   };
   const refreshHistogram = () => {
-    let maximum = automatic() ? 100 : 0;
-    if (!automatic()) for (const index of pointIndices) if (scores[index] > maximum) maximum = scores[index];
+    let maximum = percentMode() ? 100 : 0;
+    if (!percentMode()) for (const index of pointIndices) if (scores[index] > maximum) maximum = scores[index];
     maximum = Math.max(1, maximum);
     lower.max = upper.max = String(maximum);
     lower.value = "0";
@@ -262,6 +270,14 @@ export const createSpatialIsolation = ({ anchor, onChange }) => {
     const mapped = new Float64Array(collection.features.length).fill(NaN);
     for (let i = 0; i < pointIndices.length; i++) mapped[pointIndices[i]] = result.scores[i];
     scores = mapped;
+    if (result.distances) {
+      distances = new Float64Array(collection.features.length).fill(NaN);
+      for (let i = 0; i < pointIndices.length; i++) distances[pointIndices[i]] = result.distances[i];
+      sortedDistances = result.distances.slice().sort();
+    } else {
+      distances = null;
+      sortedDistances = null;
+    }
     sortedScores = Float64Array.from(pointIndices, (index) => mapped[index]).sort();
     cutoff = result.threshold;
     combinations = result.combinations;
@@ -361,7 +377,7 @@ export const createSpatialIsolation = ({ anchor, onChange }) => {
   };
   rarity.input.addEventListener("input", () => {
     rarityDisplay();
-    if (automatic() && scores) emitRarity();
+    if (percentMode() && scores) emitRarity();
   });
   for (const control of [neighbors, sensitivity]) control.input.addEventListener("input", () => {
     control.output.textContent = control.input.value;

@@ -60,17 +60,25 @@ const ensureNeighbors = (k, request) => {
 const calculate = (settings, request) => {
   const started = performance.now();
   const auto = settings.mode === "auto";
-  const ks = auto ? choices.filter((k) => k < count) : [Math.min(count - 1, Math.max(1, Math.floor(settings.k)))];
+  const absolute = settings.mode === "distance";
+  const ks = absolute ? [1] : auto ? choices.filter((k) => k < count) : [Math.min(count - 1, Math.max(1, Math.floor(settings.k)))];
   if (!ks.length) ks.push(count - 1);
   const maximum = Math.max(...ks);
   ensureNeighbors(maximum, request);
   const scores = new Float64Array(count);
   const intensities = auto ? new Float64Array(count) : null;
+  let distances = null;
   let threshold = 0;
   const raw = new Float64Array(count);
   for (let step = 0; step < ks.length; step++) {
     const k = ks[step];
     for (let i = 0; i < count; i++) raw[i] = Math.sqrt(neighborDistances[i * neighborK + k - 1]);
+    if (absolute) {
+      distances = raw.slice();
+      scores.set(raw);
+      report(request, "Analizando distancias", step + 1, ks.length);
+      continue;
+    }
     const sorted = raw.slice().sort();
     const q1 = percentile(sorted, .25);
     const q3 = percentile(sorted, .75);
@@ -104,10 +112,22 @@ const calculate = (settings, request) => {
       start = end;
     }
     threshold = settings.rarity;
+  } else if (absolute) {
+    const ranked = Array.from({ length: count }, (_, i) => i);
+    ranked.sort((a, b) => scores[a] - scores[b] || a - b);
+    let start = 0;
+    while (start < count) {
+      let end = start + 1;
+      while (end < count && scores[ranked[end]] === scores[ranked[start]]) end++;
+      const percentile = 100 * (start + end) / (2 * count);
+      for (let j = start; j < end; j++) scores[ranked[j]] = percentile;
+      start = end;
+    }
+    threshold = settings.rarity;
   }
   let isolated = 0;
   for (let i = 0; i < count; i++) if (scores[i] > threshold) isolated++;
-  return { type: "result", request, scores, threshold, isolated, total: count, mode: settings.mode, elapsed: Math.round(performance.now() - started), combinations: auto ? ks.length * sensitivities.length : 1 };
+  return { type: "result", request, scores, distances, threshold, isolated, total: count, mode: settings.mode, elapsed: Math.round(performance.now() - started), combinations: auto ? ks.length * sensitivities.length : 1 };
 };
 onmessage = ({ data }) => {
   try {
@@ -129,7 +149,7 @@ onmessage = ({ data }) => {
     }
     if (data.type === "calc") {
       const result = calculate(data.settings, data.request);
-      postMessage(result, [result.scores.buffer]);
+      postMessage(result, result.distances ? [result.scores.buffer, result.distances.buffer] : [result.scores.buffer]);
     }
   } catch (error) {
     postMessage({ type: "error", request: data.request, message: String(error?.message || error) });
