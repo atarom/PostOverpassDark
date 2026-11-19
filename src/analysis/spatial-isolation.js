@@ -118,7 +118,7 @@ export const createSpatialIsolation = ({ anchor, onChange }) => {
     const label = field(caption, input);
     return { input, output, label };
   };
-  const rarity = slider("Rareza mínima", 0, 100, 5, 70);
+  const rarity = slider("Rareza mínima", 0, 100, 1, 70);
   const neighbors = slider("Vecinos", 2, 50, 1, 20);
   const sensitivity = slider("Sensibilidad IQR", .5, 4, .1, 1.5);
   const display = document.createElement("select");
@@ -151,7 +151,7 @@ export const createSpatialIsolation = ({ anchor, onChange }) => {
   stats.className = "pod-spatial-stats";
   const hint = document.createElement("div");
   hint.className = "pod-spatial-hint";
-  hint.textContent = "Rareza: porcentaje de configuraciones que consideran aislado al objeto. No implica un error OSM.";
+  hint.textContent = "Rareza: combina consistencia e intensidad del aislamiento. El valor 100 excluye todos los candidatos. No implica un error OSM.";
   const anchorInput = document.createElement("input");
   anchorInput.type = "hidden";
   anchorInput.value = "score";
@@ -185,14 +185,14 @@ export const createSpatialIsolation = ({ anchor, onChange }) => {
   let combinations = 0;
   const histogram = createNumericHistogram({ anchor: anchorInput, minInput: lower, maxInput: upper, getCollection: () => histogramSource, getValue: (index) => scores?.[pointIndices[index]], onRange: () => {} });
   const automatic = () => mode.value === "auto";
-  const threshold = () => automatic() ? Number(rarity.input.value) - .001 : cutoff;
+  const threshold = () => automatic() ? Number(rarity.input.value) : cutoff;
   const options = () => ({ spatialEnabled: Boolean(enabled.checked && scores), spatialDisplay: display.value, spatialScores: scores, spatialThreshold: threshold(), spatialMethod: automatic() ? "auto" : "knn" });
   const emit = () => onChange?.(options());
   const controls = () => {
     rarity.label.hidden = !automatic();
     neighbors.label.hidden = automatic();
     sensitivity.label.hidden = automatic();
-    hint.textContent = automatic() ? "Rareza: porcentaje de configuraciones que detectan aislamiento. No implica un error OSM." : "Distancia al k-ésimo vecino y umbral Q3 + IQR. No implica un error OSM.";
+    hint.textContent = automatic() ? "Rareza: combina consistencia e intensidad del aislamiento. En 100 no quedan candidatos. No implica un error OSM." : "Distancia al k-ésimo vecino y umbral Q3 + IQR. No implica un error OSM.";
   };
   const stopIndicator = () => {
     clearTimeout(progressTimer);

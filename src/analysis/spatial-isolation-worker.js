@@ -65,6 +65,7 @@ const calculate = (settings, request) => {
   const maximum = Math.max(...ks);
   ensureNeighbors(maximum, request);
   const scores = new Float64Array(count);
+  const intensities = auto ? new Float64Array(count) : null;
   let threshold = 0;
   const raw = new Float64Array(count);
   for (let step = 0; step < ks.length; step++) {
@@ -77,7 +78,10 @@ const calculate = (settings, request) => {
     if (auto) {
       for (const multiplier of sensitivities) {
         const boundary = q3 + multiplier * iqr;
-        for (let i = 0; i < count; i++) if (raw[i] > boundary) scores[i]++;
+        for (let i = 0; i < count; i++) if (raw[i] > boundary) {
+          scores[i]++;
+          intensities[i] += Math.log1p((raw[i] - boundary) / Math.max(boundary, 1));
+        }
       }
     } else {
       threshold = q3 + settings.sensitivity * iqr;
@@ -86,8 +90,20 @@ const calculate = (settings, request) => {
     report(request, "Analizando distancias", step + 1, ks.length);
   }
   if (auto) {
-    const scale = 100 / (ks.length * sensitivities.length);
-    for (let i = 0; i < count; i++) scores[i] = Math.round(scores[i] * scale * 100) / 100;
+    const total = ks.length * sensitivities.length;
+    const ranked = [];
+    for (let i = 0; i < count; i++) if (scores[i] > 0) ranked.push(i);
+    ranked.sort((a, b) => intensities[a] - intensities[b] || a - b);
+    const rank = new Float64Array(count);
+    let start = 0;
+    while (start < ranked.length) {
+      let end = start + 1;
+      while (end < ranked.length && intensities[ranked[end]] === intensities[ranked[start]]) end++;
+      const position = (start + end + 1) / 2 / (ranked.length + 1);
+      for (let j = start; j < end; j++) rank[ranked[j]] = position;
+      start = end;
+    }
+    for (let i = 0; i < count; i++) if (scores[i] > 0) scores[i] = Math.min(99.999, 70 * scores[i] / total + 30 * rank[i]);
     threshold = settings.rarity;
   }
   let isolated = 0;
