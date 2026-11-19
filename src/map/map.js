@@ -40,8 +40,9 @@ const BAD = ["any", ["==", ["get", "podValue"], MISSING_NUMBER], ["<", ["get", "
 const GEOMETRY_PASS = ["any", ["==", ["var", "geometryEnabled"], 0], ["all", ["!=", ["get", "podGeomValue"], -1], ["between", ["get", "podGeomValue"], ["var", "minGeom"], ["var", "maxGeom"]]]];
 const OUTLIER_VALUE = ["all", ["!=", ["get", "podValue"], MISSING_NUMBER], ["any", ["<", ["get", "podValue"], ["var", "outlierMin"]], [">", ["get", "podValue"], ["var", "outlierMax"]]]];
 const OUTLIER_PASS = ["any", ["!=", ["var", "outlierMode"], 2], OUTLIER_VALUE];
-const SPATIAL_PASS = ["any", ["<", ["var", "spatialMode"], 2], ["all", ["==", ["var", "spatialMode"], 2], ["==", ["get", "podSpatial"], 1]], ["all", ["==", ["var", "spatialMode"], 3], ["==", ["get", "podSpatial"], 0]]];
-const SPATIAL_ACTIVE = ["all", [">", ["var", "spatialMode"], 0], ["==", ["get", "podSpatial"], 1]];
+const SPATIAL_RARE = ["all", [">=", ["get", "podSpatial"], 0], [">", ["get", "podSpatial"], ["var", "spatialThreshold"]]];
+const SPATIAL_PASS = ["any", ["<", ["var", "spatialMode"], 2], ["all", ["==", ["var", "spatialMode"], 2], SPATIAL_RARE], ["all", ["==", ["var", "spatialMode"], 3], [">=", ["get", "podSpatial"], 0], ["!", SPATIAL_RARE]]];
+const SPATIAL_ACTIVE = ["all", [">", ["var", "spatialMode"], 0], SPATIAL_RARE];
 const OUTLIER_ACTIVE = ["all", ["==", ["var", "outlierMode"], 1], OUTLIER_VALUE];
 const FILTER = ["all", [">=", ["get", "podColor"], 0], ["any", ["==", ["var", "numericEnabled"], 0], ["==", ["var", "showErrors"], 1], PASS], GEOMETRY_PASS, OUTLIER_PASS, SPATIAL_PASS];
 const PACKED_COLOR = ["get", "podColor"];
@@ -96,7 +97,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     const saved = JSON.parse(storage.getItem(heatStoreKey) || "{}");
     heat = { intensity: valid(saved.intensity, 0.25, 3, 1), radius: valid(saved.radius, 0.25, 3, 1), opacity: valid(saved.opacity, 0, 1, 0.88), weight: valid(saved.weight, 0.1, 5, 1), palette: COLORS[saved.palette] ? saved.palette : "default" };
   } catch {}
-  const vars = { minEle: -1000000, maxEle: 1000000, numericEnabled: 0, showErrors: 0, minGeom: 0, maxGeom: 0, geometryEnabled: 0, outlierMode: 0, outlierMin: 0, outlierMax: 0, spatialMode: 0 };
+  const vars = { minEle: -1000000, maxEle: 1000000, numericEnabled: 0, showErrors: 0, minGeom: 0, maxGeom: 0, geometryEnabled: 0, outlierMode: 0, outlierMin: 0, outlierMax: 0, spatialMode: 0, spatialThreshold: 0 };
   const vectorSource = new Vector({ wrapX: false });
   const heatSource = new Vector({ wrapX: false });
   const glowStyleVars = { ...vars };
@@ -108,9 +109,9 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     builder.addAttribute("a_podSpatial", "float");
     for (const key of Object.keys(glowStyleVars)) builder.addUniform(`u_${key}`, "float");
     builder.setSymbolSizeExpression("vec2(28.0)");
-    builder.setShapeDiscardExpression("a_podColor < 0.0 || (u_numericEnabled > 0.5 && u_showErrors < 0.5 && (a_podValue == -1.0e20 || a_podValue < u_minEle || a_podValue > u_maxEle)) || (u_geometryEnabled > 0.5 && (a_podGeomValue == -1.0 || a_podGeomValue < u_minGeom || a_podGeomValue > u_maxGeom)) || (u_outlierMode > 1.5 && (a_podValue == -1.0e20 || (a_podValue >= u_outlierMin && a_podValue <= u_outlierMax))) || (u_spatialMode > 1.5 && u_spatialMode < 2.5 && a_podSpatial != 1.0) || (u_spatialMode > 2.5 && a_podSpatial != 0.0)");
+    builder.setShapeDiscardExpression("a_podColor < 0.0 || (u_numericEnabled > 0.5 && u_showErrors < 0.5 && (a_podValue == -1.0e20 || a_podValue < u_minEle || a_podValue > u_maxEle)) || (u_geometryEnabled > 0.5 && (a_podGeomValue == -1.0 || a_podGeomValue < u_minGeom || a_podGeomValue > u_maxGeom)) || (u_outlierMode > 1.5 && (a_podValue == -1.0e20 || (a_podValue >= u_outlierMin && a_podValue <= u_outlierMax))) || (u_spatialMode > 1.5 && u_spatialMode < 2.5 && (a_podSpatial < 0.0 || a_podSpatial <= u_spatialThreshold)) || (u_spatialMode > 2.5 && (a_podSpatial < 0.0 || a_podSpatial > u_spatialThreshold))");
     const outlier = "u_outlierMode > 0.5 && u_outlierMode < 1.5 && a_podValue != -1.0e20 && (a_podValue < u_outlierMin || a_podValue > u_outlierMax)";
-    const spatialOutlier = "u_spatialMode > 0.5 && a_podSpatial > 0.5";
+    const spatialOutlier = "u_spatialMode > 0.5 && a_podSpatial >= 0.0 && a_podSpatial > u_spatialThreshold";
     const invalid = "u_numericEnabled > 0.5 && (a_podValue == -1.0e20 || a_podValue < u_minEle || a_podValue > u_maxEle)";
     builder.setSymbolColorExpression(`vec4((${spatialOutlier}) ? vec3(244.0, 98.0, 100.0) / 255.0 : ((${outlier}) ? vec3(237.0, 153.0, 134.0) / 255.0 : ((${invalid}) ? vec3(239.0, 132.0, 145.0) / 255.0 : a_podColor)), 0.33 * (1.0 - smoothstep(12.5, 13.5, length((v_texCoord - vec2(0.5)) * v_quadSizePx))))`);
     return { builder, attributes: { podColor: { callback: (feature) => feature.get("podColor") }, podValue: { callback: (feature) => feature.get("podValue") }, podGeomValue: { callback: (feature) => feature.get("podGeomValue") }, podSpatial: { callback: (feature) => feature.get("podSpatial") } }, uniforms: Object.fromEntries(Object.keys(glowStyleVars).map((key) => [`u_${key}`, () => glowStyleVars[key]])) };
@@ -312,12 +313,12 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     if (notify) notifyVector();
     notifyHeat(4);
   };
-  const syncSpatialAttributes = (flags, notify = true) => {
-    if (flags === lastSpatialFlags) return;
-    lastSpatialFlags = flags;
+  const syncSpatialAttributes = (scores, notify = true) => {
+    if (scores === lastSpatialFlags) return;
+    lastSpatialFlags = scores;
     for (const feature of rendered) {
-      const value = flags?.[feature.get("podIndex")];
-      feature.setProperties({ podSpatial: value === 0 || value === 1 ? value : -1 }, true);
+      const value = scores?.[feature.get("podIndex")];
+      feature.setProperties({ podSpatial: Number.isFinite(value) ? value : -1 }, true);
     }
     if (notify) notifyVector();
     notifyHeat(8);
@@ -327,9 +328,9 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     if (!geo) return;
     syncAttributes(next);
     syncGeometryAttributes(next.geometryValues);
-    syncSpatialAttributes(next.spatialFlags);
+    syncSpatialAttributes(next.spatialScores);
     const active = next.numericEnabled && next.numericKey ? 1 : 0;
-    const update = { minEle: Number(next.numericMin) || 0, maxEle: Number(next.numericMax) || 0, numericEnabled: active, showErrors: next.numericShowErrors ? 1 : 0, minGeom: Number(next.geometryMin) || 0, maxGeom: Number(next.geometryMax) || 0, geometryEnabled: next.geometryEnabled ? 1 : 0, outlierMode: next.outlierMode === "only" ? 2 : next.outlierMode === "highlight" ? 1 : 0, outlierMin: Number(next.outlierMin) || 0, outlierMax: Number(next.outlierMax) || 0, spatialMode: next.spatialEnabled ? next.spatialDisplay === "isolated" ? 2 : next.spatialDisplay === "normal" ? 3 : 1 : 0 };
+    const update = { minEle: Number(next.numericMin) || 0, maxEle: Number(next.numericMax) || 0, numericEnabled: active, showErrors: next.numericShowErrors ? 1 : 0, minGeom: Number(next.geometryMin) || 0, maxGeom: Number(next.geometryMax) || 0, geometryEnabled: next.geometryEnabled ? 1 : 0, outlierMode: next.outlierMode === "only" ? 2 : next.outlierMode === "highlight" ? 1 : 0, outlierMin: Number(next.outlierMin) || 0, outlierMax: Number(next.outlierMax) || 0, spatialMode: next.spatialEnabled ? next.spatialDisplay === "isolated" ? 2 : next.spatialDisplay === "normal" ? 3 : 1 : 0, spatialThreshold: Number(next.spatialThreshold) || 0 };
     let changed = false;
     for (const [key, value] of Object.entries(update)) {
       if (lastStyleVars[key] !== value) { lastStyleVars[key] = value; changed = true; }
@@ -345,8 +346,8 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     if (!feature || feature.get("podColor") < 0) return false;
     if (options.outlierMode === "only" && !isOutlier(feature.get("podValue"))) return false;
     const spatial = feature.get("podSpatial");
-    if (options.spatialEnabled && options.spatialDisplay === "isolated" && spatial !== 1) return false;
-    if (options.spatialEnabled && options.spatialDisplay === "normal" && spatial !== 0) return false;
+    if (options.spatialEnabled && options.spatialDisplay === "isolated" && !(spatial >= 0 && spatial > options.spatialThreshold)) return false;
+    if (options.spatialEnabled && options.spatialDisplay === "normal" && !(spatial >= 0 && spatial <= options.spatialThreshold)) return false;
     const index = feature.get("podIndex");
     const raw = geo?.features[index];
     if (!raw) return false;
@@ -549,7 +550,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     }
     syncAttributes(options, true);
     syncGeometryAttributes(options.geometryValues, false);
-    syncSpatialAttributes(options.spatialFlags, false);
+    syncSpatialAttributes(options.spatialScores, false);
     vectorSource.addFeatures(rendered);
     heatLayer.setSource(heatShared ? vectorSource : heatSource);
     heatReady = heatShared;

@@ -5,6 +5,10 @@
 .pod-spatial-caption output { color: #a6d8b0; font-variant-numeric: tabular-nums; }
 .pod-spatial-field input[type="range"] { width: 100%; }
 .pod-spatial-state { font-size: 12px; color: #a9b7ab; }
+.pod-spatial-progress { display: flex; gap: 8px; align-items: center; }
+.pod-spatial-progress[hidden] { display: none; }
+.pod-spatial-progress progress { flex: 1 1 auto; min-width: 0; height: 9px; accent-color: #8ac6a3; }
+.pod-spatial-progress button, .pod-spatial-retry { flex: 0 0 auto; padding: 5px 8px; border: 1px solid #49614f; background: #17271c; color: #cde5c6; cursor: pointer; }
 .pod-spatial-stats { font-size: 12px; font-weight: 600; color: #cde5c6; }
 .pod-spatial-histogram > input { display: none; }
 .pod-spatial-histogram .pod-histogram { margin: 0; }

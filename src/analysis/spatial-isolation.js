@@ -88,22 +88,22 @@ export const createSpatialIsolation = ({ anchor, onChange }) => {
   summary.prepend(enabled);
   const body = document.createElement("div");
   body.className = "analysis-body pod-spatial-body";
-  const addField = (text, node) => {
+  const field = (text, control) => {
     const label = document.createElement("label");
     label.className = "pod-spatial-field";
-    label.append(text, node);
+    label.append(text, control);
     body.append(label);
     return label;
   };
-  const method = document.createElement("select");
-  for (const [id, name] of [["lof", "LOF · Densidad local"], ["knn", "k-NN · Distancia + IQR"], ["dbscan", "DBSCAN · Agrupaciones"]]) {
+  const mode = document.createElement("select");
+  for (const [value, label] of [["auto", "Automático · Rareza"], ["manual", "Manual · k-NN + IQR"]]) {
     const option = document.createElement("option");
-    option.value = id;
-    option.textContent = name;
-    method.append(option);
+    option.value = value;
+    option.textContent = label;
+    mode.append(option);
   }
-  addField("Algoritmo", method);
-  const slider = (text, min, max, step, value) => {
+  field("Modo", mode);
+  const slider = (title, min, max, step, value) => {
     const input = document.createElement("input");
     input.type = "range";
     input.min = String(min);
@@ -112,185 +112,250 @@ export const createSpatialIsolation = ({ anchor, onChange }) => {
     input.value = String(value);
     const output = document.createElement("output");
     output.textContent = String(value);
-    const title = document.createElement("span");
-    title.className = "pod-spatial-caption";
-    title.append(text, " ", output);
-    const label = addField(title, input);
-    return { label, input, output };
+    const caption = document.createElement("span");
+    caption.className = "pod-spatial-caption";
+    caption.append(title, " ", output);
+    const label = field(caption, input);
+    return { input, output, label };
   };
-  const k = slider("Vecinos", 2, 50, 1, 20);
+  const rarity = slider("Rareza mínima", 0, 100, 5, 70);
+  const neighbors = slider("Vecinos", 2, 50, 1, 20);
   const sensitivity = slider("Sensibilidad IQR", .5, 4, .1, 1.5);
-  const lofThreshold = slider("Umbral LOF (0 = automático)", 0, 5, .05, 0);
-  const radius = slider("Radio (m)", 50, 5000, 50, 500);
-  const minPoints = slider("Elementos mínimos", 2, 20, 1, 4);
   const display = document.createElement("select");
-  for (const [id, label] of [["all", "Todos · Resaltar aislados"], ["isolated", "Solo aislados"], ["normal", "Solo agrupados"]]) {
+  for (const [value, label] of [["all", "Todos · Resaltar raros"], ["isolated", "Solo aislados"], ["normal", "Solo agrupados"]]) {
     const option = document.createElement("option");
-    option.value = id;
+    option.value = value;
     option.textContent = label;
     display.append(option);
   }
-  addField("Mostrar", display);
+  field("Mostrar", display);
   const state = document.createElement("div");
   state.className = "pod-spatial-state";
   state.setAttribute("role", "status");
-  state.textContent = "Despliega el análisis para calcular.";
+  const progress = document.createElement("div");
+  progress.className = "pod-spatial-progress";
+  progress.hidden = true;
+  const bar = document.createElement("progress");
+  bar.max = 100;
+  bar.value = 0;
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.textContent = "Cancelar";
+  progress.append(bar, cancel);
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.textContent = "Calcular aislamiento";
+  retry.className = "pod-spatial-retry";
+  retry.hidden = true;
   const stats = document.createElement("div");
   stats.className = "pod-spatial-stats";
   const hint = document.createElement("div");
   hint.className = "pod-spatial-hint";
-  hint.textContent = "Aislamiento calculado sobre puntos representativos. No implica un error OSM.";
-  const hiddenAnchor = document.createElement("input");
-  hiddenAnchor.type = "hidden";
-  hiddenAnchor.value = "score";
+  hint.textContent = "Rareza: porcentaje de configuraciones que consideran aislado al objeto. No implica un error OSM.";
+  const anchorInput = document.createElement("input");
+  anchorInput.type = "hidden";
+  anchorInput.value = "score";
   const lower = document.createElement("input");
   const upper = document.createElement("input");
-  for (const node of [lower, upper]) { node.type = "range"; node.min = "0"; node.max = "1"; node.step = "any"; node.disabled = true; }
+  for (const control of [lower, upper]) {
+    control.type = "range";
+    control.min = "0";
+    control.max = "100";
+    control.step = "any";
+    control.disabled = true;
+  }
   const histogramHolder = document.createElement("div");
   histogramHolder.className = "pod-spatial-histogram";
-  histogramHolder.append(hiddenAnchor, lower, upper);
-  body.append(state, stats, histogramHolder, hint);
+  histogramHolder.append(anchorInput, lower, upper);
+  body.append(state, progress, retry, stats, histogramHolder, hint);
   details.append(summary, body);
   anchor.after(details);
   let collection = null;
+  let coords = null;
+  let pointIndices = [];
   let worker = null;
   let ready = false;
   let busy = false;
-  let queued = false;
-  let timer = 0;
   let scores = null;
-  let flags = null;
-  let pointIndices = [];
   let cutoff = NaN;
-  let clusters = 0;
-  let count = 0;
-  let lastRequest = 0;
-  let source = { features: [] };
-  let loadedCoords = null;
-  const histogram = createNumericHistogram({ anchor: hiddenAnchor, minInput: lower, maxInput: upper, getCollection: () => source, getValue: (index) => scores?.[pointIndices[index]], onRange: () => {} });
-  const settings = () => ({ method: method.value, k: Number(k.input.value), sensitivity: Number(sensitivity.input.value), lofThreshold: Number(lofThreshold.input.value), radius: Number(radius.input.value), minPoints: Number(minPoints.input.value) });
-  const options = () => ({ spatialEnabled: Boolean(enabled.checked && flags), spatialDisplay: display.value, spatialFlags: flags, spatialScores: scores, spatialMethod: method.value });
+  let timer = 0;
+  let progressTimer = 0;
+  let requestId = 0;
+  let histogramSource = { features: [] };
+  let combinations = 0;
+  const histogram = createNumericHistogram({ anchor: anchorInput, minInput: lower, maxInput: upper, getCollection: () => histogramSource, getValue: (index) => scores?.[pointIndices[index]], onRange: () => {} });
+  const automatic = () => mode.value === "auto";
+  const threshold = () => automatic() ? Number(rarity.input.value) - .001 : cutoff;
+  const options = () => ({ spatialEnabled: Boolean(enabled.checked && scores), spatialDisplay: display.value, spatialScores: scores, spatialThreshold: threshold(), spatialMethod: automatic() ? "auto" : "knn" });
   const emit = () => onChange?.(options());
-  const showControls = () => {
-    const density = method.value === "lof";
-    k.label.hidden = method.value === "dbscan";
-    sensitivity.label.hidden = method.value === "dbscan";
-    lofThreshold.label.hidden = !density;
-    radius.label.hidden = method.value !== "dbscan";
-    minPoints.label.hidden = method.value !== "dbscan";
-    histogramHolder.hidden = method.value === "dbscan";
-    sensitivity.input.disabled = density && Number(lofThreshold.input.value) > 0;
+  const controls = () => {
+    rarity.label.hidden = !automatic();
+    neighbors.label.hidden = automatic();
+    sensitivity.label.hidden = automatic();
+    hint.textContent = automatic() ? "Rareza: porcentaje de configuraciones que detectan aislamiento. No implica un error OSM." : "Distancia al k-ésimo vecino y umbral Q3 + IQR. No implica un error OSM.";
   };
-  const updateHistogram = () => {
-    const sorted = scores ? Array.from(scores).filter(Number.isFinite) : [];
-    let max = 1;
-    for (const value of sorted) if (value > max) max = value;
-    lower.min = upper.min = "0";
-    lower.max = upper.max = String(Math.max(.0001, max));
-    lower.value = "0";
-    upper.value = String(Math.max(.0001, max));
-    source = { features: Array.from({ length: pointIndices.length }, (_, i) => i) };
-    lower.disabled = upper.disabled = false;
-    histogram.refresh();
+  const stopIndicator = () => {
+    clearTimeout(progressTimer);
+    progress.hidden = true;
+    bar.value = 0;
   };
-  const setResult = (result) => {
+  const stopWorker = () => {
+    worker?.terminate();
+    worker = null;
+    ready = false;
     busy = false;
-    if (result.request !== lastRequest) return;
-    if (queued) { queued = false; request(); return; }
-    scores = new Float64Array(collection?.features.length || 0).fill(NaN);
-    flags = new Int8Array(collection?.features.length || 0).fill(-1);
-    for (let i = 0; i < pointIndices.length; i++) {
-      scores[pointIndices[i]] = result.scores[i];
-      flags[pointIndices[i]] = result.flags[i];
-    }
-    cutoff = result.cutoff;
-    clusters = result.clusters;
-    count = result.flags.reduce((sum, value) => sum + value, 0);
-    state.textContent = `${format.format(pointIndices.length)} geometrías · ${format.format(result.elapsed)} ms`;
-    stats.textContent = `${format.format(count)} aislados (${format.format(100 * count / Math.max(1, pointIndices.length))} %)${method.value === "dbscan" ? ` · ${format.format(clusters)} grupos` : ` · Umbral ${format.format(cutoff)}${method.value === "knn" ? " m" : ""}`}`;
-    if (method.value !== "dbscan") updateHistogram();
-    emit();
-    if (queued) { queued = false; request(); }
+    stopIndicator();
   };
-  const request = () => {
-    clearTimeout(timer);
-    if (!(details.open || enabled.checked)) return;
-    if (!worker && loadedCoords) startWorker();
-    if (!worker || !ready) return;
-    if (busy) { queued = true; return; }
-    busy = true;
-    queued = false;
-    lastRequest++;
-    state.textContent = "Calculando aislamiento…";
-    worker.postMessage({ type: "calc", request: lastRequest, settings: settings() });
-  };
-  const schedule = () => {
+  const clearResults = (notify = true) => {
     scores = null;
-    flags = null;
+    cutoff = NaN;
+    combinations = 0;
     stats.textContent = "";
     histogram.clear();
+    if (notify) emit();
+  };
+  const countIsolated = () => {
+    if (!scores) return 0;
+    const limit = threshold();
+    let total = 0;
+    for (const index of pointIndices) if (scores[index] > limit) total++;
+    return total;
+  };
+  const updateStats = (elapsed = null) => {
+    if (!scores) return;
+    const isolated = countIsolated();
+    const total = pointIndices.length;
+    const suffix = automatic() ? ` · ${combinations} ajustes` : ` · Límite ${format.format(cutoff)} m`;
+    stats.textContent = `${format.format(isolated)} aislados de ${format.format(total)} (${format.format(isolated / total * 100)} %)${suffix}`;
+    if (elapsed !== null) state.textContent = `${format.format(total)} geometrías · ${format.format(elapsed)} ms`;
+  };
+  const refreshHistogram = () => {
+    let maximum = automatic() ? 100 : 0;
+    if (!automatic()) for (const index of pointIndices) if (scores[index] > maximum) maximum = scores[index];
+    maximum = Math.max(1, maximum);
+    lower.max = upper.max = String(maximum);
+    lower.value = "0";
+    upper.value = String(maximum);
+    lower.disabled = upper.disabled = false;
+    histogramSource = { features: Array.from({ length: pointIndices.length }, (_, i) => i) };
+    histogram.refresh();
+  };
+  const complete = (result) => {
+    if (result.request !== requestId) return;
+    busy = false;
+    stopIndicator();
+    const mapped = new Float64Array(collection.features.length).fill(NaN);
+    for (let i = 0; i < pointIndices.length; i++) mapped[pointIndices[i]] = result.scores[i];
+    scores = mapped;
+    cutoff = result.threshold;
+    combinations = result.combinations;
+    retry.hidden = true;
+    refreshHistogram();
+    updateStats(result.elapsed);
     emit();
+  };
+  const startWorker = () => {
+    if (!coords || worker) return;
+    worker = new Worker(new URL("./spatial-isolation-worker.js", import.meta.url), { type: "module" });
+    const current = worker;
+    current.onmessage = ({ data }) => {
+      if (current !== worker) return;
+      if (data.type === "ready") { ready = true; launch(); }
+      if (data.type === "progress" && data.request === requestId) {
+        const progressFraction = data.completed / Math.max(1, data.total);
+        bar.value = Math.round(data.stage === "Buscando vecinos" ? progressFraction * 80 : 80 + progressFraction * 20);
+        if (!progress.hidden) state.textContent = `${data.stage}… ${format.format(data.completed)} / ${format.format(data.total)}`;
+      }
+      if (data.type === "result") complete(data);
+      if (data.type === "error") {
+        stopWorker();
+        retry.hidden = false;
+        state.textContent = `Error: ${data.message}`;
+      }
+    };
+    current.onerror = () => {
+      if (current !== worker) return;
+      stopWorker();
+      retry.hidden = false;
+      state.textContent = "No se pudo calcular el aislamiento.";
+    };
+    current.postMessage({ type: "load", buffer: coords.slice().buffer });
+  };
+  const launch = () => {
     clearTimeout(timer);
-    if (busy) { queued = true; return; }
-    timer = setTimeout(request, 140);
+    if (!coords || !(details.open || enabled.checked) || busy) return;
+    if (!worker) { startWorker(); return; }
+    if (!ready) return;
+    busy = true;
+    retry.hidden = true;
+    const request = ++requestId;
+    state.textContent = "Calculando aislamiento…";
+    progressTimer = setTimeout(() => { if (busy && request === requestId) progress.hidden = false; }, 180);
+    worker.postMessage({ type: "calc", request, settings: currentSettings() });
+  };
+  const currentSettings = () => ({ mode: mode.value, k: Number(neighbors.input.value), sensitivity: Number(sensitivity.input.value), rarity: Number(rarity.input.value) });
+  const restart = () => {
+    clearTimeout(timer);
+    requestId++;
+    stopWorker();
+    clearResults();
+    if (details.open || enabled.checked) timer = setTimeout(launch, 140);
+  };
+  const cancelCalculation = () => {
+    clearTimeout(timer);
+    requestId++;
+    stopWorker();
+    clearResults();
+    state.textContent = "Cálculo cancelado.";
+    retry.hidden = !coords;
   };
   const setData = (next) => {
     clearTimeout(timer);
-    worker?.terminate();
-    worker = null;
-    loadedCoords = null;
-    ready = busy = queued = false;
-    scores = flags = null;
-    pointIndices = [];
+    requestId++;
+    stopWorker();
     collection = next?.features ? next : null;
-    stats.textContent = "";
-    histogram.clear();
+    coords = null;
+    pointIndices = [];
+    clearResults(false);
+    retry.hidden = true;
     if (!collection) { state.textContent = "Ejecuta una consulta para analizar."; return; }
-    const coords = [];
+    const points = [];
     for (let i = 0; i < collection.features.length; i++) {
       const point = representativePoint(collection.features[i]?.geometry);
       if (!valid(point)) continue;
       pointIndices.push(i);
-      coords.push(point[0], point[1]);
+      points.push(point[0], point[1]);
     }
     if (pointIndices.length < 3) { state.textContent = "Se necesitan al menos 3 geometrías válidas."; return; }
+    coords = new Float64Array(points);
     state.textContent = `${format.format(pointIndices.length)} geometrías disponibles`;
-    loadedCoords = new Float64Array(coords);
-    if (details.open || enabled.checked) startWorker();
-  };
-  const startWorker = () => {
-    if (worker || !loadedCoords) return;
-    worker = new Worker(new URL("./spatial-isolation-worker.js", import.meta.url), { type: "module" });
-    const current = worker;
-    worker.onmessage = ({ data }) => {
-      if (worker !== current) return;
-      if (data.type === "ready") { ready = true; request(); }
-      if (data.type === "result") setResult(data);
-      if (data.type === "error") { busy = false; state.textContent = `Error: ${data.message}`; }
-    };
-    worker.onerror = () => { if (worker === current) { busy = false; state.textContent = "No se pudo calcular el aislamiento."; } };
-    const data = loadedCoords;
-    loadedCoords = null;
-    worker.postMessage({ type: "load", buffer: data.buffer }, [data.buffer]);
+    if (details.open || enabled.checked) launch();
   };
   const reset = () => {
     enabled.checked = false;
-    method.value = "lof";
-    k.input.value = "20";
+    mode.value = "auto";
+    neighbors.input.value = "20";
     sensitivity.input.value = "1.5";
-    lofThreshold.input.value = "0";
-    radius.input.value = "500";
-    minPoints.input.value = "4";
+    rarity.input.value = "70";
     display.value = "all";
-    for (const control of [k, sensitivity, lofThreshold, radius, minPoints]) control.output.textContent = control.input.value;
-    showControls();
-    schedule();
+    for (const control of [rarity, neighbors, sensitivity]) control.output.textContent = control.input.value;
+    controls();
+    restart();
   };
-  for (const control of [k, sensitivity, lofThreshold, radius, minPoints]) control.input.addEventListener("input", () => { control.output.textContent = control.input.value; showControls(); schedule(); });
-  method.addEventListener("change", () => { showControls(); schedule(); });
+  rarity.input.addEventListener("input", () => {
+    rarity.output.textContent = rarity.input.value;
+    if (automatic() && scores) { updateStats(); emit(); }
+  });
+  for (const control of [neighbors, sensitivity]) control.input.addEventListener("input", () => {
+    control.output.textContent = control.input.value;
+    if (!automatic()) restart();
+  });
+  mode.addEventListener("change", () => { controls(); restart(); });
   display.addEventListener("change", emit);
-  enabled.addEventListener("change", () => { if (enabled.checked && !flags) request(); emit(); });
-  details.addEventListener("toggle", () => { if (details.open && !flags) request(); });
-  showControls();
+  enabled.addEventListener("change", () => { if (enabled.checked && !scores) launch(); emit(); });
+  details.addEventListener("toggle", () => { if (details.open && !scores && !busy && retry.hidden) launch(); });
+  cancel.addEventListener("click", cancelCalculation);
+  retry.addEventListener("click", () => { retry.hidden = true; launch(); });
+  controls();
   return { setData, reset, options };
 };
