@@ -24,7 +24,7 @@ const countPostpass = (geo) => countOsmPairs((geo.features || []).map((feature) 
   const properties = feature.properties || {};
   return [postpassType(properties), properties.osm_id ?? properties.id];
 }));
-const OSM_METADATA = new Set(["version", "timestamp", "changeset", "uid", "user"]);
+const OSM_METADATA = new Set(["version", "timestamp", "changeset", "uid", "user", "center"]);
 const convertOverpass = (input) => {
   const geo = osm2geojson(input, { completeFeature: true, renderTagged: false, excludeWay: true, tainted: true });
   if (geo?.type !== "FeatureCollection" || !Array.isArray(geo.features)) throw Error("No se pudo convertir la respuesta Overpass a GeoJSON");
