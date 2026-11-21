@@ -115,11 +115,10 @@
         entry(group, "h3", "wg-group-title", title);
         const lost = Boolean(gl.isContextLost?.());
         const limit = lost ? null : safeParameter(gl, gl.MAX_VERTEX_ATTRIBS);
-        const rendererExtension = lost ? null : gl.getExtension("WEBGL_debug_renderer_info");
         const info = entry(group, "dl", "wg-info");
         const version = lost ? "Contexto perdido" : safeParameter(gl, gl.VERSION);
-        const vendor = lost ? null : safeParameter(gl, rendererExtension?.UNMASKED_VENDOR_WEBGL ?? gl.VENDOR);
-        const renderer = lost ? null : safeParameter(gl, rendererExtension?.UNMASKED_RENDERER_WEBGL ?? gl.RENDERER);
+        const vendor = lost ? null : safeParameter(gl, gl.VENDOR);
+        const renderer = lost ? null : safeParameter(gl, gl.RENDERER);
         const height = gl.canvas?.height || 0;
         const width = gl.canvas?.width || 0;
         field(info, "API", version);
