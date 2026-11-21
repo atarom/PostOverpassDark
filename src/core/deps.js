@@ -4,19 +4,17 @@ searchStylesheet.href = new URL("../query/codemirror-search.css", import.meta.ur
 document.head.append(searchStylesheet);
 const loadOl = async () => {
   if (window.ol?.layer?.WebGLVector) return window.ol;
-  for (const url of ["https://cdn.jsdelivr.net/npm/ol@10.11.0/dist/ol.js", "https://unpkg.com/ol@10.11.0/dist/ol.js"]) {
-    try {
-      await new Promise((resolve, reject) => {
-        const script = document.createElement("script");
-        script.src = url;
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.append(script);
-      });
-      if (window.ol?.layer?.WebGLVector) return window.ol;
-    } catch {}
-  }
-  throw Error("No se pudo cargar OpenLayers desde los servidores CDN");
+  try {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/ol@10.11.0/dist/ol.js";
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.append(script);
+    });
+  } catch {}
+  if (window.ol?.layer?.WebGLVector) return window.ol;
+  throw Error("No se pudo cargar OpenLayers desde jsDelivr");
 };
 export const loadDependencies = async () => {
   const [ol, view, state, language, autocomplete, lint, highlight, sql, commands, search] = await Promise.all([
