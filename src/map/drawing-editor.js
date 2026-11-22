@@ -60,13 +60,33 @@ const insideArea = (geometry, area) => {
 const createAreaCounters = ({ ol, map, source }) => {
   const data = ol.layer.WebGLVector && map.getLayers().getArray().find((layer) => layer instanceof ol.layer.WebGLVector && layer.getSource() instanceof ol.source.Vector)?.getSource();
   if (!data) return;
+  const style = document.createElement("style");
+  style.textContent = ".pod-selection-count{display:inline-flex;align-items:center;gap:5px}.pod-selection-count.is-updating::after{content:'';width:9px;height:9px;box-sizing:border-box;border:2px solid #789884;border-top-color:#e8f4e2;border-radius:50%;animation:pod-selection-spin .7s linear infinite;flex:none}@keyframes pod-selection-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.pod-selection-count.is-updating::after{animation:none}}";
+  document.head.append(style);
+  const number = new Intl.NumberFormat("es-ES");
   const labels = new Map();
   let preview = null;
   let refreshQueued = false;
+  const busy = (entry) => {
+    if (entry.busy) return;
+    entry.busy = true;
+    entry.element.setAttribute("aria-busy", "true");
+    entry.busyTimer = setTimeout(() => { if (entry.busy) entry.element.classList.add("is-updating"); }, 110);
+  };
+  const done = (entry, amount) => {
+    entry.busy = false;
+    clearTimeout(entry.busyTimer);
+    entry.element.classList.remove("is-updating");
+    entry.element.setAttribute("aria-busy", "false");
+    entry.element.textContent = number.format(amount);
+    entry.element.setAttribute("aria-label", `${number.format(amount)} elementos seleccionados`);
+  };
   const stop = (entry) => {
     if (!entry) return;
     clearTimeout(entry.timer);
+    clearTimeout(entry.busyTimer);
     entry.revision++;
+    entry.busy = false;
     entry.geometry.un("change", entry.onChange);
     map.removeOverlay(entry.overlay);
   };
@@ -86,43 +106,47 @@ const createAreaCounters = ({ ol, map, source }) => {
     return true;
   };
   const count = (entry) => {
-    if (!position(entry)) return;
+    if (!position(entry)) { done(entry, 0); return; }
     const area = entry.geometry;
     const bounds = area.getExtent();
     const matches = [];
     data.forEachFeatureInExtent(bounds, (feature) => {
       if (feature.get("podIndex") != null && feature.get("podColor") >= 0) matches.push(feature);
     });
-    const revision = ++entry.revision;
+    const revision = entry.revision;
     let index = 0;
     let amount = 0;
-    if (matches.length > 1000) entry.element.textContent = "Calculando…";
     const scan = () => {
       if (revision !== entry.revision) return;
       const start = performance.now();
-      while (index < matches.length && performance.now() - start < 7) {
-        const feature = matches[index++];
-        if (insideArea(feature.getGeometry(), area)) amount++;
+      while (index < matches.length) {
+        const geometry = matches[index++].getGeometry();
+        if (geometry.getType() === "Point" ? area.intersectsCoordinate(geometry.getCoordinates()) : insideArea(geometry, area)) amount++;
+        if ((index & 15) === 0 && performance.now() - start >= 8) break;
       }
       if (index < matches.length) requestAnimationFrame(scan);
-      else entry.element.textContent = `${amount.toLocaleString("es-ES")} elemento${amount === 1 ? "" : "s"}`;
+      else done(entry, amount);
     };
     scan();
   };
-  const queue = (entry, delay = 130) => {
+  const queue = (entry, delay = 65) => {
     clearTimeout(entry.timer);
     entry.revision++;
     position(entry);
+    busy(entry);
     entry.timer = setTimeout(() => count(entry), delay);
   };
   const add = (geometry) => {
     const element = document.createElement("div");
     element.className = "pod-selection-count";
     Object.assign(element.style, { padding: "4px 7px", background: "#17261edb", border: "1px solid #b0cda1", borderRadius: "4px", color: "#e8f4e2", font: "700 12px system-ui", whiteSpace: "nowrap", pointerEvents: "none", boxShadow: "0 2px 8px #0009" });
-    element.textContent = "0 elementos";
+    element.textContent = "0";
+    element.setAttribute("role", "status");
+    element.setAttribute("aria-live", "polite");
+    element.setAttribute("aria-label", "0 elementos seleccionados");
     const overlay = new ol.Overlay({ element, positioning: "center-center", stopEvent: false, insertFirst: false });
     map.addOverlay(overlay);
-    const entry = { geometry, element, overlay, timer: 0, revision: 0 };
+    const entry = { geometry, element, overlay, timer: 0, busyTimer: 0, busy: false, revision: 0 };
     entry.onChange = () => queue(entry);
     geometry.on("change", entry.onChange);
     queue(entry, 0);
@@ -158,7 +182,7 @@ const createAreaCounters = ({ ol, map, source }) => {
       refreshQueued = false;
       for (const entry of labels.values()) queue(entry, 0);
       if (preview) queue(preview, 0);
-    }, 180);
+    }, 80);
   };
   data.on("change", refresh);
 };
