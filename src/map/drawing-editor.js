@@ -342,9 +342,27 @@ export const createDrawingEditor = ({ ol, map }) => {
     pendingCircles.clear();
     for (const record of [...records.values()]) if (record.kind === "circle") removeRecord(record);
   });
-  const modify = new ol.interaction.Modify({ source: handles, pixelTolerance: 17, insertVertexCondition: () => false, deleteCondition: () => false, condition: (event) => !drawingActive() && (ol.events?.condition?.primaryAction?.(event) ?? event.originalEvent.button === 0), style: new ol.style.Style({ image: new ol.style.Circle({ radius: 11, fill: new ol.style.Fill({ color: "#d8ffd7" }), stroke: new ol.style.Stroke({ color: "#14341e", width: 3 }) }) }) });
+  const directCircleDrag = Boolean(ol.interaction.Pointer);
+  const modify = new ol.interaction.Modify({ source: handles, pixelTolerance: 17, filter: (feature) => !directCircleDrag || feature.get("record")?.kind !== "circle", insertVertexCondition: () => false, deleteCondition: () => false, condition: (event) => !drawingActive() && (ol.events?.condition?.primaryAction?.(event) ?? event.originalEvent.button === 0), style: new ol.style.Style({ image: new ol.style.Circle({ radius: 11, fill: new ol.style.Fill({ color: "#d8ffd7" }), stroke: new ol.style.Stroke({ color: "#14341e", width: 3 }) }) }) });
   map.addInteraction(modify);
   modify.on("modifyend", () => { if (selected?.kind === "area") updateSpatialResults(); });
+  if (directCircleDrag) {
+    let dragging = null;
+    map.addInteraction(new ol.interaction.Pointer({
+      handleDownEvent: (event) => {
+        if (drawingActive() || event.originalEvent.button !== 0) return false;
+        const feature = map.forEachFeatureAtPixel(event.pixel, (candidate) => candidate, { layerFilter: (layer) => layer === handleLayer, hitTolerance: 12 });
+        if (feature?.get("record")?.kind !== "circle") return false;
+        dragging = feature;
+        setSelected(feature.get("record"));
+        return true;
+      },
+      handleDragEvent: (event) => {
+        if (dragging) dragging.getGeometry().setCoordinates(event.coordinate);
+      },
+      handleUpEvent: () => { dragging = null; return false; }
+    }));
+  }
   map.on("singleclick", (event) => {
     if (drawingActive() || event.originalEvent.altKey) return;
     const clickedHandle = map.forEachFeatureAtPixel(event.pixel, (feature) => feature, { layerFilter: (layer) => layer === handleLayer, hitTolerance: 14 });
