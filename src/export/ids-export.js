@@ -1,4 +1,4 @@
-import { collectOsmIds, formatJosmIds } from "./osm-identifiers.js";
+import { formatJosmIds } from "./osm-identifiers.js";
 const TYPES = ["node", "way", "rel"];
 const NAMES = { node: "node", way: "way", rel: "relation" };
 const PRESETS = [
@@ -31,7 +31,6 @@ const optionsFromStorage = () => {
     };
   } catch { return { ...defaults }; }
 };
-export const collectIds = collectOsmIds;
 export const formatIds = (groups, preset, domain = "www.openstreetmap.org") => {
   const present = TYPES.filter((type) => groups[type]?.length);
   if (!present.length) return "";
