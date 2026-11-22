@@ -341,7 +341,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     }
   };
   const isOutlier = (value) => Number.isFinite(value) && value !== MISSING_NUMBER && (value < Number(options.outlierMin) || value > Number(options.outlierMax));
-  const hasResultFilter = () => Boolean(geo && (options.onlySelectedKey && options.selectedKey || options.hideOtherValues && options.selectedValue !== null && options.selectedValue !== undefined || options.regexEnabled && options.regexOnly && options.selectedValue == null || options.numericEnabled && options.numericKey && !options.numericShowErrors || options.geometryEnabled || options.outlierMode === "only" || options.spatialEnabled || areaGeometry));
+  const hasResultFilter = () => Boolean(geo && (options.onlySelectedKey && options.selectedKey || options.hideOtherValues && options.selectedValue !== null && options.selectedValue !== undefined || options.regexEnabled && options.regexOnly && options.selectedValue == null || options.numericEnabled && options.numericKey && !options.numericShowErrors || options.geometryEnabled || options.outlierMode === "only" || options.spatialEnabled || areaGeometries.length > 0));
   const isResultMatch = (feature, ignoreGeometry = false) => {
     if (!feature || feature.get("podColor") < 0) return false;
     if (options.outlierMode === "only" && !isOutlier(feature.get("podValue"))) return false;
@@ -355,7 +355,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     if (options.numericEnabled && options.numericKey && !options.numericShowErrors && (number === MISSING_NUMBER || number < Number(options.numericMin) || number > Number(options.numericMax))) return false;
     const measure = feature.get("podGeomValue");
     if (!ignoreGeometry && options.geometryEnabled && (measure === -1 || measure < Number(options.geometryMin) || measure > Number(options.geometryMax))) return false;
-    if (areaGeometry && !geometryInsideArea(feature.getGeometry(), areaGeometry)) return false;
+    if (areaGeometries.length && !areaGeometries.some((area) => geometryInsideArea(feature.getGeometry(), area))) return false;
     return true;
   };
   const getShapeReference = () => {
@@ -492,7 +492,8 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   Object.assign(measureButton.style, { display: "grid", placeItems: "center", padding: "0" });
   const clearMeasuresButton = document.createElement("button");
   clearMeasuresButton.type = "button";
-  clearMeasuresButton.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16 14 5l3 3L6 19 3 16Z M8 11l3 3 M11 8l2 2"/><path d="m16 16 5 5m0-5-5 5"/></svg>';
+  clearMeasuresButton.innerHTML = measureButton.innerHTML;
+  clearMeasuresButton.className = "pod-map-measurement-remove";
   clearMeasuresButton.title = "Borrar mediciones de distancia";
   clearMeasuresButton.setAttribute("aria-label", "Borrar mediciones de distancia");
   Object.assign(clearMeasuresButton.style, { display: "grid", placeItems: "center", padding: "0" });
@@ -576,7 +577,8 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   Object.assign(circleButton.style, { display: "grid", placeItems: "center", padding: "0" });
   const clearCirclesButton = document.createElement("button");
   clearCirclesButton.type = "button";
-  clearCirclesButton.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="11" r="6.6"/><path d="m16.3 16.3 5 5m0-5-5 5"/></svg>';
+  clearCirclesButton.innerHTML = circleButton.innerHTML;
+  clearCirclesButton.className = "pod-map-measurement-remove";
   clearCirclesButton.title = "Borrar círculos medidos";
   clearCirclesButton.setAttribute("aria-label", "Borrar círculos medidos");
   Object.assign(clearCirclesButton.style, { display: "grid", placeItems: "center", padding: "0" });
@@ -699,17 +701,17 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   clearAreaButton.type = "button";
   clearAreaButton.innerHTML = selectionIcon;
   clearAreaButton.className = "pod-map-selection-remove";
-  clearAreaButton.title = "Eliminar selección espacial y quitar el filtro de área";
-  clearAreaButton.setAttribute("aria-label", "Eliminar selección espacial");
+  clearAreaButton.title = "Eliminar todas las selecciones espaciales";
+  clearAreaButton.setAttribute("aria-label", "Eliminar todas las selecciones espaciales");
   clearAreaButton.disabled = true;
-  let areaGeometry = null;
+  const areaGeometries = [];
   let areaDrawing = false;
   const areaControls = () => {
-    const selected = areaDrawing || Boolean(areaGeometry);
+    const selected = areaDrawing || areaGeometries.length > 0;
     areaButton.setAttribute("aria-pressed", String(selected));
-    areaButton.setAttribute("aria-label", areaDrawing ? "Cancelar selección espacial" : areaGeometry ? "Redibujar selección espacial" : "Seleccionar por área");
-    areaButton.title = areaDrawing ? "Cancelar selección espacial" : areaGeometry ? "Redibujar selección espacial: clics para dibujar y doble clic para sustituir el área" : "Seleccionar por área: clics para dibujar y doble clic para terminar";
-    clearAreaButton.disabled = !areaGeometry;
+    areaButton.setAttribute("aria-label", areaDrawing ? "Cancelar dibujo de selección" : "Añadir selección espacial");
+    areaButton.title = areaDrawing ? "Cancelar dibujo de selección" : "Añadir polígono de selección: clics para dibujar y doble clic para terminar";
+    clearAreaButton.disabled = areaGeometries.length === 0;
     areaButton.style.background = selected ? "#304e38" : "";
     areaButton.style.color = selected ? "#a0d2ae" : "";
     refreshToolsToggle();
@@ -722,13 +724,13 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     map.getTargetElement().style.cursor = active ? "crosshair" : "";
     areaControls();
   };
-  areaDraw.on("drawend", ({ feature }) => { areaSource.clear(); areaGeometry = feature.getGeometry(); queueMicrotask(() => { setAreaDrawing(false); resultsChanged?.(); }); });
+  areaDraw.on("drawend", ({ feature }) => { areaGeometries.push(feature.getGeometry()); queueMicrotask(() => { setAreaDrawing(false); resultsChanged?.(); }); });
   areaButton.addEventListener("click", () => setAreaDrawing(!areaDrawing));
   clearAreaButton.addEventListener("click", () => {
-    if (!areaGeometry) return;
+    if (!areaGeometries.length) return;
     if (areaDrawing) setAreaDrawing(false);
     areaSource.clear();
-    areaGeometry = null;
+    areaGeometries.length = 0;
     areaControls();
     resultsChanged?.();
   });

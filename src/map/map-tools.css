@@ -5,8 +5,9 @@
 #map .pod-map-tools-panel[hidden] { display: none; }
 #map .pod-map-tools-group { display: grid; grid-template-columns: 32px; gap: 2px; align-content: start; flex: none; }
 #map .pod-map-tools-group + .pod-map-tools-group { padding-left: 5px; border-left: 1px solid #355040; }
-#map .pod-map-tools-measurements, #map .pod-map-tools-selection { grid-template-columns: repeat(2, 32px); }
+#map .pod-map-tools-measurements { grid-template-columns: repeat(2, 32px); }
 #map .pod-map-tools-group button { display: grid; place-items: center; padding: 0; }
+#map .pod-map-tools-measurements .pod-map-measurement-remove { color: #e68e87; }
 #map .pod-map-tools-selection .pod-map-selection-add { color: #a0d2ae; }
 #map .pod-map-tools-selection .pod-map-selection-remove { color: #e68e87; }
 #map .pod-map-tools-group button:disabled { opacity: .38; cursor: not-allowed; }
@@ -14,7 +15,7 @@
 @media (pointer: coarse) {
 #map .pod-map-tools-panel { max-width: calc(100vw - 58px); }
 #map .pod-map-tools-group { grid-template-columns: 40px; }
-#map .pod-map-tools-measurements, #map .pod-map-tools-selection { grid-template-columns: repeat(2, 40px); }
+#map .pod-map-tools-measurements { grid-template-columns: repeat(2, 40px); }
 #map .pod-map-tools-group button { width: 40px; height: 40px; }
 }
 @media (max-height: 300px) {
