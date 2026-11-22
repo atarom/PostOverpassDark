@@ -9,6 +9,7 @@
 #map .pod-map-tools-group button { display: grid; place-items: center; padding: 0; }
 #map .pod-map-tools-measurements .pod-map-measurement-remove { color: #e68e87; }
 #map .pod-map-tools-selection .pod-map-selection-add { color: #a0d2ae; }
+#map .pod-map-tools-selection .pod-map-selection-add[aria-pressed="true"] { background: #304e38; color: #ceffda; box-shadow: inset 0 0 0 2px #7eca91; }
 #map .pod-map-tools-selection .pod-map-selection-remove { color: #e68e87; }
 #map .pod-map-tools-group button:disabled { opacity: .38; cursor: not-allowed; }
 #map .pod-map-tools-group button:focus-visible, #map .pod-map-tools-toggle:focus-visible { position: relative; z-index: 1; outline: 2px solid #a0d2ae; outline-offset: -2px; }

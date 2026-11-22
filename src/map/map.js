@@ -707,13 +707,11 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   const areaGeometries = [];
   let areaDrawing = false;
   const areaControls = () => {
-    const selected = areaDrawing || areaGeometries.length > 0;
+    const selected = areaDrawing;
     areaButton.setAttribute("aria-pressed", String(selected));
     areaButton.setAttribute("aria-label", areaDrawing ? "Cancelar dibujo de selección" : "Añadir selección espacial");
     areaButton.title = areaDrawing ? "Cancelar dibujo de selección" : "Añadir polígono de selección: clics para dibujar y doble clic para terminar";
     clearAreaButton.disabled = areaGeometries.length === 0;
-    areaButton.style.background = selected ? "#304e38" : "";
-    areaButton.style.color = selected ? "#a0d2ae" : "";
     refreshToolsToggle();
   };
   const setAreaDrawing = (active) => {
