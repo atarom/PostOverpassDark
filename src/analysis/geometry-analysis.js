@@ -60,7 +60,7 @@ const polygonMetrics = (rings) => {
   }
   return { area: Math.max(0, area), perimeter, vertices };
 };
-export const geometryMetrics = (geometry) => {
+const geometryMetrics = (geometry) => {
   const result = { length: NaN, area: NaN, perimeter: NaN, vertices: NaN };
   if (!geometry || typeof geometry !== "object") return result;
   const { type, coordinates } = geometry;

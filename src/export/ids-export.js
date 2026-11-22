@@ -31,7 +31,7 @@ const optionsFromStorage = () => {
     };
   } catch { return { ...defaults }; }
 };
-export const formatIds = (groups, preset, domain = "www.openstreetmap.org") => {
+const formatIds = (groups, preset, domain = "www.openstreetmap.org") => {
   const present = TYPES.filter((type) => groups[type]?.length);
   if (!present.length) return "";
   const url = (type, id) => `https://${domain}/${NAMES[type]}/${id}`;

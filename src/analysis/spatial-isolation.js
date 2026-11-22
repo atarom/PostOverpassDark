@@ -56,7 +56,7 @@ const polygonCenter = (polygons) => {
   if (total > 0) return [x / total, y / total];
   return polygons[0]?.[0]?.find(valid) || null;
 };
-export const representativePoint = (geometry) => {
+const representativePoint = (geometry) => {
   if (!geometry) return null;
   const { type, coordinates: c } = geometry;
   if (type === "Point") return valid(c) ? c : null;

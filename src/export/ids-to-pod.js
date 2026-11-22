@@ -3,7 +3,7 @@ const READY = "pod-idstopod-ready";
 const DATA = "pod-idstopod-data";
 const DONE = "pod-idstopod-done";
 const TOKEN = /^#idstopod=([a-z0-9-]{12,})$/;
-export const buildIdsToPodQuery = ({ groups, count }) => {
+const buildIdsToPodQuery = ({ groups, count }) => {
   const lines = [];
   for (const type of ["node", "way", "rel"]) {
     const ids = groups[type];

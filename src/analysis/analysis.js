@@ -22,7 +22,7 @@ export const numericValue = (value) => {
   return Number.isFinite(number) ? number : NaN;
 };
 const own = (value, key) => Boolean(key) && Object.prototype.hasOwnProperty.call(value, key);
-export const tagValueParts = (value, mode = "value") => {
+const tagValueParts = (value, mode = "value") => {
   const raw = textValue(value);
   return mode === "word" ? raw.normalize("NFC").match(/\p{L}[\p{L}\p{M}\p{N}]*/gu) || [] : mode === "semicolon" ? raw.split(";").map((item) => item.trim()).filter(Boolean) : [raw];
 };
