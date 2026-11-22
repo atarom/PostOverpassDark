@@ -437,9 +437,18 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   measureButton.setAttribute("aria-pressed", "false");
   Object.assign(measureButton.style, { display: "grid", placeItems: "center", padding: "0" });
   map.getTargetElement().querySelector(".ol-zoom")?.append(measureButton);
+  const clearMeasuresButton = document.createElement("button");
+  clearMeasuresButton.type = "button";
+  clearMeasuresButton.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16 14 5l3 3L6 19 3 16Z M8 11l3 3 M11 8l2 2"/><path d="m16 16 5 5m0-5-5 5"/></svg>';
+  clearMeasuresButton.title = "Borrar mediciones de distancia";
+  clearMeasuresButton.setAttribute("aria-label", "Borrar mediciones de distancia");
+  Object.assign(clearMeasuresButton.style, { display: "grid", placeItems: "center", padding: "0" });
+  clearMeasuresButton.disabled = true;
+  map.getTargetElement().querySelector(".ol-zoom")?.append(clearMeasuresButton);
   let measuring = false;
   let measureGeometry = null;
   let measureTooltip = null;
+  const measureTooltips = [];
   const measureFormat = (geometry) => {
     const meters = ol.sphere.getLength(geometry, { projection: map.getView().getProjection() });
     return meters >= 1000 ? `${(meters / 1000).toLocaleString("es-ES", { maximumFractionDigits: 2 })} km` : `${meters.toLocaleString("es-ES", { maximumFractionDigits: 1 })} m`;
@@ -451,12 +460,11 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     measureTooltip.setPosition(geometry.getLastCoordinate());
   };
   measureDraw.on("drawstart", ({ feature }) => {
-    measureSource.clear();
-    if (measureTooltip) map.removeOverlay(measureTooltip);
     const label = document.createElement("div");
     Object.assign(label.style, { padding: "5px 8px", background: "#13221b", border: "1px solid #47634f", borderRadius: "5px", color: "#e1eae2", font: "700 12px system-ui", whiteSpace: "nowrap", pointerEvents: "none", boxShadow: "0 3px 12px #0008" });
     measureTooltip = new Overlay({ element: label, offset: [0, -12], positioning: "bottom-center", stopEvent: false, insertFirst: false });
     map.addOverlay(measureTooltip);
+    measureTooltips.push(measureTooltip);
     measureGeometry = feature.getGeometry();
     measureGeometry.on("change", updateMeasure);
     updateMeasure({ target: measureGeometry });
@@ -467,8 +475,20 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     if (measureTooltip) {
       updateMeasure({ target: feature.getGeometry() });
       measureTooltip.getElement().style.background = "#203127";
+      measureTooltip = null;
     }
+    clearMeasuresButton.disabled = false;
   });
+  const clearMeasurePreview = () => {
+    measureGeometry?.un("change", updateMeasure);
+    measureGeometry = null;
+    if (measureTooltip) {
+      map.removeOverlay(measureTooltip);
+      measureTooltips.splice(measureTooltips.indexOf(measureTooltip), 1);
+      measureTooltip = null;
+    }
+  };
+  measureDraw.on("drawabort", clearMeasurePreview);
   const setMeasuring = (active) => {
     if (active && circleDrawing) setCircleDrawing(false);
     measuring = active;
@@ -480,13 +500,17 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     if (active) closePopup();
     else {
       measureDraw.abortDrawing();
-      measureGeometry?.un("change", updateMeasure);
-      measureGeometry = null;
-      measureSource.clear();
-      if (measureTooltip) map.removeOverlay(measureTooltip);
-      measureTooltip = null;
+      clearMeasurePreview();
     }
   };
+  clearMeasuresButton.addEventListener("click", () => {
+    measureDraw.abortDrawing();
+    clearMeasurePreview();
+    for (const overlay of measureTooltips) map.removeOverlay(overlay);
+    measureTooltips.length = 0;
+    measureSource.clear();
+    clearMeasuresButton.disabled = true;
+  });
   const circleSource = new Vector({ wrapX: false });
   const circleStyle = { "stroke-color": "#a0d2ae", "stroke-width": 2.5, "fill-color": "rgba(160,210,174,0.11)", "circle-radius": 5, "circle-fill-color": "#a0d2ae", "circle-stroke-color": "#0a1511", "circle-stroke-width": 2 };
   map.addLayer(new ol.layer.Vector({ source: circleSource, style: circleStyle }));
@@ -517,7 +541,6 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   let circleTooltip = null;
   const circleTooltips = [];
   const formatCircleLength = (meters) => meters >= 1000 ? `${(meters / 1000).toLocaleString("es-ES", { maximumFractionDigits: 2 })} km` : `${meters.toLocaleString("es-ES", { maximumFractionDigits: 1 })} m`;
-  const formatCircleArea = (meters) => meters >= 1000000 ? `${(meters / 1000000).toLocaleString("es-ES", { maximumFractionDigits: 2 })} km²` : `${meters.toLocaleString("es-ES", { maximumFractionDigits: 1 })} m²`;
   const circleRing = (center, radius) => {
     const lon = center[0] * Math.PI / 180;
     const lat = center[1] * Math.PI / 180;
@@ -547,8 +570,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     if (!Number.isFinite(radius) || radius <= 0) return 0;
     circlePolygon.getGeometry().setCoordinates([circleRing(circleCenterLonLat, radius)]);
     circleRadiusLine.getGeometry().setCoordinates([circleCenter, coordinate]);
-    const area = 2 * Math.PI * 6371008.8 ** 2 * (1 - Math.cos(radius / 6371008.8));
-    circleTooltip.getElement().textContent = `Radio ${formatCircleLength(radius)} · Diámetro ${formatCircleLength(2 * radius)} · Área ${formatCircleArea(area)}`;
+    circleTooltip.getElement().textContent = formatCircleLength(radius);
     circleTooltip.setPosition(coordinate);
     return radius;
   };
@@ -587,7 +609,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     circleSource.addFeatures([circlePolygon, circleRadiusLine, circleCenterPoint]);
     const label = document.createElement("div");
     Object.assign(label.style, { padding: "5px 8px", background: "#13221b", border: "1px solid #47634f", borderRadius: "5px", color: "#e1eae2", font: "700 12px system-ui", whiteSpace: "nowrap", pointerEvents: "none", boxShadow: "0 3px 12px #0008" });
-    label.textContent = "Mueve el cursor para definir el radio";
+    label.textContent = "0 m";
     circleTooltip = new Overlay({ element: label, offset: [0, -12], positioning: "bottom-center", stopEvent: false, insertFirst: false });
     map.addOverlay(circleTooltip);
     circleTooltips.push(circleTooltip);
