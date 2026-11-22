@@ -33,19 +33,6 @@ export const createDrawingEditor = ({ ol, map }) => {
   const toolsPanel = document.getElementById("pod-map-tools-panel");
   const circleButton = toolsPanel?.querySelector('[aria-label="Medir círculo"]');
   if (!toolsPanel || !circleButton) return;
-  const group = document.createElement("div");
-  group.className = "pod-map-tools-group pod-map-tools-edit";
-  group.setAttribute("role", "group");
-  group.setAttribute("aria-label", "Edición de dibujos");
-  const toggle = document.createElement("button");
-  toggle.type = "button";
-  toggle.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 18 2-6L17 2l5 5-10 10-7 1Z"/><path d="m14 5 5 5M3 22h18"/></svg>';
-  toggle.title = "Editar dibujos: clic para seleccionar, arrastrar nodos, Mayús+arrastrar para mover líneas y polígonos, Alt+clic para eliminar un vértice";
-  toggle.setAttribute("aria-label", "Activar o desactivar edición de dibujos");
-  toggle.setAttribute("aria-pressed", "true");
-  group.append(toggle);
-  toolsPanel.append(group);
-  let enabled = true;
   let selected = null;
   let selectedKind = "";
   let selectedTooltip = null;
@@ -141,7 +128,7 @@ export const createDrawingEditor = ({ ol, map }) => {
   };
   const select = (feature, kind) => {
     deselect();
-    if (!enabled || !feature) return;
+    if (!feature) return;
     selected = feature;
     selectedKind = kind;
     if (kind === "circle") {
@@ -172,10 +159,10 @@ export const createDrawingEditor = ({ ol, map }) => {
     translate.setActive(true);
   };
   const drawingActive = () => map.getInteractions().getArray().some((interaction) => interaction instanceof ol.interaction.Draw && interaction.getActive()) || circleButton.getAttribute("aria-pressed") === "true";
-  for (const button of toolsPanel.querySelectorAll("button")) if (button !== toggle) button.addEventListener("click", () => { if (drawingActive()) deselect(); });
+  for (const button of toolsPanel.querySelectorAll("button")) button.addEventListener("click", () => { if (drawingActive()) deselect(); });
   const activeLayers = [measureLayer, circleLayer, areaLayer];
   map.on("singleclick", (event) => {
-    if (!enabled || drawingActive() || event.originalEvent.altKey || event.originalEvent.shiftKey) return;
+    if (drawingActive() || event.originalEvent.altKey || event.originalEvent.shiftKey) return;
     if (map.hasFeatureAtPixel(event.pixel, { layerFilter: (layer) => layer === handleLayer, hitTolerance: 12 })) return;
     const result = map.forEachFeatureAtPixel(event.pixel, (feature, layer) => activeLayers.includes(layer) ? { feature, layer } : undefined, { layerFilter: (layer) => activeLayers.includes(layer), hitTolerance: 10 });
     if (!result) { deselect(); return; }
@@ -192,15 +179,6 @@ export const createDrawingEditor = ({ ol, map }) => {
   }
   circleSource.on("removefeature", ({ feature }) => { if (circleGroup && circleByFeature.get(feature) === circleGroup) deselect(); });
   circleSource.on("clear", () => { stagedCircle = []; if (selectedKind === "circle") deselect(); });
-  toggle.addEventListener("click", () => {
-    enabled = !enabled;
-    toggle.setAttribute("aria-pressed", String(enabled));
-    toggle.style.background = enabled ? "#304e38" : "";
-    toggle.style.color = enabled ? "#a0d2ae" : "";
-    if (!enabled) deselect();
-  });
-  toggle.style.background = "#304e38";
-  toggle.style.color = "#a0d2ae";
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && selected) deselect();
   });
