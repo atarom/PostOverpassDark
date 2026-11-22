@@ -19,6 +19,149 @@ const ring = (ol, center, radius) => Array.from({ length: 97 }, (_, index) => ol
 const formatDistance = (meters) => meters >= 1000 ? `${(meters / 1000).toLocaleString("es-ES", { maximumFractionDigits: 2 })} km` : `${meters.toLocaleString("es-ES", { maximumFractionDigits: 1 })} m`;
 const isDistanceLabel = (element) => element?.tagName === "DIV" && /^[\d.,\s]+(?:km|m)$/.test(element.textContent.trim());
 const distanceSquared = (a, b) => a && b ? (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 : Infinity;
+const insideArea = (geometry, area) => {
+  const bounds = geometry.getExtent();
+  const limit = area.getExtent();
+  if (bounds[0] < limit[0] || bounds[1] < limit[1] || bounds[2] > limit[2] || bounds[3] > limit[3]) return false;
+  const ring = area.getCoordinates()[0];
+  const inside = (point) => area.intersectsCoordinate(point);
+  const segment = (a, b) => {
+    if (!inside(a) || !inside(b)) return false;
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const cuts = [0, 1];
+    for (let i = 1; i < ring.length; i++) {
+      const c = ring[i - 1], d = ring[i];
+      const ex = d[0] - c[0], ey = d[1] - c[1];
+      const det = dx * ey - dy * ex;
+      if (Math.abs(det) < 1e-12) continue;
+      const qx = c[0] - a[0], qy = c[1] - a[1];
+      const t = (qx * ey - qy * ex) / det;
+      const u = (qx * dy - qy * dx) / det;
+      if (t > 0 && t < 1 && u >= 0 && u <= 1) cuts.push(t);
+    }
+    cuts.sort((a, b) => a - b);
+    for (let i = 1; i < cuts.length; i++) {
+      if (cuts[i] - cuts[i - 1] < 1e-12) continue;
+      const t = (cuts[i] + cuts[i - 1]) / 2;
+      if (!inside([a[0] + t * dx, a[1] + t * dy])) return false;
+    }
+    return true;
+  };
+  const path = (points) => points.length > 0 && points.every((point, index) => inside(point) && (index === 0 || segment(points[index - 1], point)));
+  const type = geometry.getType();
+  if (type === "Point") return inside(geometry.getCoordinates());
+  if (type === "MultiPoint") return geometry.getCoordinates().length > 0 && geometry.getCoordinates().every(inside);
+  if (type === "LineString") return path(geometry.getCoordinates());
+  if (type === "MultiLineString" || type === "Polygon") return geometry.getCoordinates().length > 0 && geometry.getCoordinates().every(path);
+  if (type === "MultiPolygon") return geometry.getCoordinates().length > 0 && geometry.getCoordinates().every((polygon) => polygon.every(path));
+  if (type === "GeometryCollection") return geometry.getGeometries().length > 0 && geometry.getGeometries().every((part) => insideArea(part, area));
+  return false;
+};
+const createAreaCounters = ({ ol, map, source }) => {
+  const data = ol.layer.WebGLVector && map.getLayers().getArray().find((layer) => layer instanceof ol.layer.WebGLVector && layer.getSource() instanceof ol.source.Vector)?.getSource();
+  if (!data) return;
+  const labels = new Map();
+  let preview = null;
+  let refreshQueued = false;
+  const stop = (entry) => {
+    if (!entry) return;
+    clearTimeout(entry.timer);
+    entry.revision++;
+    entry.geometry.un("change", entry.onChange);
+    map.removeOverlay(entry.overlay);
+  };
+  const position = (entry) => {
+    const geometry = entry.geometry;
+    const coordinates = geometry.getCoordinates()?.[0];
+    if (!coordinates || coordinates.length < 4 || !coordinates.every((point) => point.every(Number.isFinite))) {
+      entry.overlay.setPosition(undefined);
+      return false;
+    }
+    const center = geometry.getInteriorPoint().getCoordinates();
+    if (!center.slice(0, 2).every(Number.isFinite)) {
+      entry.overlay.setPosition(undefined);
+      return false;
+    }
+    entry.overlay.setPosition(center.slice(0, 2));
+    return true;
+  };
+  const count = (entry) => {
+    if (!position(entry)) return;
+    const area = entry.geometry;
+    const bounds = area.getExtent();
+    const matches = [];
+    data.forEachFeatureInExtent(bounds, (feature) => {
+      if (feature.get("podIndex") != null && feature.get("podColor") >= 0) matches.push(feature);
+    });
+    const revision = ++entry.revision;
+    let index = 0;
+    let amount = 0;
+    if (matches.length > 1000) entry.element.textContent = "Calculando…";
+    const scan = () => {
+      if (revision !== entry.revision) return;
+      const start = performance.now();
+      while (index < matches.length && performance.now() - start < 7) {
+        const feature = matches[index++];
+        if (insideArea(feature.getGeometry(), area)) amount++;
+      }
+      if (index < matches.length) requestAnimationFrame(scan);
+      else entry.element.textContent = `${amount.toLocaleString("es-ES")} elemento${amount === 1 ? "" : "s"}`;
+    };
+    scan();
+  };
+  const queue = (entry, delay = 130) => {
+    clearTimeout(entry.timer);
+    entry.revision++;
+    position(entry);
+    entry.timer = setTimeout(() => count(entry), delay);
+  };
+  const add = (geometry) => {
+    const element = document.createElement("div");
+    element.className = "pod-selection-count";
+    Object.assign(element.style, { padding: "4px 7px", background: "#17261edb", border: "1px solid #b0cda1", borderRadius: "4px", color: "#e8f4e2", font: "700 12px system-ui", whiteSpace: "nowrap", pointerEvents: "none", boxShadow: "0 2px 8px #0009" });
+    element.textContent = "0 elementos";
+    const overlay = new ol.Overlay({ element, positioning: "center-center", stopEvent: false, insertFirst: false });
+    map.addOverlay(overlay);
+    const entry = { geometry, element, overlay, timer: 0, revision: 0 };
+    entry.onChange = () => queue(entry);
+    geometry.on("change", entry.onChange);
+    queue(entry, 0);
+    return entry;
+  };
+  for (const feature of source.getFeatures()) labels.set(feature, add(feature.getGeometry()));
+  source.on("addfeature", ({ feature }) => labels.set(feature, add(feature.getGeometry())));
+  source.on("removefeature", ({ feature }) => {
+    stop(labels.get(feature));
+    labels.delete(feature);
+  });
+  source.on("clear", () => {
+    for (const entry of labels.values()) stop(entry);
+    labels.clear();
+  });
+  const clearPreview = () => {
+    stop(preview);
+    preview = null;
+  };
+  for (const interaction of map.getInteractions().getArray()) if (interaction instanceof ol.interaction.Draw) {
+    interaction.on("drawstart", ({ feature }) => {
+      if (feature.getGeometry().getType() !== "Polygon") return;
+      clearPreview();
+      preview = add(feature.getGeometry());
+    });
+    interaction.on("drawend", clearPreview);
+    interaction.on("drawabort", clearPreview);
+  }
+  const refresh = () => {
+    if (refreshQueued) return;
+    refreshQueued = true;
+    setTimeout(() => {
+      refreshQueued = false;
+      for (const entry of labels.values()) queue(entry, 0);
+      if (preview) queue(preview, 0);
+    }, 180);
+  };
+  data.on("change", refresh);
+};
 export const createDrawingEditor = ({ ol, map }) => {
   const layers = map.getLayers().getArray().filter((layer) => layer instanceof ol.layer.Vector && layer.getSource() instanceof ol.source.Vector);
   if (layers.length < 4) return;
@@ -216,5 +359,6 @@ export const createDrawingEditor = ({ ol, map }) => {
     const hit = map.hasFeatureAtPixel(event.pixel, { layerFilter: (layer) => layer === handleLayer, hitTolerance: 12 });
     if (hit) map.getTargetElement().style.cursor = event.originalEvent.buttons ? "grabbing" : "grab";
   });
+  createAreaCounters({ ol, map, source: areaSource });
   document.addEventListener("keydown", (event) => { if (event.key === "Escape") setSelected(null); });
 };
