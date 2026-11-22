@@ -422,7 +422,61 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   zoomAll.title = "Zoom a todo";
   zoomAll.setAttribute("aria-label", "Mostrar todas las entidades cargadas");
   zoomAll.addEventListener("click", () => fit(rendered));
-  map.getTargetElement().querySelector(".ol-zoom")?.append(zoomAll);
+  const zoomControl = map.getTargetElement().querySelector(".ol-zoom");
+  zoomControl?.append(zoomAll);
+  const toolsToggle = document.createElement("button");
+  toolsToggle.type = "button";
+  toolsToggle.className = "pod-map-tools-toggle";
+  toolsToggle.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><circle cx="17.5" cy="6.5" r="3.5"/><path d="M3 16h8M7 12v8m8-7 6 6m0-6-6 6"/></svg>';
+  toolsToggle.setAttribute("aria-controls", "pod-map-tools-panel");
+  toolsToggle.setAttribute("aria-expanded", "false");
+  const toolsPanel = document.createElement("div");
+  toolsPanel.id = "pod-map-tools-panel";
+  toolsPanel.className = "pod-map-tools-panel";
+  toolsPanel.setAttribute("role", "group");
+  toolsPanel.setAttribute("aria-label", "Herramientas del mapa");
+  toolsPanel.hidden = true;
+  const makeToolGroup = (label, className) => {
+    const group = document.createElement("div");
+    group.className = `pod-map-tools-group ${className}`;
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-label", label);
+    group.title = label;
+    return group;
+  };
+  const measurementTools = makeToolGroup("Mediciones", "pod-map-tools-measurements");
+  const filterTools = makeToolGroup("Filtros espaciales", "pod-map-tools-filters");
+  toolsPanel.append(measurementTools, filterTools);
+  const setToolsOpen = (open) => {
+    toolsPanel.hidden = !open;
+    toolsToggle.setAttribute("aria-expanded", String(open));
+    const label = open ? "Ocultar herramientas del mapa" : "Mostrar herramientas del mapa";
+    toolsToggle.setAttribute("aria-label", label);
+    toolsToggle.title = label;
+  };
+  toolsToggle.addEventListener("click", () => setToolsOpen(toolsPanel.hidden));
+  toolsToggle.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowRight") return;
+    if (toolsPanel.hidden) setToolsOpen(true);
+    toolsPanel.querySelector("button:not(:disabled)")?.focus();
+    event.preventDefault();
+  });
+  toolsPanel.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    setToolsOpen(false);
+    toolsToggle.focus();
+    event.stopPropagation();
+  });
+  setToolsOpen(false);
+  zoomControl?.append(toolsToggle, toolsPanel);
+  const toolsStyles = document.createElement("link");
+  toolsStyles.rel = "stylesheet";
+  toolsStyles.href = "./src/map/map-tools.css";
+  document.head.append(toolsStyles);
+  const refreshToolsToggle = () => {
+    const active = [measureButton, circleButton, areaButton].some((button) => button.getAttribute("aria-pressed") === "true");
+    toolsToggle.classList.toggle("is-active", active);
+  };
   const measureSource = new Vector({ wrapX: false });
   const measureStyle = { "stroke-color": "#a0d2ae", "stroke-width": 3, "circle-radius": 5, "circle-fill-color": "#a0d2ae", "circle-stroke-color": "#0a1511", "circle-stroke-width": 2 };
   map.addLayer(new ol.layer.Vector({ source: measureSource, style: measureStyle }));
@@ -436,7 +490,6 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   measureButton.setAttribute("aria-label", "Medir distancias");
   measureButton.setAttribute("aria-pressed", "false");
   Object.assign(measureButton.style, { display: "grid", placeItems: "center", padding: "0" });
-  map.getTargetElement().querySelector(".ol-zoom")?.append(measureButton);
   const clearMeasuresButton = document.createElement("button");
   clearMeasuresButton.type = "button";
   clearMeasuresButton.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16 14 5l3 3L6 19 3 16Z M8 11l3 3 M11 8l2 2"/><path d="m16 16 5 5m0-5-5 5"/></svg>';
@@ -444,7 +497,6 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   clearMeasuresButton.setAttribute("aria-label", "Borrar mediciones de distancia");
   Object.assign(clearMeasuresButton.style, { display: "grid", placeItems: "center", padding: "0" });
   clearMeasuresButton.disabled = true;
-  map.getTargetElement().querySelector(".ol-zoom")?.append(clearMeasuresButton);
   let measuring = false;
   let measureGeometry = null;
   let measureTooltip = null;
@@ -502,6 +554,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
       measureDraw.abortDrawing();
       clearMeasurePreview();
     }
+    refreshToolsToggle();
   };
   clearMeasuresButton.addEventListener("click", () => {
     measureDraw.abortDrawing();
@@ -521,7 +574,6 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   circleButton.setAttribute("aria-label", "Medir círculo");
   circleButton.setAttribute("aria-pressed", "false");
   Object.assign(circleButton.style, { display: "grid", placeItems: "center", padding: "0" });
-  map.getTargetElement().querySelector(".ol-zoom")?.append(circleButton);
   const clearCirclesButton = document.createElement("button");
   clearCirclesButton.type = "button";
   clearCirclesButton.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="11" r="6.6"/><path d="m16.3 16.3 5 5m0-5-5 5"/></svg>';
@@ -529,7 +581,6 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   clearCirclesButton.setAttribute("aria-label", "Borrar círculos medidos");
   Object.assign(clearCirclesButton.style, { display: "grid", placeItems: "center", padding: "0" });
   clearCirclesButton.disabled = true;
-  map.getTargetElement().querySelector(".ol-zoom")?.append(clearCirclesButton);
   const doubleClickZoom = map.getInteractions().getArray().find((interaction) => interaction instanceof ol.interaction.DoubleClickZoom);
   let restoreDoubleClickZoom = true;
   let circleDrawing = false;
@@ -590,6 +641,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
       doubleClickZoom?.setActive(restoreDoubleClickZoom);
     }
     map.getTargetElement().style.cursor = active ? "crosshair" : "";
+    refreshToolsToggle();
   };
   circleButton.addEventListener("click", () => setCircleDrawing(!circleDrawing));
   clearCirclesButton.addEventListener("click", () => {
@@ -641,7 +693,6 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   const areaButton = document.createElement("button");
   areaButton.type = "button";
   areaButton.textContent = "⬡";
-  map.getTargetElement().querySelector(".ol-zoom")?.append(areaButton);
   let areaGeometry = null;
   let areaDrawing = false;
   const areaControls = () => {
@@ -651,6 +702,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     areaButton.title = areaDrawing ? "Cancelar dibujo" : areaGeometry ? "Borrar área de filtrado" : "Filtrar por área: clics para dibujar, doble clic para terminar";
     areaButton.style.background = selected ? "#64532e" : "";
     areaButton.style.color = selected ? "#f4db9b" : "";
+    refreshToolsToggle();
   };
   const setAreaDrawing = (active) => {
     areaDrawing = active;
@@ -667,6 +719,8 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     else setAreaDrawing(!areaDrawing);
   });
   areaControls();
+  measurementTools.append(measureButton, circleButton, clearMeasuresButton, clearCirclesButton);
+  filterTools.append(areaButton);
   const draw = (collection, { fitBounds = true, filters = options } = {}) => {
     closePopup();
     geo = collection;

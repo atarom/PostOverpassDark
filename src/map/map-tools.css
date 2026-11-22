@@ -1,0 +1,20 @@
+#map .ol-zoom { overflow: visible; }
+#map .pod-map-tools-toggle { display: grid; place-items: center; padding: 0; border-top: 1px solid #355040; }
+#map .pod-map-tools-toggle[aria-expanded="true"], #map .pod-map-tools-toggle.is-active { background: #304e38; color: #a0d2ae; }
+#map .pod-map-tools-panel { position: absolute; top: calc(100% - 32px); left: calc(100% + 6px); z-index: 4; display: flex; align-items: flex-start; gap: 4px; padding: 4px; max-width: calc(100vw - 65px); max-height: min(220px, calc(100dvh - 24px)); overflow: auto; border: 1px solid #355040; border-radius: 5px; background: #101c16f5; box-shadow: 0 5px 16px #0009; }
+#map .pod-map-tools-panel[hidden] { display: none; }
+#map .pod-map-tools-group { display: grid; grid-template-columns: 32px; gap: 2px; align-content: start; flex: none; }
+#map .pod-map-tools-group + .pod-map-tools-group { padding-left: 5px; border-left: 1px solid #355040; }
+#map .pod-map-tools-measurements { grid-template-columns: repeat(2, 32px); }
+#map .pod-map-tools-group button { display: grid; place-items: center; padding: 0; }
+#map .pod-map-tools-group button:disabled { opacity: .38; cursor: not-allowed; }
+#map .pod-map-tools-group button:focus-visible, #map .pod-map-tools-toggle:focus-visible { position: relative; z-index: 1; outline: 2px solid #a0d2ae; outline-offset: -2px; }
+@media (pointer: coarse) {
+#map .pod-map-tools-panel { max-width: calc(100vw - 58px); }
+#map .pod-map-tools-group { grid-template-columns: 40px; }
+#map .pod-map-tools-measurements { grid-template-columns: repeat(2, 40px); }
+#map .pod-map-tools-group button { width: 40px; height: 40px; }
+}
+@media (max-height: 300px) {
+#map .pod-map-tools-panel { top: 40px; max-height: calc(100dvh - 55px); }
+}
