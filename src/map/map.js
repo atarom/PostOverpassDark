@@ -842,7 +842,6 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     const index = selected?.get("podIndex");
     if (index == null || !geo?.features[index]) { closePopup(); return; }
     const raw = geo.features[index];
-    if (!isResultMatch(selected)) { closePopup(); return; }
     popupContent.innerHTML = popupHtml(raw);
     popupIndex = index;
     popupAnchor = event.coordinate;
