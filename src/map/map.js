@@ -445,7 +445,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     return group;
   };
   const measurementTools = makeToolGroup("Mediciones", "pod-map-tools-measurements");
-  const filterTools = makeToolGroup("Filtros espaciales", "pod-map-tools-filters");
+  const filterTools = makeToolGroup("Selección espacial", "pod-map-tools-selection");
   toolsPanel.append(measurementTools, filterTools);
   const setToolsOpen = (open) => {
     toolsPanel.hidden = !open;
@@ -693,13 +693,20 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   const areaButton = document.createElement("button");
   areaButton.type = "button";
   areaButton.textContent = "⬡";
+  const clearAreaButton = document.createElement("button");
+  clearAreaButton.type = "button";
+  clearAreaButton.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 8 7-5 9 5-2 8-8 5-7-7Z"/><path d="m14 11 6 6m0-6-6 6"/></svg>';
+  clearAreaButton.title = "Eliminar selección espacial y quitar el filtro de área";
+  clearAreaButton.setAttribute("aria-label", "Eliminar selección espacial");
+  clearAreaButton.disabled = true;
   let areaGeometry = null;
   let areaDrawing = false;
   const areaControls = () => {
     const selected = areaDrawing || Boolean(areaGeometry);
     areaButton.setAttribute("aria-pressed", String(selected));
-    areaButton.setAttribute("aria-label", areaDrawing ? "Cancelar dibujo" : areaGeometry ? "Borrar área de filtrado" : "Dibujar área de filtrado");
-    areaButton.title = areaDrawing ? "Cancelar dibujo" : areaGeometry ? "Borrar área de filtrado" : "Filtrar por área: clics para dibujar, doble clic para terminar";
+    areaButton.setAttribute("aria-label", areaDrawing ? "Cancelar selección espacial" : areaGeometry ? "Redibujar selección espacial" : "Seleccionar por área");
+    areaButton.title = areaDrawing ? "Cancelar selección espacial" : areaGeometry ? "Redibujar selección espacial: clics para dibujar y doble clic para sustituir el área" : "Seleccionar por área: clics para dibujar y doble clic para terminar";
+    clearAreaButton.disabled = !areaGeometry;
     areaButton.style.background = selected ? "#64532e" : "";
     areaButton.style.color = selected ? "#f4db9b" : "";
     refreshToolsToggle();
@@ -712,15 +719,19 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     map.getTargetElement().style.cursor = active ? "crosshair" : "";
     areaControls();
   };
-  areaDraw.on("drawstart", () => { areaSource.clear(); areaGeometry = null; });
-  areaDraw.on("drawend", ({ feature }) => { areaGeometry = feature.getGeometry(); queueMicrotask(() => { setAreaDrawing(false); resultsChanged?.(); }); });
-  areaButton.addEventListener("click", () => {
-    if (areaGeometry) { areaSource.clear(); areaGeometry = null; setAreaDrawing(false); resultsChanged?.(); }
-    else setAreaDrawing(!areaDrawing);
+  areaDraw.on("drawend", ({ feature }) => { areaSource.clear(); areaGeometry = feature.getGeometry(); queueMicrotask(() => { setAreaDrawing(false); resultsChanged?.(); }); });
+  areaButton.addEventListener("click", () => setAreaDrawing(!areaDrawing));
+  clearAreaButton.addEventListener("click", () => {
+    if (!areaGeometry) return;
+    if (areaDrawing) setAreaDrawing(false);
+    areaSource.clear();
+    areaGeometry = null;
+    areaControls();
+    resultsChanged?.();
   });
   areaControls();
   measurementTools.append(measureButton, circleButton, clearMeasuresButton, clearCirclesButton);
-  filterTools.append(areaButton);
+  filterTools.append(areaButton, clearAreaButton);
   const draw = (collection, { fitBounds = true, filters = options } = {}) => {
     closePopup();
     geo = collection;
