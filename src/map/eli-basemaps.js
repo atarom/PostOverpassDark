@@ -223,6 +223,8 @@ export const createEliBasemaps = ({ ol, map }) => {
     }
   };
   const setLayer = (entry) => {
+    if (entry && layer && active?.id === entry.id) return;
+    if (!entry && !layer && !errorText) return;
     if (layer) map.removeLayer(layer);
     layer = null;
     active = entry;
@@ -237,6 +239,11 @@ export const createEliBasemaps = ({ ol, map }) => {
           const url = event.tile?.getImage?.()?.src || "URL no disponible";
           console.warn("PostOverpassDark ELI: error al cargar tesela", entry.name, url);
           errorText = entry.type === "wms" ? "Falló una petición WMS. Consulta su URL en la consola." : "No se pudieron cargar algunas teselas de este proveedor.";
+          if (!panel.hidden) refresh();
+        });
+        source.on("tileloadend", () => {
+          if (layer?.getSource() !== source || !errorText) return;
+          errorText = "";
           if (!panel.hidden) refresh();
         });
       } catch {
