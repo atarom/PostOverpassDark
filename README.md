@@ -16,19 +16,20 @@
 - Editor con resaltado, autocompletado y presets de ejemplo.
 - Variables compatibles con consultas como `{{bbox}}`, `{{center}}`, `{{geocodeArea:...}}`...
 - Visualización normal o como mapa de calor.
+- Cartografía de referencia de ELI: fuentes TMS/WMS, búsqueda por zona, favoritos y ajustes de opacidad, brillo, contraste, saturación y fusión.
 - Conteo de keys y valores de los tags devueltos.
 - Filtro por regex sobre la key seleccionada, con colores configurables.
 - Filtro numérico por key con rango mínimo/máximo y visualización opcional de valores fuera de rango.
 - Inspección de la consulta enviada, respuesta original y GeoJSON generado.
 - Acceso directo desde los resultados a OpenStreetMap y distintos editores OSM.
 - Envío directo a JOSM de objetos encontrados con Overpass o Postpass mediante Remote Control.
-- Generación de enlaces compartidos autocontenidos con compresión automática mediante DEFLATE y Brotli 11.
-- Optimización de identificadores OSM mediante Delta/Varint.
+- Generación de enlaces compartidos autocontenidos con compresión automática mediante DEFLATE y Brotli 11. Optimización de identificadores OSM mediante Delta/Varint.
 
 ## Tecnologías y datos
 
 - [OpenLayers](https://openlayers.org/) — renderización WebGL, filtros dinámicos y navegación del mapa.
 - [OpenStreetMap](https://www.openstreetmap.org/) — teselas del mapa base.
+- [Editor Layer Index](https://github.com/osmlab/editor-layer-index) — catálogo de fuentes cartográficas de terceros.
 - [Overpass API](https://overpass-api.de/) — consultas Overpass QL.
 - [Postpass](https://postpass.geofabrik.de/) — consultas SQL/PostGIS.
 - [CodeMirror](https://codemirror.net/) — editor de consultas.
