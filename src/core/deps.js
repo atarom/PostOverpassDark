@@ -1,4 +1,5 @@
 import { createDrawingEditor } from "../map/drawing-editor.js";
+import { createEliBasemaps } from "../map/eli-basemaps.js";
 const searchStylesheet = document.createElement("link");
 searchStylesheet.rel = "stylesheet";
 searchStylesheet.href = new URL("../query/codemirror-search.css", import.meta.url).href;
@@ -29,6 +30,7 @@ const enableDrawingEditor = (ol) => {
       if (relevant.length < 4) return;
       initialized.add(this);
       createDrawingEditor({ ol, map: this });
+      createEliBasemaps({ ol, map: this });
     });
     return result;
   };
