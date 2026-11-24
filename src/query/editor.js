@@ -23,7 +23,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
   const setOf = (s) => new Set(words(s));
   const opts = (a, type = "constant", detail) => [...a].map((label) => ({ label, type, detail }));
   const KW = setOf(
-    "node way relation rel nw nr wr nwr area out foreach for if else convert make is_in map_to_area timeline local complete retro compare"
+    "node way relation rel nw nr wr nwr area derived out foreach for if else convert make is_in map_to_area timeline local complete retro compare"
   );
   const FILTER = setOf(
     "around bbox poly id newer changed user uid user_touched uid_touched pivot area if way_cnt way_link"
@@ -100,7 +100,7 @@ export const createEditor = ({ deps, queryNode, wrapMode, engine, defaults, onCh
       }
       if (s.match(/-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+|Mi)?/i))
         return z.b === "tag" && z.k === "key" ? "tagkey" : "number";
-      if (s.match(/->|::|!~|!=|==|<=|>=|&&|\|\||[=~<>+\-*\/!?]/)) {
+      if (s.match(/->|::|!~|!=|==|<=|>=|<<|>>|&&|\|\||[=~<>+\-*\/!?]/)) {
         if (z.b === "tag" && /^(?:=|==|!=|~|!~|<|>|<=|>=)$/.test(s.current()) && (z.h || s.current() !== "~")) z.k = "value";
         return "operator";
       }
