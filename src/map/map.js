@@ -1,6 +1,7 @@
 import { esc, val, DEFAULT_HEAT } from "../core/utils.js";
 import { featureTags, matchesTagValue, numericValue, compilePatterns } from "../analysis/analysis.js";
 import { getOsmReference } from "../export/osm-identifiers.js";
+import { formatTagValue, loadTagLinks } from "./tag-links.js";
 import { ShaderBuilder } from "https://cdn.jsdelivr.net/npm/ol@10.11.0/render/webgl/ShaderBuilder.js/+esm";
 const COLORS = { default: ["#355f8d", "#3f8f9c", "#79b88d", "#d6b56d", "#e58b68", "#ef5d72"], warm: ["#72543b", "#a26c43", "#d1924f", "#e6b95f", "#ef8262", "#ef4e5d"], cool: ["#324a7a", "#326b98", "#3f98a7", "#63b7a8", "#88d0b4", "#d3f0c0"], fire: ["#3a173d", "#7d2450", "#bd3a45", "#e96d3e", "#f5b747", "#fff2a1"] };
 const hexPacked = (value) => {
@@ -8,8 +9,8 @@ const hexPacked = (value) => {
   return match ? parseInt(match[1], 16) : 0x8db6e8;
 };
 const entries = (obj) => obj && typeof obj === "object" && !Array.isArray(obj) ? Object.entries(obj).filter(([, value]) => value != null) : [];
-const rows = (items) => items.sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `<div class="tr"><div class="tk">${esc(key)}</div><div class="tv">${esc(val(value))}</div></div>`).join("");
-const section = (title, cls, items) => items.length ? `<section class="ps ${cls}"><div class="psh">${title}</div>${rows(items)}</section>` : "";
+const rows = (items, linked = false) => items.sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `<div class="tr"><div class="tk">${esc(key)}</div><div class="tv">${linked ? formatTagValue(key, value) : esc(val(value))}</div></div>`).join("");
+const section = (title, cls, items) => items.length ? `<section class="ps ${cls}"><div class="psh">${title}</div>${rows(items, cls === "tag")}</section>` : "";
 const popupIcon = (shape) => `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${shape}</svg>`;
 const POPUP_ICONS = {
   osm: popupIcon('<circle cx="10.5" cy="10.5" r="6.3"/><path d="m15.2 15.2 5.2 5.2"/>'),
@@ -232,6 +233,20 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     const oldPosition = previous.indexOf(popupIndex);
     showPopupHit(position < 0 ? Math.min(Math.max(0, oldPosition), popupHits.length - 1) : position);
   };
+  loadTagLinks().then((loaded) => {
+    if (!loaded || popupIndex === null || popupElement.hidden) return;
+    const raw = geo?.features[popupIndex];
+    if (!raw) return;
+    const tags = featureTags(raw);
+    for (const row of popupContent.querySelectorAll(".ps.tag .tr")) {
+      const key = row.firstElementChild.textContent;
+      const cell = row.lastElementChild;
+      if (!Object.hasOwn(tags, key)) continue;
+      const html = formatTagValue(key, tags[key]);
+      if (cell.innerHTML !== html && !cell.contains(document.activeElement)) cell.innerHTML = html;
+    }
+    positionPopup();
+  });
   popupClose.onclick = closePopup;
   map.on("moveend", positionPopup);
   map.on("change:size", () => requestAnimationFrame(positionPopup));
