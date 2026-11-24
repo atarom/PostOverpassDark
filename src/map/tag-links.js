@@ -7,7 +7,7 @@ const webUrl = (value) => {
     return !url.username && !url.password && url.hostname && (url.protocol === "https:" || url.protocol === "http:") ? url.href : null;
   } catch { return null; }
 };
-export const buildTagLinks = (data) => {
+const buildTagLinks = (data) => {
   if (!Array.isArray(data)) return new Map();
   const grouped = new Map();
   for (const item of data) {

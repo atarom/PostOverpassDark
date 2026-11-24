@@ -24,7 +24,7 @@ const SECURE_URL = (value) => {
   } catch { return null; }
 };
 const switchHost = (url) => url.replace(/\{switch:([^{}]+)\}/g, (_, hosts) => hosts.split(",")[0]?.trim() || "");
-export const normalizeImagery = (feature, index = 0) => {
+const normalizeImagery = (feature, index = 0) => {
   const p = feature?.properties;
   if (!p || !["tms", "wms"].includes(p.type) || typeof p.name !== "string" || typeof p.url !== "string") return null;
   if (Array.isArray(p.available_projections) && p.available_projections.length && !p.available_projections.some((value) => /^(EPSG:)?(3857|900913)$/i.test(value))) return null;
@@ -54,7 +54,7 @@ export const normalizeImagery = (feature, index = 0) => {
   }
   return { id: String(p.id || `${p.type}-${index}`), name: p.name.trim(), type: p.type, template, config, geometry: feature.geometry || null, attribution: p.attribution || null, license: SECURE_URL(p.license_url || "")?.href || "", best: Boolean(p.best), minZoom: Number.isFinite(Number(p.min_zoom)) && p.min_zoom !== undefined ? Number(p.min_zoom) : undefined, maxZoom: Number.isFinite(Number(p.max_zoom)) && p.max_zoom !== undefined ? Number(p.max_zoom) : undefined };
 };
-export const createImagerySource = (ol, entry) => {
+const createImagerySource = (ol, entry) => {
   const at = entry.attribution;
   const credit = typeof at === "string" ? at : typeof at?.text === "string" ? at.text : entry.name;
   const safeCredit = credit.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
