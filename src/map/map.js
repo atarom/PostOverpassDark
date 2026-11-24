@@ -19,7 +19,7 @@ const POPUP_ICONS = {
   josm: popupIcon('<path d="M3 6 9 3l6 3 6-3v10M3 6v14l6-3 4.3 2M9 3v14M15 6v8"/><path d="m14.1 20.4 2.5-.6 4.9-5-1.9-1.9-4.9 5-.6 2.5Z"/>'),
   purge: popupIcon('<circle cx="12" cy="12" r="8.2"/><path d="m9 9 6 6m0-6-6 6"/>')
 };
-const popupHtml = (feature) => {
+const popupHtml = (feature, position = 0, total = 1) => {
   const p = feature.properties || {};
   const tags = featureTags(feature);
   const { type = "", id = "", short = "" } = getOsmReference(feature) || {};
@@ -32,7 +32,43 @@ const popupHtml = (feature) => {
   const body = section("Tags OSM", "tag", entries(tags)) + section("Relaciones", "rel", relations) + section("Metadatos", "meta", meta);
   const links = osm ? [["osm", "Ver en OSM", osm], ["id", "Editar con iD", `https://www.openstreetmap.org/edit?editor=id&${type}=${id}`], ["rapid", "Editar con Rapid", `https://rapideditor.org/edit#id=${shortId}`], ["level0", "Editar con Level0", `https://level0.osmz.ru/?url=${encodeURIComponent(osm)}`], ["josm", "Editar con JOSM", `http://127.0.0.1:8111/load_object?objects=${shortId}`]] : [];
   const actions = links.map(([icon, title, url]) => `<button type="button" class="pop-action" style="width:auto;height:38px;flex:1 1 0;min-width:0" data-url="${esc(url)}" title="${esc(title)}" aria-label="${esc(title)}">${POPUP_ICONS[icon]}</button>`).join("") + (osm ? `<button type="button" class="pop-action pop-purge" style="width:auto;height:38px;flex:1 1 0;min-width:0;color:var(--d)!important;border-color:#935849!important" title="Purgar de los resultados de POD (no modifica OSM)" aria-label="Purgar de los resultados de POD">${POPUP_ICONS.purge}</button>` : "");
-  return `<div class="pp" style="grid-template-rows:auto auto minmax(0,1fr)"><div class="ph"><div class="pt">${esc(name)}</div></div>${actions ? `<div class="acts" style="grid-row:2;padding:10px 13px;border-top:0;border-bottom:1px solid var(--b)">${actions}</div>` : ""}<div class="tags" style="grid-row:3">${body || '<div class="tr"><div class="tk">info</div><div class="tv">Sin información visible</div></div>'}</div></div>`;
+  const navButton = (step, label, symbol) => `<button type="button" data-popup-step="${step}" title="${label}" aria-label="${label}" style="width:34px;min-width:34px;height:34px;padding:0;font-size:22px;line-height:1;border:1px solid var(--b);background:var(--p2);color:var(--a);flex:none">${symbol}</button>`;
+  const navigation = total > 1 ? `<div role="group" aria-label="Objetos superpuestos" style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:7px">${navButton(-1, "Objeto anterior", "‹")}<span aria-live="polite" style="min-width:0;text-align:center;font-weight:700">${position + 1} de ${total}${osm && name !== `${type}/${id}` ? `<br><span style="font-size:11px;font-weight:400;overflow-wrap:anywhere">${esc(`${type}/${id}`)}</span>` : ""}</span>${navButton(1, "Objeto siguiente", "›")}</div>` : "";
+  return `<div class="pp" style="grid-template-rows:auto auto minmax(0,1fr)"><div class="ph">${navigation}<div class="pt">${esc(name)}</div></div>${actions ? `<div class="acts" style="grid-row:2;padding:10px 13px;border-top:0;border-bottom:1px solid var(--b)">${actions}</div>` : ""}<div class="tags" style="grid-row:3">${body || '<div class="tr"><div class="tk">info</div><div class="tv">Sin información visible</div></div>'}</div></div>`;
+};
+const popupHitDistance = (geometry, coordinate, resolution) => {
+  if (!geometry) return Infinity;
+  const type = geometry.getType();
+  if (type === "GeometryCollection") {
+    let distance = Infinity;
+    for (const part of geometry.getGeometries()) distance = Math.min(distance, popupHitDistance(part, coordinate, resolution));
+    return distance;
+  }
+  if ((type === "Polygon" || type === "MultiPolygon") && geometry.intersectsCoordinate(coordinate)) return 0;
+  const closest = geometry.getClosestPoint(coordinate);
+  if (!closest) return Infinity;
+  const distance = Math.hypot(closest[0] - coordinate[0], closest[1] - coordinate[1]) / resolution;
+  const tolerance = type === "Point" || type === "MultiPoint" ? 10 : 4.5;
+  return distance <= tolerance ? distance : Infinity;
+};
+const collectPopupHits = (source, coordinate, resolution, isMatch, preferred) => {
+  if (!Number.isFinite(resolution) || resolution <= 0 || !coordinate?.slice(0, 2).every(Number.isFinite)) return [];
+  const [x, y] = coordinate;
+  const radius = 10 * resolution;
+  const candidates = source.getFeaturesInExtent([x - radius, y - radius, x + radius, y + radius]);
+  const hits = new Map();
+  for (const feature of candidates) {
+    if (!isMatch(feature)) continue;
+    const index = feature.get("podIndex");
+    if (index == null) continue;
+    const distance = popupHitDistance(feature.getGeometry(), coordinate, resolution);
+    if (!Number.isFinite(distance)) continue;
+    const previous = hits.get(index);
+    if (previous === undefined || distance < previous) hits.set(index, distance);
+  }
+  const preferredIndex = preferred && isMatch(preferred) ? preferred.get("podIndex") : null;
+  if (preferredIndex != null) hits.set(preferredIndex, -1);
+  return [...hits].sort((a, b) => a[1] - b[1] || b[0] - a[0]).map(([index]) => index);
 };
 const MISSING_NUMBER = -1e20;
 const PASS = ["all", ["!=", ["get", "podValue"], MISSING_NUMBER], ["between", ["get", "podValue"], ["var", "minEle"], ["var", "maxEle"]]];
@@ -143,9 +179,10 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   const popup = new Overlay({ element: popupElement, offset: [0, -10], positioning: "bottom-center" });
   map.addOverlay(popup);
   let popupIndex = null;
+  let popupHits = [];
   let popupAnchor = null;
   let purgeRequested = null;
-  const closePopup = () => { popupIndex = null; popupAnchor = null; popup.setPosition(undefined); popupElement.hidden = true; };
+  const closePopup = () => { popupIndex = null; popupHits = []; popupAnchor = null; popup.setPosition(undefined); popupElement.hidden = true; };
   const positionPopup = () => {
     if (popupIndex === null || !popupAnchor) return;
     const size = map.getSize();
@@ -176,11 +213,41 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     const dy = rect.top < bounds.top + margin ? bounds.top + margin - rect.top : rect.bottom > bounds.bottom - margin ? bounds.bottom - margin - rect.bottom : 0;
     if (dx || dy) popup.setOffset([dx, offsetY + dy]);
   };
+  const showPopupHit = (position) => {
+    const index = popupHits[position];
+    const raw = geo?.features[index];
+    if (!raw) { closePopup(); return; }
+    popupIndex = index;
+    popupContent.innerHTML = popupHtml(raw, position, popupHits.length);
+    popupElement.hidden = false;
+    positionPopup();
+  };
+  const refreshPopupHits = () => {
+    if (popupIndex === null) return;
+    const previous = popupHits;
+    popupHits = previous.filter((index) => isResultMatch(featureByIndex(index)));
+    if (!popupHits.length) { closePopup(); return; }
+    if (popupHits.length === previous.length) return;
+    const position = popupHits.indexOf(popupIndex);
+    const oldPosition = previous.indexOf(popupIndex);
+    showPopupHit(position < 0 ? Math.min(Math.max(0, oldPosition), popupHits.length - 1) : position);
+  };
   popupClose.onclick = closePopup;
   map.on("moveend", positionPopup);
   map.on("change:size", () => requestAnimationFrame(positionPopup));
   window.addEventListener("resize", () => requestAnimationFrame(positionPopup));
   popupElement.addEventListener("click", (event) => {
+    const navigation = event.target.closest("[data-popup-step]");
+    if (navigation && popupElement.contains(navigation)) {
+      const step = Number(navigation.dataset.popupStep);
+      refreshPopupHits();
+      if (popupHits.length > 1 && (step === -1 || step === 1)) {
+        const position = (popupHits.indexOf(popupIndex) + step + popupHits.length) % popupHits.length;
+        showPopupHit(position);
+        popupContent.querySelector(`[data-popup-step="${step}"]`)?.focus({ preventScroll: true });
+      } else if (popupIndex !== null) popupClose.focus({ preventScroll: true });
+      return;
+    }
     const button = event.target.closest(".pop-action");
     if (!button || !popupElement.contains(button)) return;
     if (button.classList.contains("pop-purge")) {
@@ -339,6 +406,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
       if (renderMode.value === "heat") syncStyleVars(heatLayer, heatStyleVars);
       else syncVectorStyles();
     }
+    refreshPopupHits();
   };
   const isOutlier = (value) => Number.isFinite(value) && value !== MISSING_NUMBER && (value < Number(options.outlierMin) || value > Number(options.outlierMax));
   const hasResultFilter = () => Boolean(geo && (options.onlySelectedKey && options.selectedKey || options.hideOtherValues && options.selectedValue !== null && options.selectedValue !== undefined || options.regexEnabled && options.regexOnly && options.selectedValue == null || options.numericEnabled && options.numericKey && !options.numericShowErrors || options.geometryEnabled || options.outlierMode === "only" || options.spatialEnabled || areaGeometries.length > 0));
@@ -837,14 +905,10 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   map.on("singleclick", (event) => {
     if (measuring || circleDrawing || areaDrawing || renderMode.value === "heat") return;
     const selected = map.forEachFeatureAtPixel(event.pixel, (feature) => feature, { hitTolerance: 3, layerFilter: (layer) => layer === vectorLayer });
-    const index = selected?.get("podIndex");
-    if (index == null || !geo?.features[index]) { closePopup(); return; }
-    const raw = geo.features[index];
-    popupContent.innerHTML = popupHtml(raw);
-    popupIndex = index;
+    popupHits = collectPopupHits(vectorSource, event.coordinate, map.getView().getResolution(), isResultMatch, selected);
+    if (!popupHits.length) { closePopup(); return; }
     popupAnchor = event.coordinate;
-    popupElement.hidden = false;
-    positionPopup();
+    showPopupHit(0);
   });
   map.on("pointermove", (event) => {
     if (event.dragging || measuring || circleDrawing || areaDrawing || renderMode.value === "heat") return;
