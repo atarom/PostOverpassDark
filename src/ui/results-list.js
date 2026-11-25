@@ -16,20 +16,39 @@ const labelOf = (feature) => {
   const ref = String(id).includes("/") ? String(id) : type && id !== "" ? `${type}/${id}` : String(id);
   return { name: String(name), ref };
 };
+const readPreference = (key) => { try { return localStorage.getItem(`postoverpassdark:results-${key}`); } catch { return null; } };
+const savePreference = (key, value) => { try { localStorage.setItem(`postoverpassdark:results-${key}`, String(value)); } catch {} };
 export const createResultsList = ({ container, controller, getIds }) => {
-  const details = document.createElement("details");
-  details.className = "analysis-box pod-results";
-  details.hidden = true;
-  const heading = document.createElement("summary");
-  const title = document.createElement("span");
-  title.textContent = "Resultados filtrados";
+  const app = container.closest(".app");
+  const mapbox = app.querySelector(".mapbox");
+  const stylesheet = document.createElement("link");
+  stylesheet.rel = "stylesheet";
+  stylesheet.href = new URL("./results-panel.css", import.meta.url).href;
+  document.head.append(stylesheet);
+  const panel = document.createElement("aside");
+  panel.id = "podResultsPanel";
+  panel.className = "pod-results-panel";
+  panel.setAttribute("aria-labelledby", "podResultsTitle");
+  panel.hidden = true;
+  const heading = document.createElement("div");
+  heading.className = "pod-results-head";
+  const title = document.createElement("strong");
+  title.id = "podResultsTitle";
+  title.textContent = "Elementos";
   const amount = document.createElement("span");
   amount.className = "pod-results-amount";
-  heading.append(title, amount);
+  amount.setAttribute("aria-live", "polite");
+  const close = document.createElement("button");
+  close.type = "button";
+  close.textContent = "×";
+  close.title = "Ocultar elementos";
+  close.setAttribute("aria-label", close.title);
+  heading.append(title, amount, close);
   const body = document.createElement("div");
   body.className = "pod-results-body";
   const actions = document.createElement("div");
   actions.className = "pod-results-actions";
+  actions.hidden = true;
   const hint = document.createElement("span");
   hint.textContent = "Selecciona para localizar";
   const all = document.createElement("button");
@@ -61,21 +80,52 @@ export const createResultsList = ({ container, controller, getIds }) => {
   sortBar.append(metricLabel, metricName, directionLabel);
   const scroller = document.createElement("div");
   scroller.className = "pod-results-scroller";
-  scroller.setAttribute("aria-label", "Lista de entidades filtradas");
+  scroller.setAttribute("aria-label", "Lista de entidades");
   const upper = document.createElement("div");
   const lower = document.createElement("div");
   upper.className = lower.className = "pod-results-spacer";
   upper.setAttribute("aria-hidden", "true");
   lower.setAttribute("aria-hidden", "true");
-  scroller.append(upper, lower);
+  const empty = document.createElement("div");
+  empty.className = "pod-results-empty";
+  empty.textContent = "Ejecuta una consulta para ver sus elementos.";
+  scroller.append(upper, empty, lower);
   body.append(actions, sortBar, scroller);
-  details.append(heading, body);
-  container.append(details);
+  panel.append(heading, body);
+  const resizer = document.createElement("div");
+  resizer.className = "pod-results-resizer";
+  resizer.hidden = true;
+  resizer.tabIndex = 0;
+  resizer.setAttribute("role", "separator");
+  resizer.setAttribute("aria-orientation", "vertical");
+  resizer.setAttribute("aria-controls", panel.id);
+  resizer.setAttribute("aria-label", "Ajustar anchura de elementos");
+  resizer.title = "Arrastra para ajustar la anchura; doble clic para restaurar";
+  app.insertBefore(panel, mapbox);
+  app.insertBefore(resizer, mapbox);
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "pod-results-toggle";
+  toggle.setAttribute("aria-controls", panel.id);
+  toggle.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15m3-11h5m-5 4h5m-5 4h5"/></svg>';
+  (mapbox.querySelector(".pod-sidebar-control") || mapbox).append(toggle);
+  const desktop = matchMedia("(min-width: 1050px)");
+  const visibilityKey = () => desktop.matches ? "visible" : "visible-mobile";
+  const preferredVisibility = () => (readPreference(visibilityKey()) ?? (desktop.matches ? "true" : "false")) === "true";
+  let desiredWidth = Math.max(240, Number(readPreference("width")) || 300);
+  let dragging = null;
+  const visible = () => !panel.hidden;
+  const syncWidth = () => {
+    app.style.setProperty("--pod-results-width", `${Math.round(desiredWidth)}px`);
+    const max = Math.max(240, app.clientWidth - (app.classList.contains("pod-sidebar-hidden") ? 328 : 656));
+    resizer.setAttribute("aria-valuemin", "240");
+    resizer.setAttribute("aria-valuemax", String(max));
+    resizer.setAttribute("aria-valuenow", String(Math.round(Math.max(240, Math.min(max, desiredWidth)))));
+  };
   let collection = null;
   let opts = {};
   let entries = [];
   let scan = 0;
-  let countTimer = 0;
   let paint = 0;
   let first = -1;
   let last = -1;
@@ -104,7 +154,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
       return option;
     }));
     if (choices.some(({ key }) => key === previous)) metric.value = previous;
-    sortBar.hidden = !choices.length;
+    sortBar.hidden = !collection || !choices.length;
     metricLabel.hidden = choices.length < 2;
     metricName.hidden = choices.length !== 1;
     metricName.textContent = choices.length === 1 ? `Por: ${choices[0].label}` : "";
@@ -177,6 +227,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
   const render = (focus = -1) => {
     cancelAnimationFrame(paint);
     paint = 0;
+    if (!visible() || !entries.length) return;
     const start = Math.max(0, Math.floor(scroller.scrollTop / HEIGHT) - OVERSCAN);
     const end = Math.min(entries.length, Math.ceil((scroller.scrollTop + (scroller.clientHeight || HEIGHT * 5)) / HEIGHT) + OVERSCAN);
     if (first !== start || last !== end || focus >= 0) {
@@ -193,14 +244,17 @@ export const createResultsList = ({ container, controller, getIds }) => {
     if (focus >= 0) scroller.querySelector(`[data-position="${focus}"]`)?.focus({ preventScroll: true });
   };
   const schedulePaint = () => { if (!paint) paint = requestAnimationFrame(() => render()); };
-  const calculate = (collect) => {
-    if (collect) {
-      entries = [];
-      scroller.scrollTop = 0;
-      first = last = -1;
-      scroller.replaceChildren(upper, lower);
-    }
-    amount.textContent = " · Calculando…";
+  const resetRows = (message = "") => {
+    entries = [];
+    scroller.scrollTop = 0;
+    first = last = -1;
+    upper.style.height = lower.style.height = "0px";
+    empty.textContent = message;
+    scroller.replaceChildren(upper, ...(message ? [empty] : []), lower);
+  };
+  const calculate = () => {
+    resetRows("Calculando…");
+    amount.textContent = "…";
     const source = controller.getResultSource();
     let position = 0;
     let count = 0;
@@ -208,20 +262,15 @@ export const createResultsList = ({ container, controller, getIds }) => {
       const end = Math.min(source.length, position + 4500);
       for (; position < end; position++) if (controller.isResultMatch(source[position])) {
         count++;
-        if (collect) entries.push(source[position].get("podIndex"));
+        entries.push(source[position].get("podIndex"));
       }
       if (position < source.length) scan = requestAnimationFrame(step);
       else {
         scan = 0;
-        amount.textContent = ` · ${count.toLocaleString("es-ES")}`;
-        if (collect && details.open) {
-          sortEntries();
-          if (!count) {
-            const empty = document.createElement("div");
-            empty.className = "pod-results-empty";
-            empty.textContent = "Ningún elemento coincide con los filtros.";
-            scroller.append(empty);
-          }
+        amount.textContent = count.toLocaleString("es-ES");
+        if (visible()) {
+          if (count) sortEntries();
+          else resetRows("Ningún elemento coincide con los filtros.");
         }
       }
     };
@@ -231,59 +280,99 @@ export const createResultsList = ({ container, controller, getIds }) => {
     opts = next || {};
     syncSort();
     cancelAnimationFrame(scan);
-    clearTimeout(countTimer);
-    scan = countTimer = 0;
-    const active = Boolean(collection && controller.hasResultFilter());
-    details.hidden = !active;
-    if (!active) {
-      details.open = false;
+    scan = 0;
+    actions.hidden = !collection;
+    title.textContent = controller.hasResultFilter() ? "Elementos filtrados" : "Elementos";
+    if (!collection) {
       amount.textContent = "";
-      entries = [];
-      scroller.replaceChildren(upper, lower);
-      first = last = -1;
+      resetRows("Ejecuta una consulta para ver sus elementos.");
       if (selected !== null) { controller.clearResultSelection(); selected = null; }
       idsExporter.refresh();
       return;
     }
     if (selected !== null && !controller.isSelectedResultMatch()) { controller.clearResultSelection(); selected = null; }
     idsExporter.refresh();
-    if (details.open) calculate(true);
+    if (visible()) calculate();
     else {
-      amount.textContent = " · …";
-      entries = [];
-      scroller.replaceChildren(upper, lower);
-      first = last = -1;
-      countTimer = setTimeout(() => { countTimer = 0; if (!details.open) calculate(false); }, 160);
+      amount.textContent = "…";
+      resetRows();
     }
   };
   const setData = (next, nextOpts) => {
     cancelAnimationFrame(scan);
-    clearTimeout(countTimer);
     collection = next?.features ? next : null;
     direction.value = "asc";
     selected = null;
-    details.open = false;
     idsExporter.setData(Boolean(collection));
     refresh(nextOpts);
   };
   const clear = () => {
     cancelAnimationFrame(scan);
-    clearTimeout(countTimer);
     cancelAnimationFrame(paint);
-    scan = paint = countTimer = 0;
+    scan = paint = 0;
     collection = null;
-    idsExporter.setData(false);
-    entries = [];
     selected = null;
-    details.open = false;
-    details.hidden = true;
+    idsExporter.setData(false);
+    actions.hidden = sortBar.hidden = true;
+    title.textContent = "Elementos";
     amount.textContent = "";
-    first = last = -1;
-    scroller.replaceChildren(upper, lower);
+    resetRows("Ejecuta una consulta para ver sus elementos.");
   };
-  details.addEventListener("toggle", () => { if (collection) refresh(opts); });
-  metric.addEventListener("change", () => { if (!scan) sortEntries(); });
-  direction.addEventListener("change", () => { if (!scan) sortEntries(); });
+  const setVisible = (open, persist = false) => {
+    const changed = visible() !== open;
+    panel.hidden = !open;
+    resizer.hidden = !open || !desktop.matches;
+    app.classList.toggle("pod-results-visible", open);
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.title = open ? "Ocultar elementos" : "Mostrar elementos";
+    toggle.setAttribute("aria-label", toggle.title);
+    if (persist) savePreference(visibilityKey(), open);
+    syncWidth();
+    if (changed && collection) refresh();
+    requestAnimationFrame(() => controller.map?.updateSize());
+  };
+  const resizeTo = (value, persist = false) => {
+    const max = Math.max(240, app.clientWidth - (app.classList.contains("pod-sidebar-hidden") ? 328 : 656));
+    desiredWidth = Math.max(240, Math.min(max, Math.round(value)));
+    syncWidth();
+    if (persist) savePreference("width", desiredWidth);
+  };
+  toggle.onclick = () => setVisible(!visible(), true);
+  close.onclick = () => { setVisible(false, true); toggle.focus(); };
+  panel.addEventListener("keydown", (event) => { if (event.key === "Escape") { event.stopPropagation(); setVisible(false, true); toggle.focus(); } });
+  desktop.addEventListener("change", () => setVisible(preferredVisibility()));
+  resizer.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || !desktop.matches) return;
+    event.preventDefault();
+    dragging = { id: event.pointerId, x: event.clientX, width: panel.getBoundingClientRect().width };
+    resizer.setPointerCapture(event.pointerId);
+    app.classList.add("pod-results-resizing");
+  });
+  resizer.addEventListener("pointermove", (event) => { if (dragging?.id === event.pointerId) resizeTo(dragging.width + event.clientX - dragging.x); });
+  const finishResize = (event) => {
+    if (dragging?.id !== event.pointerId) return;
+    dragging = null;
+    app.classList.remove("pod-results-resizing");
+    savePreference("width", desiredWidth);
+    if (resizer.hasPointerCapture(event.pointerId)) resizer.releasePointerCapture(event.pointerId);
+  };
+  for (const name of ["pointerup", "pointercancel", "lostpointercapture"]) resizer.addEventListener(name, finishResize);
+  resizer.addEventListener("keydown", (event) => {
+    const width = panel.getBoundingClientRect().width;
+    const step = event.shiftKey ? 60 : 24;
+    if (event.key === "ArrowLeft") resizeTo(width - step, true);
+    else if (event.key === "ArrowRight") resizeTo(width + step, true);
+    else if (event.key === "Home") resizeTo(240, true);
+    else if (event.key === "End") resizeTo(Infinity, true);
+    else return;
+    event.preventDefault();
+  });
+  resizer.addEventListener("dblclick", () => resizeTo(300, true));
+  new ResizeObserver(() => { if (visible()) schedulePaint(); }).observe(scroller);
+  new ResizeObserver(() => { syncWidth(); controller.map?.updateSize(); }).observe(mapbox);
+  addEventListener("resize", syncWidth);
+  metric.addEventListener("change", () => { if (!scan && visible()) sortEntries(); });
+  direction.addEventListener("change", () => { if (!scan && visible()) sortEntries(); });
   scroller.addEventListener("scroll", schedulePaint, { passive: true });
   scroller.addEventListener("click", (event) => {
     const row = event.target.closest(".pod-result-row");
@@ -306,5 +395,6 @@ export const createResultsList = ({ container, controller, getIds }) => {
   });
   all.onclick = () => { controller.clearResultSelection(true); selected = null; idsExporter.refresh(); render(); };
   const clearSelected = () => { selected = null; render(); };
+  setVisible(preferredVisibility());
   return { refresh, setData, clear, clearSelected };
 };

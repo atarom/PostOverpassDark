@@ -1,0 +1,32 @@
+.pod-results-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; overflow: hidden; background: var(--p); color: var(--t); border-right: 1px solid var(--b); }
+.pod-results-panel[hidden], .pod-results-resizer[hidden] { display: none; }
+.pod-results-panel .pod-results-head { display: flex; flex: none; align-items: center; gap: 6px; min-height: 44px; padding: 6px 8px 6px 10px; background: var(--p2); border-bottom: 1px solid var(--b); }
+.pod-results-head strong { flex: 1; min-width: 0; font-size: 13px; }
+.pod-results-head button { flex: none; width: 32px; height: 32px; padding: 0; font-size: 20px; line-height: 1; }
+.pod-results-panel .pod-results-body { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; overflow: hidden; padding: 8px; }
+.pod-results-panel .pod-results-actions, .pod-results-panel .pod-results-sort { flex: none; }
+.pod-results-panel .pod-results-sort[hidden], .pod-results-panel .pod-results-actions[hidden] { display: none; }
+.pod-results-panel .pod-results-scroller { flex: 1 1 0; height: auto; min-height: 0; max-height: none; overflow: auto; }
+.pod-results-panel .pod-results-scroller[hidden] { display: none; }
+.pod-results-panel .pod-results-empty { flex: none; }
+.pod-results-resizer { position: relative; background: var(--bg); cursor: col-resize; touch-action: none; }
+.pod-results-resizer::before { content: ""; position: absolute; inset: 0 3px; background: var(--b); }
+.pod-results-resizer::after { content: ""; position: absolute; top: 50%; left: 2px; width: 4px; height: 34px; transform: translateY(-50%); border-radius: 2px; background: var(--b2); }
+.pod-results-resizer:hover::before, .pod-results-resizer:focus-visible::before, .app.pod-results-resizing .pod-results-resizer::before { background: var(--a); }
+.pod-results-resizer:hover::after, .pod-results-resizer:focus-visible::after, .app.pod-results-resizing .pod-results-resizer::after { background: var(--ah); }
+.pod-results-resizer:focus-visible { outline: 2px solid var(--a); outline-offset: -1px; }
+.app.pod-results-resizing { user-select: none; }
+#map .pod-sidebar-control { display: flex; gap: 1px; }
+#map .pod-results-toggle { display: grid; place-items: center; padding: 0; }
+#map .pod-results-toggle[aria-expanded="true"] { color: var(--ah); background: var(--p2); }
+.mapbox > .pod-results-toggle { position: absolute; top: 0.5em; left: 6.3em; z-index: 2; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; }
+@media (min-width: 1050px) {
+  .app.pod-results-visible { --pod-fit-width: clamp(240px, var(--pod-results-width, 300px), calc(100% - 656px)); grid-template-columns: min(var(--sidebar-width, 430px), calc(100% - var(--pod-fit-width) - 336px)) 8px var(--pod-fit-width) 8px minmax(320px, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .app.pod-sidebar-hidden.pod-results-visible, .app.pod-sidebar-hidden.pod-results-visible:has(#analysisPanel.on) { grid-template-columns: clamp(240px, var(--pod-results-width, 300px), calc(100% - 328px)) 8px minmax(320px, 1fr); grid-template-rows: minmax(0, 1fr); }
+}
+@media (max-width: 1049px) {
+  .app { position: relative; }
+  .pod-results-panel { position: absolute; z-index: 8; inset: 0 0 0 auto; width: min(100%, 380px); height: 100%; border-left: 1px solid var(--b); border-right: 0; padding-bottom: env(safe-area-inset-bottom); }
+  .pod-results-resizer { display: none; }
+  .pod-results-head button { width: 44px; height: 44px; }
+}
