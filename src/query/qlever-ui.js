@@ -115,7 +115,7 @@ SELECT DISTINCT ?osm ?geometry ?rio_osm ?key ?value WHERE {
   ?osm ?key ?value .
   FILTER(STRSTARTS(STR(?key), STR(osmkey:)))
 }` },
-  { title: "Edificios que se solapan", description: "Edificios con solapamiento parcial (sfOverlaps), no simples contactos ni contención total. Hasta 2.000 pares dirigidos; acerca el mapa a un barrio.", query: `PREFIX osmkey: <https://www.openstreetmap.org/wiki/Key:>
+  { title: "Edificios que se solapan", description: "Edificios con solapamiento parcial (sfOverlaps), no simples contactos ni contención total. Solo pares sin layer en ambos edificios o con el mismo valor de layer. Hasta 2.000 pares dirigidos; acerca el mapa a un barrio.", query: `PREFIX osmkey: <https://www.openstreetmap.org/wiki/Key:>
 PREFIX geo: <http://www.opengis.net/ont/geosparql#>
 PREFIX geof: <http://www.opengis.net/def/function/geosparql/>
 PREFIX ogc: <http://www.opengis.net/rdf#>
@@ -126,6 +126,9 @@ SELECT DISTINCT ?osm ?geometry ?otro_osm ?key ?value WHERE {
     ?osm ogc:sfOverlaps ?otro_osm .
     ?osm geo:hasGeometry/geo:asWKT ?geometry .
     FILTER(?osm != ?otro_osm)
+    OPTIONAL { ?osm osmkey:layer ?layer . }
+    OPTIONAL { ?otro_osm osmkey:layer ?otro_layer . }
+    FILTER((!BOUND(?layer) && !BOUND(?otro_layer)) || (BOUND(?layer) && BOUND(?otro_layer) && ?layer = ?otro_layer))
     FILTER(REGEX(STR(?geometry), "^(POLYGON|MULTIPOLYGON)", "i"))
     FILTER(geof:sfIntersects(?geometry, {{bbox}}))
   } LIMIT 2000 }
