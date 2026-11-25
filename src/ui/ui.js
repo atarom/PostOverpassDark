@@ -1,10 +1,13 @@
 import { $ } from "../core/utils.js";
 import { createDataViewer } from "./data-viewer.js";
+import { QLEVER_ENDPOINT } from "../core/servers.js";
+import { getQLeverTimestamp, describeQLeverTimestamp } from "../query/qlever-timestamp.js";
 export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLog, copyButton }) => {
   const data = { query: "", raw: "" };
   let overlayTimer;
   let previousFocus = null;
   let geoData = null;
+  let qleverAgeTimer;
   const stylesheet = document.createElement("link");
   stylesheet.rel = "stylesheet";
   stylesheet.href = new URL("./status-panel.css", import.meta.url).href;
@@ -75,13 +78,38 @@ export const createUI = ({ map, status, dataOutput, dataView, overlay, overlayLo
     }
     return result;
   };
+  const showQLeverAge = (parent) => {
+    const age = document.createElement("div");
+    age.className = "pod-status-details";
+    age.textContent = "Última edición OSM: consultando…";
+    parent.append(age);
+    void getQLeverTimestamp().then((timestamp) => {
+      if (!status.contains(age)) return;
+      if (timestamp === null) {
+        age.textContent = "Última edición OSM: no disponible";
+        return;
+      }
+      const refresh = () => {
+        if (!status.contains(age)) return;
+        const info = describeQLeverTimestamp(timestamp);
+        age.textContent = info.text;
+        age.style.color = info.color;
+        qleverAgeTimer = setTimeout(refresh, 60000 - Math.max(0, Date.now() - timestamp) % 60000 + 35);
+      };
+      refresh();
+    });
+  };
   const setStatus = (html, cls = "") => {
+    clearTimeout(qleverAgeTimer);
     status.className = "status " + cls;
     const result = cls === "ok" ? formatResultStatus(html) : null;
     if (result) {
       status.classList.add("pod-status-structured");
       status.replaceChildren(result);
     } else status.innerHTML = html;
+    const qleverGeo = result && geoData?.qlever_properties?.endpoint === QLEVER_ENDPOINT;
+    const qleverTable = !result && html.startsWith("<strong>Respuesta textual recibida</strong>") && $("endpoint")?.value === QLEVER_ENDPOINT;
+    if (cls === "ok" && (qleverGeo || qleverTable)) showQLeverAge(result || status);
   };
   const show = () => viewer.show();
   const setGeojson = (value) => { geoData = value; viewer.resetPreview("geojson"); };
