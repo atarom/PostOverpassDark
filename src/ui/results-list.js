@@ -6,10 +6,12 @@ const HEIGHT = 48;
 const OVERSCAN = 5;
 const format = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 });
 const fallback = (tags) => tags.leisure === "swimming_pool" ? "Piscina" : tags.building ? "Edificio" : tags.highway ? "Vía" : tags.waterway ? "Curso de agua" : tags.natural ? "Elemento natural" : tags.amenity || tags.shop || "Elemento OSM";
-const labelOf = (feature) => {
+const labelOf = (feature, key = "name") => {
   const p = feature?.properties || {};
   const tags = featureTags(feature);
-  const name = tags.name || tags["name:ca"] || tags["name:es"] || tags.ref || fallback(tags);
+  const value = Object.hasOwn(tags, key) ? tags[key] : null;
+  const text = value == null ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
+  const name = key === "name" ? tags.name || tags["name:ca"] || tags["name:es"] || tags.ref || fallback(tags) : text.trim() ? text : `Sin ${key}`;
   const reference = getOsmReference(feature);
   const type = reference?.type || p.osm_type || p.type || "";
   const id = reference?.id ?? p.osm_id ?? p.id ?? feature.id ?? "";
@@ -56,6 +58,14 @@ export const createResultsList = ({ container, controller, getIds }) => {
   all.textContent = "⛶ Todos";
   all.title = "Deseleccionar y mostrar todos los elementos cargados";
   actions.append(hint, all);
+  const labelBar = document.createElement("label");
+  labelBar.className = "pod-results-label";
+  labelBar.hidden = true;
+  const labelText = document.createElement("span");
+  labelText.textContent = "Mostrar key";
+  const labelKey = document.createElement("select");
+  labelKey.setAttribute("aria-label", "Etiqueta mostrada en el listado");
+  labelBar.append(labelText, labelKey);
   const sortBar = document.createElement("div");
   sortBar.className = "pod-results-sort";
   sortBar.hidden = true;
@@ -90,7 +100,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
   empty.className = "pod-results-empty";
   empty.textContent = "Ejecuta una consulta para ver sus elementos.";
   scroller.append(upper, empty, lower);
-  body.append(actions, sortBar, scroller);
+  body.append(actions, labelBar, sortBar, scroller);
   panel.append(heading, body);
   const resizer = document.createElement("div");
   resizer.className = "pod-results-resizer";
@@ -143,6 +153,30 @@ export const createResultsList = ({ container, controller, getIds }) => {
     resizer.setAttribute("aria-valuenow", String(Math.round(Math.max(240, Math.min(max, desiredWidth)))));
   };
   let collection = null;
+  let titleKey = "name";
+  let keyCollection = null;
+  let keyCount = -1;
+  const syncLabelKeys = () => {
+    labelBar.hidden = !collection;
+    if (!collection || !visible()) return;
+    const features = collection.features;
+    if (keyCollection === collection && keyCount === features.length) return;
+    keyCollection = collection;
+    keyCount = features.length;
+    const keys = new Set();
+    for (const feature of features) for (const key of Object.keys(featureTags(feature))) keys.add(key);
+    keys.delete("name");
+    const ordered = ["name", ...[...keys].sort((a, b) => a.localeCompare(b, "es"))];
+    if (!ordered.includes(titleKey)) titleKey = "name";
+    const fragment = document.createDocumentFragment();
+    for (const key of ordered) {
+      const option = document.createElement("option");
+      option.value = option.textContent = key;
+      fragment.append(option);
+    }
+    labelKey.replaceChildren(fragment);
+    labelKey.value = titleKey;
+  };
   let opts = {};
   let entries = [];
   let scan = 0;
@@ -217,7 +251,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
   };
   const makeRow = (pos) => {
     const index = entries[pos];
-    const { name, ref } = labelOf(collection.features[index]);
+    const { name, ref } = labelOf(collection.features[index], titleKey);
     const row = document.createElement("button");
     row.type = "button";
     row.className = "pod-result-row";
@@ -324,6 +358,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
     if (active !== filterActive) { dismissed = false; filterActive = active; }
     title.textContent = active ? "Elementos filtrados" : "Elementos";
     setVisible(manualOpen || (active && !dismissed));
+    syncLabelKeys();
     if (!collection) {
       amount.textContent = "";
       resetRows("Ejecuta una consulta para ver sus elementos.");
@@ -342,6 +377,8 @@ export const createResultsList = ({ container, controller, getIds }) => {
   const setData = (next, nextOpts) => {
     cancelAnimationFrame(scan);
     collection = next?.features ? next : null;
+    keyCollection = null;
+    keyCount = -1;
     filterActive = false;
     dismissed = false;
     direction.value = "asc";
@@ -354,11 +391,14 @@ export const createResultsList = ({ container, controller, getIds }) => {
     cancelAnimationFrame(paint);
     scan = paint = 0;
     collection = null;
+    keyCollection = null;
+    keyCount = -1;
+    labelKey.replaceChildren();
     selected = null;
     filterActive = dismissed = false;
     setVisible(manualOpen);
     idsExporter.setData(false);
-    actions.hidden = sortBar.hidden = true;
+    actions.hidden = labelBar.hidden = sortBar.hidden = true;
     title.textContent = "Elementos";
     amount.textContent = "";
     resetRows("Ejecuta una consulta para ver sus elementos.");
@@ -418,6 +458,11 @@ export const createResultsList = ({ container, controller, getIds }) => {
   new ResizeObserver(() => { if (visible()) schedulePaint(); }).observe(scroller);
   new ResizeObserver(() => { syncWidth(); controller.map?.updateSize(); }).observe(mapbox);
   addEventListener("resize", syncWidth);
+  labelKey.addEventListener("change", () => {
+    titleKey = labelKey.value || "name";
+    first = last = -1;
+    if (!scan) render();
+  });
   metric.addEventListener("change", () => { if (!scan && visible()) sortEntries(); });
   direction.addEventListener("change", () => { if (!scan && visible()) sortEntries(); });
   scroller.addEventListener("scroll", schedulePaint, { passive: true });
