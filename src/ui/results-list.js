@@ -23,7 +23,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
   const mapbox = app.querySelector(".mapbox");
   const stylesheet = document.createElement("link");
   stylesheet.rel = "stylesheet";
-  stylesheet.href = new URL("./results-panel.css", import.meta.url).href;
+  stylesheet.href = new URL("./results-panel.css?v=2", import.meta.url).href;
   document.head.append(stylesheet);
   const panel = document.createElement("aside");
   panel.id = "podResultsPanel";
@@ -234,7 +234,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
       purge.dataset.purgePosition = String(pos);
       purge.title = `Purgar ${ref} de POD (no modifica OSM)`;
       purge.setAttribute("aria-label", purge.title);
-      purge.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.2"/><path d="m9 9 6 6m0-6-6 6"/></svg>';
+      purge.innerHTML = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.2"/><path d="m9 9 6 6m0-6-6 6"/></svg>';
       item.append(purge);
     }
     return item;
