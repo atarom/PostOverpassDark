@@ -23,7 +23,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
   const mapbox = app.querySelector(".mapbox");
   const stylesheet = document.createElement("link");
   stylesheet.rel = "stylesheet";
-  stylesheet.href = new URL("./results-panel.css?v=2", import.meta.url).href;
+  stylesheet.href = new URL("./results-panel.css", import.meta.url).href;
   document.head.append(stylesheet);
   const panel = document.createElement("aside");
   panel.id = "podResultsPanel";
