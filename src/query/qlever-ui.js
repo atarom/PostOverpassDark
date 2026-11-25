@@ -19,8 +19,7 @@ SELECT DISTINCT ?osm ?geometry ?key ?value WHERE {
   { SELECT DISTINCT ?osm ?geometry WHERE {
     ?osm osmkey:amenity "drinking_water" .
     ?osm geo:hasGeometry/geo:asWKT ?geometry .
-    VALUES ?box { {{bbox}} }
-    FILTER(geof:sfIntersects(?geometry, ?box))
+    FILTER(geof:sfIntersects(?geometry, {{bbox}}))
   } LIMIT 5000 }
   ?osm ?key ?value .
   FILTER(STRSTARTS(STR(?key), STR(osmkey:)))
@@ -33,8 +32,7 @@ SELECT DISTINCT ?osm ?geometry ?key ?value WHERE {
     ?osm osmkey:natural "peak" ;
          osmkey:ele ?ele .
     ?osm geo:hasGeometry/geo:asWKT ?geometry .
-    VALUES ?box { {{bbox}} }
-    FILTER(geof:sfIntersects(?geometry, ?box))
+    FILTER(geof:sfIntersects(?geometry, {{bbox}}))
   } LIMIT 5000 }
   ?osm ?key ?value .
   FILTER(STRSTARTS(STR(?key), STR(osmkey:)))
@@ -47,8 +45,7 @@ SELECT DISTINCT ?osm ?geometry ?key ?value WHERE {
     ?osm osmkey:natural "peak" .
     ?osm geo:hasGeometry/geo:asWKT ?geometry .
     MINUS { ?osm osmkey:ele [] . }
-    VALUES ?box { {{bbox}} }
-    FILTER(geof:sfIntersects(?geometry, ?box))
+    FILTER(geof:sfIntersects(?geometry, {{bbox}}))
   } LIMIT 5000 }
   ?osm ?key ?value .
   FILTER(STRSTARTS(STR(?key), STR(osmkey:)))
@@ -59,15 +56,18 @@ PREFIX geof: <http://www.opengis.net/def/function/geosparql/>
 PREFIX osm: <https://www.openstreetmap.org/>
 SELECT DISTINCT ?osm ?geometry ?otro_osm ?distancia_m ?key ?value WHERE {
   { SELECT DISTINCT ?osm ?geometry ?otro_osm ?distancia_m WHERE {
-    ?osm a osm:node ;
-         osmkey:amenity "drinking_water" ;
-         geo:hasGeometry/geo:asWKT ?geometry .
-    ?otro_osm a osm:node ;
-              osmkey:amenity "drinking_water" ;
-              geo:hasGeometry/geo:asWKT ?otra_geometria .
-    VALUES ?box { {{bbox}} }
-    FILTER(geof:sfIntersects(?geometry, ?box))
-    FILTER(geof:sfIntersects(?otra_geometria, ?box))
+    { SELECT DISTINCT ?osm ?geometry WHERE {
+      ?osm a osm:node ;
+           osmkey:amenity "drinking_water" ;
+           geo:hasGeometry/geo:asWKT ?geometry .
+      FILTER(geof:sfIntersects(?geometry, {{bbox}}))
+    } }
+    { SELECT DISTINCT ?otro_osm ?otra_geometria WHERE {
+      ?otro_osm a osm:node ;
+                osmkey:amenity "drinking_water" ;
+                geo:hasGeometry/geo:asWKT ?otra_geometria .
+      FILTER(geof:sfIntersects(?otra_geometria, {{bbox}}))
+    } }
     FILTER(?osm != ?otro_osm)
     FILTER(geof:metricDistance(?geometry, ?otra_geometria) <= 10)
     BIND(geof:metricDistance(?geometry, ?otra_geometria) AS ?distancia_m)
@@ -86,8 +86,7 @@ SELECT DISTINCT ?osm ?geometry ?key ?value WHERE {
          geo:hasGeometry/geo:asWKT ?geometry .
     VALUES ?highway { "motorway" "trunk" "primary" "secondary" "tertiary" "unclassified" "residential" }
     MINUS { ?osm osmkey:maxspeed [] . }
-    VALUES ?box { {{bbox}} }
-    FILTER(geof:sfIntersects(?geometry, ?box))
+    FILTER(geof:sfIntersects(?geometry, {{bbox}}))
   } LIMIT 5000 }
   ?osm ?key ?value .
   FILTER(STRSTARTS(STR(?key), STR(osmkey:)))
@@ -111,8 +110,7 @@ SELECT DISTINCT ?osm ?geometry ?rio_osm ?key ?value WHERE {
     MINUS { ?osm osmkey:ford ?vado . FILTER(?vado != "no") }
     MINUS { ?rio_osm osmkey:bridge ?puente_rio . FILTER(?puente_rio != "no") }
     MINUS { ?rio_osm osmkey:tunnel ?tunel_rio . FILTER(?tunel_rio != "no") }
-    VALUES ?box { {{bbox}} }
-    FILTER(geof:sfIntersects(?geometry, ?box))
+    FILTER(geof:sfIntersects(?geometry, {{bbox}}))
   } LIMIT 2000 }
   ?osm ?key ?value .
   FILTER(STRSTARTS(STR(?key), STR(osmkey:)))
@@ -129,8 +127,7 @@ SELECT DISTINCT ?osm ?geometry ?otro_osm ?key ?value WHERE {
     ?osm geo:hasGeometry/geo:asWKT ?geometry .
     FILTER(?osm != ?otro_osm)
     FILTER(REGEX(STR(?geometry), "^(POLYGON|MULTIPOLYGON)", "i"))
-    VALUES ?box { {{bbox}} }
-    FILTER(geof:sfIntersects(?geometry, ?box))
+    FILTER(geof:sfIntersects(?geometry, {{bbox}}))
   } LIMIT 2000 }
   ?osm ?key ?value .
   FILTER(STRSTARTS(STR(?key), STR(osmkey:)))
@@ -145,8 +142,7 @@ SELECT DISTINCT ?osm ?geometry ?otro_osm ?wikidata_qid ?key ?value WHERE {
     ?otro_osm osm2rdfkey:wikidata ?qid .
     FILTER(?osm != ?otro_osm)
     ?osm geo:hasGeometry/geo:asWKT ?geometry .
-    VALUES ?box { {{bbox}} }
-    FILTER(geof:sfIntersects(?geometry, ?box))
+    FILTER(geof:sfIntersects(?geometry, {{bbox}}))
     BIND(STRAFTER(STR(?qid), "http://www.wikidata.org/entity/") AS ?wikidata_qid)
   } LIMIT 2000 }
   OPTIONAL {
@@ -160,8 +156,7 @@ PREFIX geo: <http://www.opengis.net/ont/geosparql#>
 PREFIX geof: <http://www.opengis.net/def/function/geosparql/>
 SELECT ?key (COUNT(DISTINCT ?osm) AS ?total) WHERE {
   ?osm geo:hasGeometry/geo:asWKT ?geometry .
-  VALUES ?box { {{bbox}} }
-  FILTER(geof:sfIntersects(?geometry, ?box))
+  FILTER(geof:sfIntersects(?geometry, {{bbox}}))
   ?osm ?key ?value .
   FILTER(STRSTARTS(STR(?key), STR(osmkey:)))
 }
@@ -198,8 +193,7 @@ SELECT DISTINCT ?osm ?geometry ?key ?value WHERE {
     ?osm osmkey:building ?building .
     ?osm geo:hasGeometry/geo:asWKT ?geometry .
     FILTER(REGEX(STR(?geometry), "^(POLYGON|MULTIPOLYGON)", "i"))
-    VALUES ?box { {{bbox}} }
-    FILTER(geof:sfIntersects(?geometry, ?box))
+    FILTER(geof:sfIntersects(?geometry, {{bbox}}))
   } LIMIT 5000 }
   ?osm ?key ?value .
   FILTER(STRSTARTS(STR(?key), STR(osmkey:)))
