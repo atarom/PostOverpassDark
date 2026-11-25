@@ -299,7 +299,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
     item.className = "pod-result-item";
     item.append(row);
     const reference = getOsmReference(collection.features[index]);
-    if (filterActive && reference?.type && reference?.id) {
+    if (reference?.type && reference?.id) {
       const purge = document.createElement("button");
       purge.type = "button";
       purge.className = "pod-result-purge";
@@ -500,7 +500,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
     const purge = event.target.closest(".pod-result-purge");
     if (purge) {
       const index = entries[Number(purge.dataset.purgePosition)];
-      if (filterActive && index !== undefined) controller.requestResultPurge(index);
+      if (index !== undefined) controller.requestResultPurge(index);
       return;
     }
     const row = event.target.closest(".pod-result-row");
