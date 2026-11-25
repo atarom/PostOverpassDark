@@ -182,8 +182,10 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   let popupIndex = null;
   let popupHits = [];
   let popupAnchor = null;
+  let resultViewLocked = false;
+  let popupFromList = false;
   let purgeRequested = null;
-  const closePopup = () => { popupIndex = null; popupHits = []; popupAnchor = null; popup.setPosition(undefined); popupElement.hidden = true; };
+  const closePopup = () => { popupIndex = null; popupHits = []; popupAnchor = null; popupFromList = false; popup.setPosition(undefined); popupElement.hidden = true; };
   const positionPopup = () => {
     if (popupIndex === null || !popupAnchor) return;
     const size = map.getSize();
@@ -195,13 +197,14 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     popupElement.style.maxWidth = `${width}px`;
     popupElement.style.maxHeight = `${height}px`;
     popupContent.firstElementChild.style.maxHeight = `${height}px`;
-    if (mobile) {
+    const pixel = map.getPixelFromCoordinate(popupAnchor);
+    const outside = !pixel || pixel[0] < 0 || pixel[0] > size[0] || pixel[1] < 0 || pixel[1] > size[1];
+    if (mobile || (popupFromList && resultViewLocked && outside)) {
       popup.setPositioning("center-center");
       popup.setOffset([0, 0]);
       popup.setPosition(map.getCoordinateFromPixel([size[0] / 2, size[1] / 2]));
       return;
     }
-    const pixel = map.getPixelFromCoordinate(popupAnchor);
     if (!pixel) return;
     const offsetY = pixel[1] > size[1] / 2 ? -10 : 10;
     popup.setPositioning(offsetY < 0 ? "bottom-center" : "top-center");
@@ -452,8 +455,15 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     selectionSource.clear(true);
     if (zoom) fit(rendered);
   };
+  const setResultViewLocked = (locked) => {
+    resultViewLocked = Boolean(locked);
+    if (popupFromList) {
+      if (resultViewLocked) map.getView().cancelAnimations();
+      positionPopup();
+    }
+  };
   const selectResult = (index) => {
-    if (selectedIndex === index) { clearResultSelection(true); return null; }
+    if (selectedIndex === index) { clearResultSelection(!resultViewLocked); return null; }
     const feature = featureByIndex(index);
     if (!isResultMatch(feature)) return selectedIndex;
     selectedIndex = index;
@@ -463,9 +473,12 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     const extent = shape.getExtent();
     const view = map.getView();
     if (!extent.every(Number.isFinite)) { clearResultSelection(); return null; }
-    view.cancelAnimations();
-    if (shape.getType() === "Point" || (extent[0] === extent[2] && extent[1] === extent[3])) view.animate({ center: [(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2], zoom: 18, duration: 250 });
-    else view.fit(extent, { padding: [65, 65, 65, 65], maxZoom: 19, duration: 250 });
+    if (!resultViewLocked) {
+      view.cancelAnimations();
+      if (shape.getType() === "Point" || (extent[0] === extent[2] && extent[1] === extent[3])) view.animate({ center: [(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2], zoom: 18, duration: 250 });
+      else view.fit(extent, { padding: [65, 65, 65, 65], maxZoom: 19, duration: 250 });
+    }
+    popupFromList = true;
     popupHits = [index];
     const center = [(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2];
     const anchor = shape.intersectsCoordinate(center) ? center : shape.getClosestPoint(center);
@@ -927,6 +940,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     const selected = map.forEachFeatureAtPixel(event.pixel, (feature) => feature, { hitTolerance: 3, layerFilter: (layer) => layer === vectorLayer });
     popupHits = collectPopupHits(vectorSource, event.coordinate, map.getView().getResolution(), isResultMatch, selected);
     if (!popupHits.length) { closePopup(); return; }
+    popupFromList = false;
     popupAnchor = event.coordinate;
     showPopupHit(0);
   });
@@ -937,5 +951,5 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   const clear = () => { closePopup(); clearResultSelection(); geo = null; rendered = []; heatReady = false; heatShared = false; heatDirty = 0; vectorDirty = false; lastColorSignature = ""; lastNumericKey = undefined; lastGeometryValues = null; lastSpatialFlags = null; regexPatterns = []; vectorSource.clear(true); heatSource.clear(true); heatLayer.setSource(heatSource); };
   heatUI();
   render();
-  return { map, draw, clear, purge, onPurge: (callback) => { purgeRequested = callback; }, requestResultPurge: (index) => purgeRequested?.(index), render, heatUI, getHeat, setHeat, hasGeo: () => Boolean(geo), applyFilters, hasResultFilter, getShapeReference, getResultSource: () => rendered, isResultMatch, isSelectedResultMatch: () => selectedIndex === null || isResultMatch(featureByIndex(selectedIndex)), clearResultSelection, selectResult, onResultsChanged: (callback) => { resultsChanged = callback; } };
+  return { map, draw, clear, purge, onPurge: (callback) => { purgeRequested = callback; }, requestResultPurge: (index) => purgeRequested?.(index), render, heatUI, getHeat, setHeat, hasGeo: () => Boolean(geo), applyFilters, hasResultFilter, getShapeReference, getResultSource: () => rendered, isResultMatch, isSelectedResultMatch: () => selectedIndex === null || isResultMatch(featureByIndex(selectedIndex)), clearResultSelection, selectResult, setResultViewLocked, onResultsChanged: (callback) => { resultsChanged = callback; } };
 };

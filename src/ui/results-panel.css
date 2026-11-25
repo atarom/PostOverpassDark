@@ -1,8 +1,11 @@
 .pod-results-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; overflow: hidden; background: var(--p); color: var(--t); border-right: 1px solid var(--b); }
 .pod-results-panel[hidden], .pod-results-resizer[hidden] { display: none; }
 .pod-results-panel .pod-results-head { display: flex; flex: none; align-items: center; gap: 6px; min-height: 44px; padding: 6px 8px 6px 10px; background: var(--p2); border-bottom: 1px solid var(--b); }
-.pod-results-head strong { flex: 1; min-width: 0; font-size: 13px; }
+.pod-results-head strong { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pod-results-head button { flex: none; width: 32px; height: 32px; padding: 0; font-size: 20px; line-height: 1; }
+.pod-results-head .pod-results-view-lock { display: grid; place-items: center; color: var(--m); }
+.pod-results-head .pod-results-view-lock[aria-pressed="true"] { background: var(--a); border-color: var(--a); color: var(--bg); }
+.pod-results-view-lock[aria-pressed="false"] .pod-lock-closed, .pod-results-view-lock[aria-pressed="true"] .pod-lock-open { display: none; }
 .pod-results-panel .pod-results-body { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; overflow: hidden; padding: 8px; }
 .pod-results-panel .pod-results-actions, .pod-results-panel .pod-results-sort { flex: none; }
 .pod-results-panel .pod-results-sort[hidden], .pod-results-panel .pod-results-actions[hidden] { display: none; }
