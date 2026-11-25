@@ -5,7 +5,7 @@ import { getOsmReference } from "../export/osm-identifiers.js";
 const HEIGHT = 48;
 const OVERSCAN = 5;
 const format = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 });
-const collator = new Intl.Collator("es", { sensitivity: "base", numeric: false });
+const collator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
 const tagText = (tags, key) => {
   const value = Object.hasOwn(tags, key) ? tags[key] : null;
   return value == null ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
@@ -79,8 +79,6 @@ export const createResultsList = ({ container, controller, getIds }) => {
   const metric = document.createElement("select");
   metric.setAttribute("aria-label", "Característica para ordenar");
   metricLabel.append(metric);
-  const sortType = document.createElement("select");
-  sortType.setAttribute("aria-label", "Tipo de ordenación");
   const direction = document.createElement("select");
   direction.setAttribute("aria-label", "Sentido de ordenación");
   const addOptions = (select, choices) => {
@@ -91,9 +89,8 @@ export const createResultsList = ({ container, controller, getIds }) => {
       select.append(option);
     }
   };
-  addOptions(sortType, [["alpha", "Alfabético"], ["number", "Numérico"]]);
   addOptions(direction, [["asc", "Ascendente"], ["desc", "Descendente"]]);
-  sortBar.append(metricLabel, sortType, direction);
+  sortBar.append(metricLabel, direction);
   const scroller = document.createElement("div");
   scroller.className = "pod-results-scroller";
   scroller.setAttribute("aria-label", "Lista de entidades");
@@ -185,7 +182,6 @@ export const createResultsList = ({ container, controller, getIds }) => {
   };
   let opts = {};
   let sortChoice = null;
-  let labelSortType = "alpha";
   let entries = [];
   let scan = 0;
   let paint = 0;
@@ -210,9 +206,6 @@ export const createResultsList = ({ container, controller, getIds }) => {
     return NaN;
   };
   const syncSortControls = () => {
-    const byLabel = metric.value === "label";
-    sortType.disabled = !byLabel;
-    sortType.value = byLabel ? labelSortType : "number";
     direction.disabled = metric.value === "original";
   };
   const syncSort = () => {
@@ -229,21 +222,24 @@ export const createResultsList = ({ container, controller, getIds }) => {
     if (key === "original" || !key) entries.sort((a, b) => a - b);
     else {
       const byLabel = key === "label";
-      const alphabetical = byLabel && labelSortType === "alpha";
       const values = new Map(entries.map((index) => {
-        if (!byLabel) return [index, getMetricValue(index, key)];
+        if (!byLabel) {
+          const value = getMetricValue(index, key);
+          return [index, Number.isFinite(value) ? value : null];
+        }
         const text = tagText(featureTags(collection.features[index]), titleKey).trim();
-        return [index, alphabetical ? text : numericValue(text)];
+        const number = /^[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)(?:e[+-]?\d+)?$/i.test(text) ? numericValue(text) : NaN;
+        return [index, Number.isFinite(number) ? number : text || null];
       }));
       const sign = direction.value === "desc" ? -1 : 1;
       entries.sort((a, b) => {
         const firstValue = values.get(a);
         const secondValue = values.get(b);
-        const firstValid = alphabetical ? firstValue !== "" : Number.isFinite(firstValue);
-        const secondValid = alphabetical ? secondValue !== "" : Number.isFinite(secondValue);
-        if (firstValid !== secondValid) return firstValid ? -1 : 1;
-        if (!firstValid) return a - b;
-        const comparison = alphabetical ? collator.compare(firstValue, secondValue) : firstValue - secondValue;
+        if (firstValue === null || secondValue === null) return firstValue === secondValue ? a - b : firstValue === null ? 1 : -1;
+        const firstNumeric = typeof firstValue === "number";
+        const secondNumeric = typeof secondValue === "number";
+        if (firstNumeric !== secondNumeric) return firstNumeric ? -1 : 1;
+        const comparison = firstNumeric ? firstValue - secondValue : collator.compare(firstValue, secondValue);
         return comparison * sign || a - b;
       });
     }
@@ -488,10 +484,6 @@ export const createResultsList = ({ container, controller, getIds }) => {
   metric.addEventListener("change", () => {
     sortChoice = metric.value;
     syncSortControls();
-    if (!scan && visible()) sortEntries();
-  });
-  sortType.addEventListener("change", () => {
-    labelSortType = sortType.value;
     if (!scan && visible()) sortEntries();
   });
   direction.addEventListener("change", () => { if (!scan && visible()) sortEntries(); });
