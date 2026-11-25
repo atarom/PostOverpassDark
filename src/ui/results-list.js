@@ -5,12 +5,16 @@ import { getOsmReference } from "../export/osm-identifiers.js";
 const HEIGHT = 48;
 const OVERSCAN = 5;
 const format = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 });
+const collator = new Intl.Collator("es", { sensitivity: "base", numeric: false });
+const tagText = (tags, key) => {
+  const value = Object.hasOwn(tags, key) ? tags[key] : null;
+  return value == null ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
+};
 const fallback = (tags) => tags.leisure === "swimming_pool" ? "Piscina" : tags.building ? "Edificio" : tags.highway ? "Vía" : tags.waterway ? "Curso de agua" : tags.natural ? "Elemento natural" : tags.amenity || tags.shop || "Elemento OSM";
 const labelOf = (feature, key = "name") => {
   const p = feature?.properties || {};
   const tags = featureTags(feature);
-  const value = Object.hasOwn(tags, key) ? tags[key] : null;
-  const text = value == null ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
+  const text = tagText(tags, key);
   const name = key === "name" ? tags.name || tags["name:ca"] || tags["name:es"] || tags.ref || fallback(tags) : text.trim() ? text : `Sin ${key}`;
   const reference = getOsmReference(feature);
   const type = reference?.type || p.osm_type || p.type || "";
@@ -70,24 +74,26 @@ export const createResultsList = ({ container, controller, getIds }) => {
   sortBar.className = "pod-results-sort";
   sortBar.hidden = true;
   const metricLabel = document.createElement("label");
-  metricLabel.textContent = "Ordenar por ";
+  metricLabel.className = "pod-results-sort-source";
+  metricLabel.textContent = "Ordenar por";
   const metric = document.createElement("select");
   metric.setAttribute("aria-label", "Característica para ordenar");
   metricLabel.append(metric);
-  const metricName = document.createElement("span");
-  metricName.className = "pod-results-sort-name";
-  const directionLabel = document.createElement("label");
-  directionLabel.textContent = "Orden ";
+  const sortType = document.createElement("select");
+  sortType.setAttribute("aria-label", "Tipo de ordenación");
   const direction = document.createElement("select");
   direction.setAttribute("aria-label", "Sentido de ordenación");
-  for (const [value, label] of [["asc", "Menor → mayor"], ["desc", "Mayor → menor"], ["original", "Original"]]) {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = label;
-    direction.append(option);
-  }
-  directionLabel.append(direction);
-  sortBar.append(metricLabel, metricName, directionLabel);
+  const addOptions = (select, choices) => {
+    for (const [value, label] of choices) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      select.append(option);
+    }
+  };
+  addOptions(sortType, [["alpha", "Alfabético"], ["number", "Numérico"]]);
+  addOptions(direction, [["asc", "Ascendente"], ["desc", "Descendente"]]);
+  sortBar.append(metricLabel, sortType, direction);
   const scroller = document.createElement("div");
   scroller.className = "pod-results-scroller";
   scroller.setAttribute("aria-label", "Lista de entidades");
@@ -178,6 +184,8 @@ export const createResultsList = ({ container, controller, getIds }) => {
     labelKey.value = titleKey;
   };
   let opts = {};
+  let sortChoice = null;
+  let labelSortType = "alpha";
   let entries = [];
   let scan = 0;
   let paint = 0;
@@ -191,41 +199,52 @@ export const createResultsList = ({ container, controller, getIds }) => {
     ...(opts.numericEnabled && opts.numericKey ? [{ key: "numeric", label: opts.numericKey }] : []),
     ...(opts.spatialEnabled && opts.spatialScores ? [{ key: "spatial", label: opts.spatialMethod === "auto" ? "Aislamiento · Rareza" : opts.spatialMethod === "distance" ? "Aislamiento · Distancia mínima" : "Aislamiento · Distancia" }] : [])
   ];
-  const selectedMetric = () => availableMetrics().find(({ key }) => key === metric.value)?.key || "";
+  const selectedMetric = () => {
+    const choices = availableMetrics();
+    return choices.find(({ key }) => key === metric.value)?.key || choices[0]?.key || "";
+  };
   const getMetricValue = (index, key = selectedMetric()) => {
     if (key === "geometry") return opts.geometryValues?.[index] ?? NaN;
     if (key === "spatial") return opts.spatialScores?.[index] ?? NaN;
     if (key === "numeric") return numericValue(featureTags(collection?.features[index])[opts.numericKey]);
     return NaN;
   };
+  const syncSortControls = () => {
+    const byLabel = metric.value === "label";
+    sortType.disabled = !byLabel;
+    sortType.value = byLabel ? labelSortType : "number";
+    direction.disabled = metric.value === "original";
+  };
   const syncSort = () => {
-    const choices = availableMetrics();
-    const previous = metric.value;
-    metric.replaceChildren(...choices.map(({ key, label }) => {
-      const option = document.createElement("option");
-      option.value = key;
-      option.textContent = label;
-      return option;
-    }));
-    if (choices.some(({ key }) => key === previous)) metric.value = previous;
-    sortBar.hidden = !collection || !choices.length;
-    metricLabel.hidden = choices.length < 2;
-    metricName.hidden = choices.length !== 1;
-    metricName.textContent = choices.length === 1 ? `Por: ${choices[0].label}` : "";
+    const metrics = availableMetrics();
+    const choices = [["original", "Orden original"], ["label", "Valor de la key"], ...metrics.map(({ key, label }) => [key, label])];
+    metric.replaceChildren();
+    addOptions(metric, choices);
+    metric.value = choices.some(([key]) => key === sortChoice) ? sortChoice : sortChoice === null ? metrics[0]?.key || "original" : "original";
+    sortBar.hidden = !collection;
+    syncSortControls();
   };
   const sortEntries = () => {
-    const key = selectedMetric();
-    if (!key || direction.value === "original") entries.sort((a, b) => a - b);
+    const key = metric.value;
+    if (key === "original" || !key) entries.sort((a, b) => a - b);
     else {
-      const values = new Map(entries.map((index) => [index, getMetricValue(index, key)]));
+      const byLabel = key === "label";
+      const alphabetical = byLabel && labelSortType === "alpha";
+      const values = new Map(entries.map((index) => {
+        if (!byLabel) return [index, getMetricValue(index, key)];
+        const text = tagText(featureTags(collection.features[index]), titleKey).trim();
+        return [index, alphabetical ? text : numericValue(text)];
+      }));
       const sign = direction.value === "desc" ? -1 : 1;
       entries.sort((a, b) => {
         const firstValue = values.get(a);
         const secondValue = values.get(b);
-        const firstValid = Number.isFinite(firstValue);
-        const secondValid = Number.isFinite(secondValue);
+        const firstValid = alphabetical ? firstValue !== "" : Number.isFinite(firstValue);
+        const secondValid = alphabetical ? secondValue !== "" : Number.isFinite(secondValue);
         if (firstValid !== secondValid) return firstValid ? -1 : 1;
-        return firstValid && secondValid ? (firstValue - secondValue) * sign || a - b : a - b;
+        if (!firstValid) return a - b;
+        const comparison = alphabetical ? collator.compare(firstValue, secondValue) : firstValue - secondValue;
+        return comparison * sign || a - b;
       });
     }
     scroller.scrollTop = 0;
@@ -461,9 +480,20 @@ export const createResultsList = ({ container, controller, getIds }) => {
   labelKey.addEventListener("change", () => {
     titleKey = labelKey.value || "name";
     first = last = -1;
-    if (!scan) render();
+    if (!scan) {
+      if (metric.value === "label") sortEntries();
+      else render();
+    }
   });
-  metric.addEventListener("change", () => { if (!scan && visible()) sortEntries(); });
+  metric.addEventListener("change", () => {
+    sortChoice = metric.value;
+    syncSortControls();
+    if (!scan && visible()) sortEntries();
+  });
+  sortType.addEventListener("change", () => {
+    labelSortType = sortType.value;
+    if (!scan && visible()) sortEntries();
+  });
   direction.addEventListener("change", () => { if (!scan && visible()) sortEntries(); });
   scroller.addEventListener("scroll", schedulePaint, { passive: true });
   scroller.addEventListener("click", (event) => {
