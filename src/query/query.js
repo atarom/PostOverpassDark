@@ -1,4 +1,5 @@
 import { abortError } from "../core/utils.js";
+import { isQLeverSelected, isQLeverTable, prepareQLever } from "./qlever.js";
 const postpassSegments = (input) => {
   const parts = [];
   let start = 0;
@@ -48,7 +49,7 @@ const postpassSegments = (input) => {
   add(input.length, true);
   return parts;
 };
-export const isPostpassTextOnly = (input) => postpassSegments(input).some((part) => part.code && /\{\{\s*data\s*:\s*sql\s*,[^{}]*\bgeojson\s*=\s*false\b[^{}]*\}\}/i.test(part.text));
+export const isPostpassTextOnly = (input) => isQLeverSelected() ? isQLeverTable(input) : postpassSegments(input).some((part) => part.code && /\{\{\s*data\s*:\s*sql\s*,[^{}]*\bgeojson\s*=\s*false\b[^{}]*\}\}/i.test(part.text));
 export const createQueryPreparer = ({ map, storage, areaStoreKey, log }) => {
   let areaCache = {};
   try {
@@ -129,6 +130,13 @@ export const createQueryPreparer = ({ map, storage, areaStoreKey, log }) => {
     const [east, north] = window.ol.proj.toLonLat([extent[2], extent[3]]);
     return { west, south, east, north };
   };
+  const qleverBounds = () => {
+    const view = map.getView();
+    const extent = view.calculateExtent(map.getSize() || [1024, 768]);
+    const [west, south] = window.ol.proj.transform([extent[0], extent[1]], view.getProjection(), "EPSG:4326");
+    const [east, north] = window.ol.proj.transform([extent[2], extent[3]], view.getProjection(), "EPSG:4326");
+    return { west, south, east, north };
+  };
   const coord = (value) => Number(value.toFixed(7));
   const prepOverpass = async (input, signal) => {
     const vars = new Map();
@@ -150,5 +158,5 @@ export const createQueryPreparer = ({ map, storage, areaStoreKey, log }) => {
     }
     return parts.map((part) => part.text).join("").trim();
   };
-  return { prep: (text, signal, engine) => engine === "postpass" ? prepPostpass(text, signal) : prepOverpass(text, signal) };
+  return { prep: (text, signal, engine) => engine === "postpass" && isQLeverSelected() ? Promise.resolve(prepareQLever(text, qleverBounds)) : engine === "postpass" ? prepPostpass(text, signal) : prepOverpass(text, signal) };
 };

@@ -1,3 +1,5 @@
+import { QLEVER_ENDPOINT } from "../core/servers.js";
+import { requestQLever } from "./qlever.js";
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const KEY = "postoverpassdark:overpass-api.de";
 const CACHE_MS = 300000;
@@ -8,6 +10,7 @@ const MAX_CACHE_CHARS = 2000000;
 export const createOverpassRequester = (storage) => {
   const cache = new Map();
   const read = async (url, body, signal) => {
+    if (url === QLEVER_ENDPOINT) return requestQLever(url, body, signal);
     const options = { method: "POST", body, signal, cache: "no-store" };
     if (url !== OVERPASS_URL) {
       const response = await fetch(url, options);

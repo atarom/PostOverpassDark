@@ -1,5 +1,6 @@
 import { createDrawingEditor } from "../map/drawing-editor.js";
 import { createEliBasemaps } from "../map/eli-basemaps.js";
+import { installQLeverUI } from "../query/qlever-ui.js";
 const searchStylesheet = document.createElement("link");
 searchStylesheet.rel = "stylesheet";
 searchStylesheet.href = new URL("../query/codemirror-search.css", import.meta.url).href;
@@ -50,5 +51,7 @@ export const loadDependencies = async () => {
     import("@codemirror/search")
   ]);
   enableDrawingEditor(ol);
-  return { ol, ...view, ...state, ...language, ...autocomplete, ...lint, ...highlight, ...sql, ...commands, ...search };
+  const deps = { ol, ...view, ...state, ...language, ...autocomplete, ...lint, ...highlight, ...sql, ...commands, ...search };
+  requestAnimationFrame(() => installQLeverUI(deps));
+  return deps;
 };
