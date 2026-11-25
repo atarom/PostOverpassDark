@@ -110,8 +110,9 @@ export const createResultsList = ({ container, controller, getIds }) => {
   toggle.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15m3-11h5m-5 4h5m-5 4h5"/></svg>';
   (mapbox.querySelector(".pod-sidebar-control") || mapbox).append(toggle);
   const desktop = matchMedia("(min-width: 1050px)");
-  const visibilityKey = () => desktop.matches ? "visible" : "visible-mobile";
-  const preferredVisibility = () => (readPreference(visibilityKey()) ?? (desktop.matches ? "true" : "false")) === "true";
+  let manualOpen = false;
+  let dismissed = false;
+  let filterActive = false;
   let desiredWidth = Math.max(240, Number(readPreference("width")) || 300);
   let dragging = null;
   const visible = () => !panel.hidden;
@@ -231,9 +232,13 @@ export const createResultsList = ({ container, controller, getIds }) => {
     const start = Math.max(0, Math.floor(scroller.scrollTop / HEIGHT) - OVERSCAN);
     const end = Math.min(entries.length, Math.ceil((scroller.scrollTop + (scroller.clientHeight || HEIGHT * 5)) / HEIGHT) + OVERSCAN);
     if (first !== start || last !== end || focus >= 0) {
+      const top = scroller.scrollTop;
       const nodes = [];
       for (let i = start; i < end; i++) nodes.push(makeRow(i));
+      upper.style.height = `${start * HEIGHT}px`;
+      lower.style.height = `${(entries.length - end) * HEIGHT}px`;
       scroller.replaceChildren(upper, ...nodes, lower);
+      scroller.scrollTop = top;
       first = start;
       last = end;
     } else {
@@ -282,7 +287,10 @@ export const createResultsList = ({ container, controller, getIds }) => {
     cancelAnimationFrame(scan);
     scan = 0;
     actions.hidden = !collection;
-    title.textContent = controller.hasResultFilter() ? "Elementos filtrados" : "Elementos";
+    const active = Boolean(collection && controller.hasResultFilter());
+    if (active !== filterActive) { dismissed = false; filterActive = active; }
+    title.textContent = active ? "Elementos filtrados" : "Elementos";
+    setVisible(manualOpen || (active && !dismissed));
     if (!collection) {
       amount.textContent = "";
       resetRows("Ejecuta una consulta para ver sus elementos.");
@@ -301,6 +309,8 @@ export const createResultsList = ({ container, controller, getIds }) => {
   const setData = (next, nextOpts) => {
     cancelAnimationFrame(scan);
     collection = next?.features ? next : null;
+    filterActive = false;
+    dismissed = false;
     direction.value = "asc";
     selected = null;
     idsExporter.setData(Boolean(collection));
@@ -312,13 +322,15 @@ export const createResultsList = ({ container, controller, getIds }) => {
     scan = paint = 0;
     collection = null;
     selected = null;
+    filterActive = dismissed = false;
+    setVisible(manualOpen);
     idsExporter.setData(false);
     actions.hidden = sortBar.hidden = true;
     title.textContent = "Elementos";
     amount.textContent = "";
     resetRows("Ejecuta una consulta para ver sus elementos.");
   };
-  const setVisible = (open, persist = false) => {
+  const setVisible = (open) => {
     const changed = visible() !== open;
     panel.hidden = !open;
     resizer.hidden = !open || !desktop.matches;
@@ -326,10 +338,8 @@ export const createResultsList = ({ container, controller, getIds }) => {
     toggle.setAttribute("aria-expanded", String(open));
     toggle.title = open ? "Ocultar elementos" : "Mostrar elementos";
     toggle.setAttribute("aria-label", toggle.title);
-    if (persist) savePreference(visibilityKey(), open);
     syncWidth();
-    if (changed && collection) refresh();
-    requestAnimationFrame(() => controller.map?.updateSize());
+    if (changed) requestAnimationFrame(() => controller.map?.updateSize());
   };
   const resizeTo = (value, persist = false) => {
     const max = Math.max(240, app.clientWidth - (app.classList.contains("pod-sidebar-hidden") ? 328 : 656));
@@ -337,10 +347,14 @@ export const createResultsList = ({ container, controller, getIds }) => {
     syncWidth();
     if (persist) savePreference("width", desiredWidth);
   };
-  toggle.onclick = () => setVisible(!visible(), true);
-  close.onclick = () => { setVisible(false, true); toggle.focus(); };
-  panel.addEventListener("keydown", (event) => { if (event.key === "Escape") { event.stopPropagation(); setVisible(false, true); toggle.focus(); } });
-  desktop.addEventListener("change", () => setVisible(preferredVisibility()));
+  const hide = () => { manualOpen = false; dismissed = filterActive; refresh(); };
+  toggle.onclick = () => {
+    if (visible()) hide();
+    else { manualOpen = !filterActive; dismissed = false; refresh(); }
+  };
+  close.onclick = () => { hide(); toggle.focus(); };
+  panel.addEventListener("keydown", (event) => { if (event.key === "Escape") { event.stopPropagation(); hide(); toggle.focus(); } });
+  desktop.addEventListener("change", () => { setVisible(visible()); schedulePaint(); });
   resizer.addEventListener("pointerdown", (event) => {
     if (event.button !== 0 || !desktop.matches) return;
     event.preventDefault();
@@ -382,6 +396,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
     selected = controller.selectResult(index);
     idsExporter.refresh();
     render();
+    if (selected !== null && !desktop.matches) { hide(); toggle.focus(); }
   });
   scroller.addEventListener("keydown", (event) => {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
@@ -395,6 +410,6 @@ export const createResultsList = ({ container, controller, getIds }) => {
   });
   all.onclick = () => { controller.clearResultSelection(true); selected = null; idsExporter.refresh(); render(); };
   const clearSelected = () => { selected = null; render(); };
-  setVisible(preferredVisibility());
+  setVisible(false);
   return { refresh, setData, clear, clearSelected };
 };

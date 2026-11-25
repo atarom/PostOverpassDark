@@ -447,6 +447,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     return mask;
   };
   const clearResultSelection = (zoom = false) => {
+    if (selectedIndex !== null && popupIndex === selectedIndex) closePopup();
     selectedIndex = null;
     selectionSource.clear(true);
     if (zoom) fit(rendered);
@@ -465,7 +466,11 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     view.cancelAnimations();
     if (shape.getType() === "Point" || (extent[0] === extent[2] && extent[1] === extent[3])) view.animate({ center: [(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2], zoom: 18, duration: 250 });
     else view.fit(extent, { padding: [65, 65, 65, 65], maxZoom: 19, duration: 250 });
-    closePopup();
+    popupHits = [index];
+    const center = [(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2];
+    const anchor = shape.intersectsCoordinate(center) ? center : shape.getClosestPoint(center);
+    popupAnchor = anchor?.length >= 2 && anchor.slice(0, 2).every(Number.isFinite) ? anchor.slice(0, 2) : center;
+    showPopupHit(0);
     return selectedIndex;
   };
   const purge = (indices) => {
