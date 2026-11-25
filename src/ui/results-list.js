@@ -1,5 +1,6 @@
 import { featureTags, numericValue } from "../analysis/analysis.js";
 import { shapeReason } from "../analysis/shape-analysis.js";
+import { purgeIcon } from "../analysis/purge-controls.js";
 import { createIdsExporter } from "../export/ids-export.js";
 import { getOsmReference } from "../export/osm-identifiers.js";
 const HEIGHT = 48;
@@ -20,7 +21,7 @@ const labelOf = (feature, key = "name") => {
   const type = reference?.type || p.osm_type || p.type || "";
   const id = reference?.id ?? p.osm_id ?? p.id ?? feature.id ?? "";
   const ref = String(id).includes("/") ? String(id) : type && id !== "" ? `${type}/${id}` : String(id);
-  return { name: String(name), ref };
+  return { name: String(name), ref, reference };
 };
 const readPreference = (key) => { try { return localStorage.getItem(`postoverpassdark:results-${key}`); } catch { return null; } };
 const savePreference = (key, value) => { try { localStorage.setItem(`postoverpassdark:results-${key}`, String(value)); } catch {} };
@@ -181,7 +182,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
     labelKey.value = titleKey;
   };
   let opts = {};
-  let sortChoice = "label";
+  let firstMetric = "";
   let entries = [];
   let scan = 0;
   let paint = 0;
@@ -195,11 +196,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
     ...(opts.numericEnabled && opts.numericKey ? [{ key: "numeric", label: opts.numericKey }] : []),
     ...(opts.spatialEnabled && opts.spatialScores ? [{ key: "spatial", label: opts.spatialMethod === "auto" ? "Aislamiento · Rareza" : opts.spatialMethod === "distance" ? "Aislamiento · Distancia mínima" : "Aislamiento · Distancia" }] : [])
   ];
-  const selectedMetric = () => {
-    const choices = availableMetrics();
-    return choices.find(({ key }) => key === metric.value)?.key || choices[0]?.key || "";
-  };
-  const getMetricValue = (index, key = selectedMetric()) => {
+  const getMetricValue = (index, key) => {
     if (key === "geometry") return opts.geometryValues?.[index] ?? NaN;
     if (key === "spatial") return opts.spatialScores?.[index] ?? NaN;
     if (key === "numeric") return numericValue(featureTags(collection?.features[index])[opts.numericKey]);
@@ -208,10 +205,11 @@ export const createResultsList = ({ container, controller, getIds }) => {
   const syncSort = () => {
     const metrics = availableMetrics();
     const choices = [["label", "Valor de la key"], ...metrics.map(({ key, label }) => [key, label])];
+    const previous = metric.value;
+    firstMetric = metrics[0]?.key || "";
     metric.replaceChildren();
     addOptions(metric, choices);
-    sortChoice = choices.some(([key]) => key === sortChoice) ? sortChoice : "label";
-    metric.value = sortChoice;
+    metric.value = choices.some(([key]) => key === previous) ? previous : "label";
     metricLabel.hidden = !metrics.length;
     sortBar.hidden = !collection;
   };
@@ -243,7 +241,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
     render();
   };
   const displayMeasure = (index) => {
-    const key = selectedMetric();
+    const key = metric.value === "label" ? firstMetric : metric.value;
     const val = getMetricValue(index, key);
     if (!Number.isFinite(val)) return "";
     if (key === "geometry") {
@@ -261,7 +259,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
   };
   const makeRow = (pos) => {
     const index = entries[pos];
-    const { name, ref } = labelOf(collection.features[index], titleKey);
+    const { name, ref, reference } = labelOf(collection.features[index], titleKey);
     const row = document.createElement("button");
     row.type = "button";
     row.className = "pod-result-row";
@@ -289,7 +287,6 @@ export const createResultsList = ({ container, controller, getIds }) => {
     const item = document.createElement("div");
     item.className = "pod-result-item";
     item.append(row);
-    const reference = getOsmReference(collection.features[index]);
     if (reference?.type && reference?.id) {
       const purge = document.createElement("button");
       purge.type = "button";
@@ -297,7 +294,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
       purge.dataset.purgePosition = String(pos);
       purge.title = `Purgar ${ref} de POD (no modifica OSM)`;
       purge.setAttribute("aria-label", purge.title);
-      purge.innerHTML = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.2"/><path d="m9 9 6 6m0-6-6 6"/></svg>';
+      purge.innerHTML = purgeIcon;
       item.append(purge);
     }
     return item;
@@ -476,10 +473,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
       else render();
     }
   });
-  metric.addEventListener("change", () => {
-    sortChoice = metric.value;
-    if (!scan && visible()) sortEntries();
-  });
+  metric.addEventListener("change", () => { if (!scan && visible()) sortEntries(); });
   direction.addEventListener("change", () => { if (!scan && visible()) sortEntries(); });
   scroller.addEventListener("scroll", schedulePaint, { passive: true });
   scroller.addEventListener("click", (event) => {
