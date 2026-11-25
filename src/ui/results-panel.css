@@ -9,7 +9,7 @@
 .pod-results-panel .pod-results-sort { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; }
 .pod-results-panel .pod-results-sort .pod-results-sort-source { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; margin: 0; }
 .pod-results-panel .pod-results-sort select { width: 100%; max-width: none; min-width: 0; padding: 5px 7px; font-size: 11px; }
-.pod-results-panel .pod-results-sort select:disabled { opacity: 0.55; }
+.pod-results-panel .pod-results-sort .pod-results-sort-source[hidden] { display: none; }
 .pod-results-panel .pod-results-label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; flex: none; margin: 0 0 7px; color: var(--m); font-size: 11px; }
 .pod-results-panel .pod-results-label[hidden] { display: none; }
 .pod-results-panel .pod-results-label select { width: 100%; min-width: 0; padding: 5px 7px; font-size: 11px; }

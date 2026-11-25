@@ -181,7 +181,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
     labelKey.value = titleKey;
   };
   let opts = {};
-  let sortChoice = null;
+  let sortChoice = "label";
   let entries = [];
   let scan = 0;
   let paint = 0;
@@ -205,44 +205,39 @@ export const createResultsList = ({ container, controller, getIds }) => {
     if (key === "numeric") return numericValue(featureTags(collection?.features[index])[opts.numericKey]);
     return NaN;
   };
-  const syncSortControls = () => {
-    direction.disabled = metric.value === "original";
-  };
   const syncSort = () => {
     const metrics = availableMetrics();
-    const choices = [["original", "Orden original"], ["label", "Valor de la key"], ...metrics.map(({ key, label }) => [key, label])];
+    const choices = [["label", "Valor de la key"], ...metrics.map(({ key, label }) => [key, label])];
     metric.replaceChildren();
     addOptions(metric, choices);
-    metric.value = choices.some(([key]) => key === sortChoice) ? sortChoice : sortChoice === null ? metrics[0]?.key || "original" : "original";
+    sortChoice = choices.some(([key]) => key === sortChoice) ? sortChoice : "label";
+    metric.value = sortChoice;
+    metricLabel.hidden = !metrics.length;
     sortBar.hidden = !collection;
-    syncSortControls();
   };
   const sortEntries = () => {
-    const key = metric.value;
-    if (key === "original" || !key) entries.sort((a, b) => a - b);
-    else {
-      const byLabel = key === "label";
-      const values = new Map(entries.map((index) => {
-        if (!byLabel) {
-          const value = getMetricValue(index, key);
-          return [index, Number.isFinite(value) ? value : null];
-        }
-        const text = tagText(featureTags(collection.features[index]), titleKey).trim();
-        const number = /^[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)(?:e[+-]?\d+)?$/i.test(text) ? numericValue(text) : NaN;
-        return [index, Number.isFinite(number) ? number : text || null];
-      }));
-      const sign = direction.value === "desc" ? -1 : 1;
-      entries.sort((a, b) => {
-        const firstValue = values.get(a);
-        const secondValue = values.get(b);
-        if (firstValue === null || secondValue === null) return firstValue === secondValue ? a - b : firstValue === null ? 1 : -1;
-        const firstNumeric = typeof firstValue === "number";
-        const secondNumeric = typeof secondValue === "number";
-        if (firstNumeric !== secondNumeric) return firstNumeric ? -1 : 1;
-        const comparison = firstNumeric ? firstValue - secondValue : collator.compare(firstValue, secondValue);
-        return comparison * sign || a - b;
-      });
-    }
+    const key = metric.value || "label";
+    const byLabel = key === "label";
+    const values = new Map(entries.map((index) => {
+      if (!byLabel) {
+        const value = getMetricValue(index, key);
+        return [index, Number.isFinite(value) ? value : null];
+      }
+      const text = tagText(featureTags(collection.features[index]), titleKey).trim();
+      const number = /^[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)(?:e[+-]?\d+)?$/i.test(text) ? numericValue(text) : NaN;
+      return [index, Number.isFinite(number) ? number : text || null];
+    }));
+    const sign = direction.value === "desc" ? -1 : 1;
+    entries.sort((a, b) => {
+      const firstValue = values.get(a);
+      const secondValue = values.get(b);
+      if (firstValue === null || secondValue === null) return firstValue === secondValue ? a - b : firstValue === null ? 1 : -1;
+      const firstNumeric = typeof firstValue === "number";
+      const secondNumeric = typeof secondValue === "number";
+      if (firstNumeric !== secondNumeric) return firstNumeric ? -1 : 1;
+      const comparison = firstNumeric ? firstValue - secondValue : collator.compare(firstValue, secondValue);
+      return comparison * sign || a - b;
+    });
     scroller.scrollTop = 0;
     first = last = -1;
     render();
@@ -483,7 +478,6 @@ export const createResultsList = ({ container, controller, getIds }) => {
   });
   metric.addEventListener("change", () => {
     sortChoice = metric.value;
-    syncSortControls();
     if (!scan && visible()) sortEntries();
   });
   direction.addEventListener("change", () => { if (!scan && visible()) sortEntries(); });
