@@ -457,10 +457,8 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
   };
   const setResultViewLocked = (locked) => {
     resultViewLocked = Boolean(locked);
-    if (popupFromList) {
-      if (resultViewLocked) map.getView().cancelAnimations();
-      positionPopup();
-    }
+    if (resultViewLocked) map.getView().cancelAnimations();
+    if (popupFromList) positionPopup();
   };
   const selectResult = (index) => {
     if (selectedIndex === index) { clearResultSelection(!resultViewLocked); return null; }
@@ -868,7 +866,7 @@ export const createMapController = ({ ol, storage, heatStoreKey, renderMode, hea
     vectorSource.addFeatures(rendered);
     heatLayer.setSource(heatShared ? vectorSource : heatSource);
     heatReady = heatShared;
-    if (fitBounds) fit(rendered);
+    if (fitBounds && !resultViewLocked) fit(rendered);
     render();
     resultsChanged?.();
   };

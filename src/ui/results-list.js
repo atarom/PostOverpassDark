@@ -43,14 +43,7 @@ export const createResultsList = ({ container, controller, getIds }) => {
   close.textContent = "×";
   close.title = "Ocultar elementos";
   close.setAttribute("aria-label", close.title);
-  const viewLock = document.createElement("button");
-  viewLock.type = "button";
-  viewLock.className = "pod-results-view-lock";
-  viewLock.setAttribute("aria-label", "Bloquear zoom y centrado automáticos");
-  viewLock.setAttribute("aria-pressed", "false");
-  viewLock.title = "Bloquear zoom y centrado automáticos";
-  viewLock.innerHTML = '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path class="pod-lock-open" d="M8 11V7a4 4 0 0 1 8 0"/><path class="pod-lock-closed" d="M8 11V7a4 4 0 0 1 8 0v4"/><path d="M12 15v2"/></svg>';
-  heading.append(title, amount, viewLock, close);
+  heading.append(title, amount, close);
   const body = document.createElement("div");
   body.className = "pod-results-body";
   const actions = document.createElement("div");
@@ -58,13 +51,6 @@ export const createResultsList = ({ container, controller, getIds }) => {
   actions.hidden = true;
   const hint = document.createElement("span");
   hint.textContent = "Selecciona para localizar";
-  viewLock.onclick = () => {
-    const locked = viewLock.getAttribute("aria-pressed") !== "true";
-    viewLock.setAttribute("aria-pressed", String(locked));
-    viewLock.title = locked ? "Activar zoom y centrado automáticos" : "Bloquear zoom y centrado automáticos";
-    hint.textContent = locked ? "Vista bloqueada" : "Selecciona para localizar";
-    controller.setResultViewLocked(locked);
-  };
   const all = document.createElement("button");
   all.type = "button";
   all.textContent = "⛶ Todos";
@@ -122,7 +108,26 @@ export const createResultsList = ({ container, controller, getIds }) => {
   toggle.className = "pod-results-toggle";
   toggle.setAttribute("aria-controls", panel.id);
   toggle.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15m3-11h5m-5 4h5m-5 4h5"/></svg>';
-  (mapbox.querySelector(".pod-sidebar-control") || mapbox).append(toggle);
+  const mapControls = mapbox.querySelector(".pod-sidebar-control") || mapbox;
+  const viewLock = document.createElement("button");
+  viewLock.type = "button";
+  viewLock.className = "pod-map-view-lock";
+  let viewLocked = false;
+  const updateViewLock = () => {
+    viewLock.setAttribute("aria-pressed", String(viewLocked));
+    viewLock.setAttribute("aria-label", "Bloquear zoom y centrado automáticos");
+    viewLock.title = viewLocked ? "Desbloquear zoom y centrado automáticos" : "Bloquear zoom y centrado automáticos";
+    const shackle = viewLocked ? "M8 11V7a4 4 0 0 1 8 0v4" : "M8 11V7a4 4 0 0 1 8 0v1";
+    viewLock.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="${shackle}"/><path d="M12 15v2"/></svg>`;
+    hint.textContent = viewLocked ? "Vista bloqueada" : "Selecciona para localizar";
+  };
+  viewLock.onclick = () => {
+    viewLocked = !viewLocked;
+    controller.setResultViewLocked(viewLocked);
+    updateViewLock();
+  };
+  updateViewLock();
+  mapControls.append(toggle, viewLock);
   const desktop = matchMedia("(min-width: 1050px)");
   let manualOpen = false;
   let dismissed = false;

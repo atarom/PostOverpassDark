@@ -3,9 +3,6 @@
 .pod-results-panel .pod-results-head { display: flex; flex: none; align-items: center; gap: 6px; min-height: 44px; padding: 6px 8px 6px 10px; background: var(--p2); border-bottom: 1px solid var(--b); }
 .pod-results-head strong { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pod-results-head button { flex: none; width: 32px; height: 32px; padding: 0; font-size: 20px; line-height: 1; }
-.pod-results-head .pod-results-view-lock { display: grid; place-items: center; color: var(--m); }
-.pod-results-head .pod-results-view-lock[aria-pressed="true"] { background: var(--a); border-color: var(--a); color: var(--bg); }
-.pod-results-view-lock[aria-pressed="false"] .pod-lock-closed, .pod-results-view-lock[aria-pressed="true"] .pod-lock-open { display: none; }
 .pod-results-panel .pod-results-body { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; overflow: hidden; padding: 8px; }
 .pod-results-panel .pod-results-actions, .pod-results-panel .pod-results-sort { flex: none; }
 .pod-results-panel .pod-results-sort[hidden], .pod-results-panel .pod-results-actions[hidden] { display: none; }
@@ -27,6 +24,9 @@
 .pod-results-resizer:hover::after, .pod-results-resizer:focus-visible::after, .app.pod-results-resizing .pod-results-resizer::after { background: var(--ah); }
 .pod-results-resizer:focus-visible { outline: 2px solid var(--a); outline-offset: -1px; }
 .app.pod-results-resizing { user-select: none; }
+#map .ol-control .pod-map-view-lock, .mapbox > .pod-map-view-lock { display: grid; place-items: center; padding: 0; color: var(--m); }
+#map .ol-control .pod-map-view-lock[aria-pressed="true"], #map .ol-control .pod-map-view-lock[aria-pressed="true"]:hover, .mapbox > .pod-map-view-lock[aria-pressed="true"] { background: var(--a); color: var(--bg); }
+.mapbox > .pod-map-view-lock { position: absolute; top: 0.5em; left: calc(6.3em + 35px); z-index: 2; width: 34px; height: 34px; }
 #map .pod-sidebar-control { display: flex; gap: 1px; }
 #map .pod-results-toggle { display: grid; place-items: center; padding: 0; }
 #map .pod-results-toggle[aria-expanded="true"] { color: var(--ah); background: var(--p2); }
