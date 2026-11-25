@@ -9,6 +9,14 @@
 .pod-results-panel .pod-results-scroller { flex: 1 1 0; height: auto; min-height: 0; max-height: none; overflow: auto; }
 .pod-results-panel .pod-results-scroller[hidden] { display: none; }
 .pod-results-panel .pod-results-empty { flex: none; }
+.pod-result-item { display: flex; align-items: stretch; height: 48px; min-height: 48px; }
+.pod-result-item .pod-result-row { flex: 1 1 0; min-width: 0; }
+.pod-result-purge { display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 48px; padding: 0; margin: 0; border: 0; border-left: 1px solid var(--b); border-bottom: 1px solid var(--b); border-radius: 0; background: transparent; color: var(--d); }
+.pod-result-purge:hover { background: #392820; color: var(--d); }
+.pod-result-purge:focus-visible { outline: 2px solid var(--d); outline-offset: -2px; }
+@media (pointer: coarse) {
+  .pod-result-purge { flex-basis: 44px; width: 44px; }
+}
 .pod-results-resizer { position: relative; background: var(--bg); cursor: col-resize; touch-action: none; }
 .pod-results-resizer::before { content: ""; position: absolute; inset: 0 3px; background: var(--b); }
 .pod-results-resizer::after { content: ""; position: absolute; top: 50%; left: 2px; width: 4px; height: 34px; transform: translateY(-50%); border-radius: 2px; background: var(--b2); }

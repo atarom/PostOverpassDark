@@ -223,7 +223,21 @@ export const createResultsList = ({ container, controller, getIds }) => {
     measure.className = "pod-result-measure";
     measure.textContent = displayMeasure(index);
     row.append(info, measure);
-    return row;
+    const item = document.createElement("div");
+    item.className = "pod-result-item";
+    item.append(row);
+    const reference = getOsmReference(collection.features[index]);
+    if (filterActive && reference?.type && reference?.id) {
+      const purge = document.createElement("button");
+      purge.type = "button";
+      purge.className = "pod-result-purge";
+      purge.dataset.purgePosition = String(pos);
+      purge.title = `Purgar ${ref} de POD (no modifica OSM)`;
+      purge.setAttribute("aria-label", purge.title);
+      purge.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.2"/><path d="m9 9 6 6m0-6-6 6"/></svg>';
+      item.append(purge);
+    }
+    return item;
   };
   const render = (focus = -1) => {
     cancelAnimationFrame(paint);
@@ -389,6 +403,12 @@ export const createResultsList = ({ container, controller, getIds }) => {
   direction.addEventListener("change", () => { if (!scan && visible()) sortEntries(); });
   scroller.addEventListener("scroll", schedulePaint, { passive: true });
   scroller.addEventListener("click", (event) => {
+    const purge = event.target.closest(".pod-result-purge");
+    if (purge) {
+      const index = entries[Number(purge.dataset.purgePosition)];
+      if (filterActive && index !== undefined) controller.requestResultPurge(index);
+      return;
+    }
     const row = event.target.closest(".pod-result-row");
     if (!row) return;
     const index = entries[Number(row.dataset.position)];
